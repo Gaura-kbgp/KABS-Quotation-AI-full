@@ -4,9 +4,12 @@ WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
+# Ensure public and static directories exist (avoid COPY errors if empty)
+RUN mkdir -p public .next/static
 # We set this to true for standalone output
 ENV NEXT_OUTPUT=standalone
 RUN npm run build
+
 
 # Stage 2: Build Backend (FastAPI) and Final Image
 FROM python:3.11-slim AS final
