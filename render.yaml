@@ -1,36 +1,27 @@
-# Render Blueprint Configuration
-# This file automatically sets up the Frontend and Backend services on Render.
+# Single-Service Docker Blueprint for KABS Quotation AI
+# This file deploys both frontend and backend in one shot using a unified Docker image.
 
 services:
-  # Python Backend Service (FastAPI)
   - type: web
-    name: kabs-quotation-backend
-    env: python
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    name: kabs-quotation-fullstack
+    env: docker
+    plan: starter # Starter or better for build memory
     envVars:
+      # --- Backend Settings ---
       - key: SUPABASE_URL
         sync: false
-      - key: SUPABASE_KEY
+      - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      - key: PORT
-        value: 8000
-
-  # Next.js Frontend Service
-  - type: web
-    name: kabs-quotation-frontend
-    env: node
-    plan: starter # Starter or better for build memory
-    buildCommand: cd frontend && npm install && npm run build
-    startCommand: cd frontend && npm run start
-    envVars:
+      
+      # --- Frontend Settings ---
       - key: NEXT_PUBLIC_SUPABASE_URL
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false
-      - key: NEXT_PUBLIC_BACKEND_URL # Point this to the backend's URL on Render
-        sync: false
-      - key: PORT
-        value: 3000
+      - key: BACKEND_URL
+        value: http://localhost:8000
+      - key: NEXT_PUBLIC_BACKEND_URL 
+        value: http://localhost:8000
+
