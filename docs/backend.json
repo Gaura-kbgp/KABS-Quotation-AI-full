@@ -1,0 +1,108 @@
+
+{
+  "entities": {
+    "Manufacturer": {
+      "title": "Manufacturer",
+      "description": "Details of a product manufacturer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "name": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Inactive"] },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "ManufacturerFile": {
+      "title": "Manufacturer File",
+      "description": "Technical or pricing document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "manufacturer_id": { "type": "string", "format": "uuid" },
+        "file_type": { "type": "string", "enum": ["spec", "pricing"] },
+        "file_name": { "type": "string" },
+        "file_url": { "type": "string" },
+        "file_format": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ManufacturerPricing": {
+      "title": "Manufacturer Pricing",
+      "description": "Normalized pricing records from Admin uploads",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "manufacturer_id": { "type": "string", "format": "uuid" },
+        "collection_name": { "type": "string" },
+        "door_style": { "type": "string" },
+        "sku": { "type": "string" },
+        "price": { "type": "number" },
+        "raw_source_file_id": { "type": "string", "format": "uuid" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "NkbaRule": {
+      "title": "NKBA Rule",
+      "description": "Official NKBA standards document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "version": { "type": "string" },
+        "file_name": { "type": "string" },
+        "file_url": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "QuotationProject": {
+      "title": "Quotation Project",
+      "description": "An AI-powered quotation session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "project_name": { "type": "string" },
+        "status": { "type": "string", "enum": ["Draft", "Reviewed", "Priced"] },
+        "manufacturer_id": { "type": "string", "format": "uuid" },
+        "selected_collection": { "type": "string" },
+        "selected_door_style": { "type": "string" },
+        "selected_finish": { "type": "string" },
+        "selected_hardware": { "type": "string" },
+        "raw_pdf_url": { "type": "string" },
+        "extracted_data": { "type": "object" },
+        "bom_data": { "type": "object" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "QuotationBom": {
+      "title": "Quotation BOM",
+      "description": "Line items for a quotation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "project_id": { "type": "string", "format": "uuid" },
+        "sku": { "type": "string" },
+        "matched_sku": { "type": "string" },
+        "qty": { "type": "number" },
+        "unit_price": { "type": "number" },
+        "line_total": { "type": "number" },
+        "room": { "type": "string" },
+        "collection": { "type": "string" },
+        "door_style": { "type": "string" },
+        "price_source": { "type": "string" },
+        "precision_level": { "type": "string", "enum": ["EXACT", "PARTIAL", "FUZZY", "NOT_FOUND"] },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "auth": {
+    "providers": ["password"]
+  },
+  "firestore": {
+    "/manufacturers/{id}": { "schema": "Manufacturer" },
+    "/manufacturer_files/{id}": { "schema": "ManufacturerFile" },
+    "/manufacturer_pricing/{id}": { "schema": "ManufacturerPricing" },
+    "/nkba_files/{id}": { "schema": "NkbaRule" },
+    "/quotation_projects/{id}": { "schema": "QuotationProject" },
+    "/quotation_boms/{id}": { "schema": "QuotationBom" }
+  }
+}

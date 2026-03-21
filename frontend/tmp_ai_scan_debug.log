@@ -1,0 +1,9929 @@
+[2026-03-14T13:48:36.055Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-14T13:48:45.804Z] [SCAN SUCCESS] Found 5 rooms.
+[2026-03-14T13:48:45.813Z] {
+  "rooms": [
+    {
+      "room_name": "KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042",
+          "quantity": 5
+        },
+        {
+          "code": "W3024",
+          "quantity": 1
+        },
+        {
+          "code": "W2442",
+          "quantity": 1
+        },
+        {
+          "code": "B30",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        },
+        {
+          "code": "W3624",
+          "quantity": 1
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF642",
+          "quantity": 1
+        },
+        {
+          "code": "HWC2X4X96",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUPKIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUPSPRAY",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN",
+          "quantity": 4
+        },
+        {
+          "code": "HWC1X2X94",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHTRAIL",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48",
+          "quantity": 1
+        },
+        {
+          "code": "48\"SHELFADJ",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "BATH 3",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "LAUNDRY",
+      "cabinets": [
+        {
+          "code": "UF342",
+          "quantity": 4
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "W3336",
+          "quantity": 2
+        },
+        {
+          "code": "W3036",
+          "quantity": 2
+        },
+        {
+          "code": "B33",
+          "quantity": 1
+        },
+        {
+          "code": "B30",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN",
+          "quantity": 2
+        },
+        {
+          "code": "HWC1X2X94",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHTRAIL",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-14T16:32:42.779Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-14T16:32:53.814Z] [SCAN SUCCESS] Found 5 rooms.
+[2026-03-14T16:32:53.819Z] {
+  "rooms": [
+    {
+      "room_name": "KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042",
+          "quantity": 5
+        },
+        {
+          "code": "W3024",
+          "quantity": 1
+        },
+        {
+          "code": "W2442",
+          "quantity": 1
+        },
+        {
+          "code": "B30",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        },
+        {
+          "code": "W3624",
+          "quantity": 1
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF642",
+          "quantity": 1
+        },
+        {
+          "code": "HWC2X4X96",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUPKIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUPSPRAY",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN",
+          "quantity": 4
+        },
+        {
+          "code": "HWC1X2X94",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHTRAIL",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48",
+          "quantity": 1
+        },
+        {
+          "code": "48\"SHELFADJ",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "BATH 3",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "LAUNDRY",
+      "cabinets": [
+        {
+          "code": "UF342",
+          "quantity": 4
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "W3336",
+          "quantity": 2
+        },
+        {
+          "code": "W3036",
+          "quantity": 2
+        },
+        {
+          "code": "B33",
+          "quantity": 1
+        },
+        {
+          "code": "B30",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN",
+          "quantity": 2
+        },
+        {
+          "code": "HWC1X2X94",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHTRAIL",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-14T17:02:43.792Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-14T17:02:57.695Z] [SCAN SUCCESS] Found 5 rooms.
+[2026-03-14T17:02:57.703Z] {
+  "rooms": [
+    {
+      "room_name": "KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042",
+          "quantity": 5
+        },
+        {
+          "code": "W3024",
+          "quantity": 1
+        },
+        {
+          "code": "W2442",
+          "quantity": 1
+        },
+        {
+          "code": "B30",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        },
+        {
+          "code": "W3624",
+          "quantity": 1
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF642",
+          "quantity": 1
+        },
+        {
+          "code": "HWC2X4X96",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUPKIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUPSPRAY",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN",
+          "quantity": 4
+        },
+        {
+          "code": "HWC1X2X94",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHTRAIL",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48",
+          "quantity": 1
+        },
+        {
+          "code": "48\"SHELFADJ",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "BATH 3",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "LAUNDRY",
+      "cabinets": [
+        {
+          "code": "UF342",
+          "quantity": 4
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "W3336",
+          "quantity": 2
+        },
+        {
+          "code": "W3036",
+          "quantity": 2
+        },
+        {
+          "code": "B33",
+          "quantity": 1
+        },
+        {
+          "code": "B30",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN",
+          "quantity": 2
+        },
+        {
+          "code": "HWC1X2X94",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHTRAIL",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-14T18:00:27.233Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-14T18:00:39.658Z] [SCAN SUCCESS] Found 5 rooms.
+[2026-03-14T18:00:39.663Z] {
+  "rooms": [
+    {
+      "room_name": "KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042",
+          "quantity": 5
+        },
+        {
+          "code": "W3024",
+          "quantity": 1
+        },
+        {
+          "code": "W2442",
+          "quantity": 1
+        },
+        {
+          "code": "B30",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        },
+        {
+          "code": "W3624",
+          "quantity": 1
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF642",
+          "quantity": 1
+        },
+        {
+          "code": "HWC2X4X96",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUPKIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUPSPRAY",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN",
+          "quantity": 4
+        },
+        {
+          "code": "HWC1X2X94",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHTRAIL",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48",
+          "quantity": 1
+        },
+        {
+          "code": "48\"SHELFADJ",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "BATH 3",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "LAUNDRY",
+      "cabinets": [
+        {
+          "code": "UF342",
+          "quantity": 4
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "W3336",
+          "quantity": 2
+        },
+        {
+          "code": "W3036",
+          "quantity": 2
+        },
+        {
+          "code": "B33",
+          "quantity": 1
+        },
+        {
+          "code": "B30",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN",
+          "quantity": 2
+        },
+        {
+          "code": "HWC1X2X94",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHTRAIL",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-17T09:45:55.609Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-17T09:46:08.277Z] [SCAN SUCCESS] Found 6 rooms.
+[2026-03-17T09:46:08.283Z] {
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "W3024 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DW)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "cabinets": [
+        {
+          "code": "W4242",
+          "quantity": 1
+        },
+        {
+          "code": "B42",
+          "quantity": 1
+        },
+        {
+          "code": "HOOD CKT.30",
+          "quantity": 1
+        },
+        {
+          "code": "W3942",
+          "quantity": 1
+        },
+        {
+          "code": "B39",
+          "quantity": 1
+        },
+        {
+          "code": "OVD3396 AS BUTT 1DDWR",
+          "quantity": 1
+        },
+        {
+          "code": "UF392",
+          "quantity": 1
+        },
+        {
+          "code": "RR120FL {R}",
+          "quantity": 1
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 X 24 DP BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "S3324 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396 (OVEN/REF HEIGHT)",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DWR)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 21
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 7
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "W3336 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "W3036 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B33 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 4
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24 (VOIDS)",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-17T10:47:20.269Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26)
+[2026-03-17T10:47:35.460Z] [SCAN SUCCESS] Found 6 rooms.
+[2026-03-17T10:47:35.467Z] {
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "W3024 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DW)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "cabinets": [
+        {
+          "code": "W4242",
+          "quantity": 1
+        },
+        {
+          "code": "B42",
+          "quantity": 1
+        },
+        {
+          "code": "HOOD CKT.30",
+          "quantity": 1
+        },
+        {
+          "code": "W3942",
+          "quantity": 1
+        },
+        {
+          "code": "B39",
+          "quantity": 1
+        },
+        {
+          "code": "OVD3396 AS BUTT 1DDWR",
+          "quantity": 1
+        },
+        {
+          "code": "UF392",
+          "quantity": 1
+        },
+        {
+          "code": "RR120FL {R}",
+          "quantity": 1
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 X 24 DP BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "S3324 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396 (OVEN/REF HEIGHT)",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DWR)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 21
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 7
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "W3336 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "W3036 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B33 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 4
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24 (VOIDS)",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-17T10:56:32.633Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-17T10:56:44.634Z] [SCAN SUCCESS] Found 6 rooms.
+[2026-03-17T10:56:44.640Z] {
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "W3024 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DW)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "cabinets": [
+        {
+          "code": "W4242",
+          "quantity": 1
+        },
+        {
+          "code": "B42",
+          "quantity": 1
+        },
+        {
+          "code": "HOOD CKT.30",
+          "quantity": 1
+        },
+        {
+          "code": "W3942",
+          "quantity": 1
+        },
+        {
+          "code": "B39",
+          "quantity": 1
+        },
+        {
+          "code": "OVD3396 AS BUTT 1DDWR",
+          "quantity": 1
+        },
+        {
+          "code": "UF392",
+          "quantity": 1
+        },
+        {
+          "code": "RR120FL {R}",
+          "quantity": 1
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 X 24 DP BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "S3324 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396 (OVEN/REF HEIGHT)",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DWR)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 21
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 7
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "W3336 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "W3036 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B33 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 4
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24 (VOIDS)",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-20T08:41:22.828Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-20T08:41:38.995Z] [SCAN SUCCESS] Found 6 rooms.
+[2026-03-20T08:41:44.812Z] {
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "W3024 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DW)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "cabinets": [
+        {
+          "code": "W4242",
+          "quantity": 1
+        },
+        {
+          "code": "B42",
+          "quantity": 1
+        },
+        {
+          "code": "HOOD CKT.30",
+          "quantity": 1
+        },
+        {
+          "code": "W3942",
+          "quantity": 1
+        },
+        {
+          "code": "B39",
+          "quantity": 1
+        },
+        {
+          "code": "OVD3396 AS BUTT 1DDWR",
+          "quantity": 1
+        },
+        {
+          "code": "UF392",
+          "quantity": 1
+        },
+        {
+          "code": "RR120FL {R}",
+          "quantity": 1
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 X 24 DP BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "S3324 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396 (OVEN/REF HEIGHT)",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DWR)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 21
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 7
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "W3336 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "W3036 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B33 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 4
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24 (VOIDS)",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-20T09:45:20.965Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26)
+[2026-03-20T09:45:36.008Z] [SCAN SUCCESS] Found 6 rooms.
+[2026-03-20T09:45:36.033Z] {
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "W3024 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DW)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "cabinets": [
+        {
+          "code": "W4242",
+          "quantity": 1
+        },
+        {
+          "code": "B42",
+          "quantity": 1
+        },
+        {
+          "code": "HOOD CKT.30",
+          "quantity": 1
+        },
+        {
+          "code": "W3942",
+          "quantity": 1
+        },
+        {
+          "code": "B39",
+          "quantity": 1
+        },
+        {
+          "code": "OVD3396 AS BUTT 1DDWR",
+          "quantity": 1
+        },
+        {
+          "code": "UF392",
+          "quantity": 1
+        },
+        {
+          "code": "RR120FL {R}",
+          "quantity": 1
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 X 24 DP BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "S3324 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396 (OVEN/REF HEIGHT)",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DWR)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 21
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 7
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "W3336 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "W3036 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B33 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 4
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24 (VOIDS)",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-20T11:51:01.389Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-20T11:51:15.767Z] [SCAN SUCCESS] Found 6 rooms.
+[2026-03-20T11:51:15.777Z] {
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "W3024 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DW)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "cabinets": [
+        {
+          "code": "W4242",
+          "quantity": 1
+        },
+        {
+          "code": "B42",
+          "quantity": 1
+        },
+        {
+          "code": "HOOD CKT.30",
+          "quantity": 1
+        },
+        {
+          "code": "W3942",
+          "quantity": 1
+        },
+        {
+          "code": "B39",
+          "quantity": 1
+        },
+        {
+          "code": "OVD3396 AS BUTT 1DDWR",
+          "quantity": 1
+        },
+        {
+          "code": "UF392",
+          "quantity": 1
+        },
+        {
+          "code": "RR120FL {R}",
+          "quantity": 1
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 X 24 DP BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "S3324 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396 (OVEN/REF HEIGHT)",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DWR)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 21
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 7
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "W3336 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "W3036 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B33 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 4
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24 (VOIDS)",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-20T11:53:26.487Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-20T11:53:41.285Z] [SCAN SUCCESS] Found 6 rooms.
+[2026-03-20T11:53:41.293Z] {
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "W3024 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DW)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "cabinets": [
+        {
+          "code": "W4242",
+          "quantity": 1
+        },
+        {
+          "code": "B42",
+          "quantity": 1
+        },
+        {
+          "code": "HOOD CKT.30",
+          "quantity": 1
+        },
+        {
+          "code": "W3942",
+          "quantity": 1
+        },
+        {
+          "code": "B39",
+          "quantity": 1
+        },
+        {
+          "code": "OVD3396 AS BUTT 1DDWR",
+          "quantity": 1
+        },
+        {
+          "code": "UF392",
+          "quantity": 1
+        },
+        {
+          "code": "RR120FL {R}",
+          "quantity": 1
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 X 24 DP BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "S3324 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396 (OVEN/REF HEIGHT)",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DWR)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 21
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 7
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "W3336 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "W3036 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B33 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 4
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24 (VOIDS)",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-20T13:56:08.680Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-20T14:05:08.733Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-20T14:05:22.669Z] [SCAN SUCCESS] Found 6 rooms.
+[2026-03-20T14:05:22.675Z] {
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "W3024 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DW)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "cabinets": [
+        {
+          "code": "W4242",
+          "quantity": 1
+        },
+        {
+          "code": "B42",
+          "quantity": 1
+        },
+        {
+          "code": "HOOD CKT.30",
+          "quantity": 1
+        },
+        {
+          "code": "W3942",
+          "quantity": 1
+        },
+        {
+          "code": "B39",
+          "quantity": 1
+        },
+        {
+          "code": "OVD3396 AS BUTT 1DDWR",
+          "quantity": 1
+        },
+        {
+          "code": "UF392",
+          "quantity": 1
+        },
+        {
+          "code": "RR120FL {R}",
+          "quantity": 1
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 X 24 DP BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "S3324 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396 (OVEN/REF HEIGHT)",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DWR)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 21
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 7
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "W3336 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "W3036 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B33 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 4
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24 (VOIDS)",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-20T14:58:47.808Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-20T14:59:00.713Z] [SCAN SUCCESS] Found 6 rooms.
+[2026-03-20T14:59:00.721Z] {
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "W3024 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DW)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "cabinets": [
+        {
+          "code": "W4242",
+          "quantity": 1
+        },
+        {
+          "code": "B42",
+          "quantity": 1
+        },
+        {
+          "code": "HOOD CKT.30",
+          "quantity": 1
+        },
+        {
+          "code": "W3942",
+          "quantity": 1
+        },
+        {
+          "code": "B39",
+          "quantity": 1
+        },
+        {
+          "code": "OVD3396 AS BUTT 1DDWR",
+          "quantity": 1
+        },
+        {
+          "code": "UF392",
+          "quantity": 1
+        },
+        {
+          "code": "RR120FL {R}",
+          "quantity": 1
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 X 24 DP BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "S3324 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396 (OVEN/REF HEIGHT)",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DWR)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 21
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 7
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "W3336 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "W3036 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B33 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 4
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24 (VOIDS)",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-20T17:40:36.342Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-20T17:40:52.404Z] [SCAN SUCCESS] Found 6 rooms.
+[2026-03-20T17:40:52.419Z] {
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "W3024 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DW)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "cabinets": [
+        {
+          "code": "W4242",
+          "quantity": 1
+        },
+        {
+          "code": "B42",
+          "quantity": 1
+        },
+        {
+          "code": "HOOD CKT.30",
+          "quantity": 1
+        },
+        {
+          "code": "W3942",
+          "quantity": 1
+        },
+        {
+          "code": "B39",
+          "quantity": 1
+        },
+        {
+          "code": "OVD3396 AS BUTT 1DDWR",
+          "quantity": 1
+        },
+        {
+          "code": "UF392",
+          "quantity": 1
+        },
+        {
+          "code": "RR120FL {R}",
+          "quantity": 1
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 X 24 DP BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "S3324 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396 (OVEN/REF HEIGHT)",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DWR)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 21
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 7
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "W3336 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "W3036 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B33 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 4
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24 (VOIDS)",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-20T19:25:20.986Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-20T19:25:35.628Z] [SCAN SUCCESS] Found 6 rooms.
+[2026-03-20T19:25:35.643Z] {
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "W3024 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DW)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "cabinets": [
+        {
+          "code": "W4242",
+          "quantity": 1
+        },
+        {
+          "code": "B42",
+          "quantity": 1
+        },
+        {
+          "code": "HOOD CKT.30",
+          "quantity": 1
+        },
+        {
+          "code": "W3942",
+          "quantity": 1
+        },
+        {
+          "code": "B39",
+          "quantity": 1
+        },
+        {
+          "code": "OVD3396 AS BUTT 1DDWR",
+          "quantity": 1
+        },
+        {
+          "code": "UF392",
+          "quantity": 1
+        },
+        {
+          "code": "RR120FL {R}",
+          "quantity": 1
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 X 24 DP BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "S3324 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396 (OVEN/REF HEIGHT)",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DWR)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 21
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 7
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "W3336 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "W3036 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B33 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 4
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24 (VOIDS)",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-20T19:54:00.893Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-20T19:54:20.040Z] [SCAN SUCCESS] Found 6 rooms.
+[2026-03-20T19:54:20.059Z] {
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "W3024 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DW)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "cabinets": [
+        {
+          "code": "W4242",
+          "quantity": 1
+        },
+        {
+          "code": "B42",
+          "quantity": 1
+        },
+        {
+          "code": "HOOD CKT.30",
+          "quantity": 1
+        },
+        {
+          "code": "W3942",
+          "quantity": 1
+        },
+        {
+          "code": "B39",
+          "quantity": 1
+        },
+        {
+          "code": "OVD3396 AS BUTT 1DDWR",
+          "quantity": 1
+        },
+        {
+          "code": "UF392",
+          "quantity": 1
+        },
+        {
+          "code": "RR120FL {R}",
+          "quantity": 1
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 X 24 DP BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "S3324 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396 (OVEN/REF HEIGHT)",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DWR)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 21
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 7
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "W3336 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "W3036 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B33 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 4
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24 (VOIDS)",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-21T10:42:29.035Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26)
+[2026-03-21T10:42:45.968Z] [SCAN SUCCESS] Found 6 rooms.
+[2026-03-21T10:42:45.972Z] {
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "W3024 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DW)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "cabinets": [
+        {
+          "code": "W4242",
+          "quantity": 1
+        },
+        {
+          "code": "B42",
+          "quantity": 1
+        },
+        {
+          "code": "HOOD CKT.30",
+          "quantity": 1
+        },
+        {
+          "code": "W3942",
+          "quantity": 1
+        },
+        {
+          "code": "B39",
+          "quantity": 1
+        },
+        {
+          "code": "OVD3396 AS BUTT 1DDWR",
+          "quantity": 1
+        },
+        {
+          "code": "UF392",
+          "quantity": 1
+        },
+        {
+          "code": "RR120FL {R}",
+          "quantity": 1
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 X 24 DP BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "S3324 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396 (OVEN/REF HEIGHT)",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DWR)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 21
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 7
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "W3336 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "W3036 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B33 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 4
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24 (VOIDS)",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-21T11:09:45.481Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)
+[2026-03-21T11:10:15.004Z] [SCAN SUCCESS] Found 6 rooms.
+[2026-03-21T11:10:15.013Z] {
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "W3024 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DW)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "cabinets": [
+        {
+          "code": "W4242",
+          "quantity": 1
+        },
+        {
+          "code": "B42",
+          "quantity": 1
+        },
+        {
+          "code": "HOOD CKT.30",
+          "quantity": 1
+        },
+        {
+          "code": "W3942",
+          "quantity": 1
+        },
+        {
+          "code": "B39",
+          "quantity": 1
+        },
+        {
+          "code": "OVD3396 AS BUTT 1DDWR",
+          "quantity": 1
+        },
+        {
+          "code": "UF392",
+          "quantity": 1
+        },
+        {
+          "code": "RR120FL {R}",
+          "quantity": 1
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 X 24 DP BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "S3324 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396 (OVEN/REF HEIGHT)",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DWR)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 21
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 7
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "W3336 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "W3036 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B33 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 4
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24 (VOIDS)",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
+[2026-03-21T11:59:07.247Z] [SCAN START] Project: 4031 MAGNOLIA GR LAYOUTS (01.09.26)
+[2026-03-21T11:59:20.469Z] [SCAN SUCCESS] Found 6 rooms.
+[2026-03-21T11:59:20.477Z] {
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "cabinets": [
+        {
+          "code": "W3042 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "W3024 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 4
+        },
+        {
+          "code": "RANGE1.30",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 2
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "REF.2D.36",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DW)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 27
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "cabinets": [
+        {
+          "code": "W4242",
+          "quantity": 1
+        },
+        {
+          "code": "B42",
+          "quantity": 1
+        },
+        {
+          "code": "HOOD CKT.30",
+          "quantity": 1
+        },
+        {
+          "code": "W3942",
+          "quantity": 1
+        },
+        {
+          "code": "B39",
+          "quantity": 1
+        },
+        {
+          "code": "OVD3396 AS BUTT 1DDWR",
+          "quantity": 1
+        },
+        {
+          "code": "UF392",
+          "quantity": 1
+        },
+        {
+          "code": "RR120FL {R}",
+          "quantity": 1
+        },
+        {
+          "code": "DWR3 {L}",
+          "quantity": 1
+        },
+        {
+          "code": "DISH-IQ6",
+          "quantity": 1
+        },
+        {
+          "code": "SB36 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B15R",
+          "quantity": 1
+        },
+        {
+          "code": "B24 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W3624 X 24 DP BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "W2442 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        },
+        {
+          "code": "UF342",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48 (VOIDS)",
+          "quantity": 1
+        },
+        {
+          "code": "S3324 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (OVEN)",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396 (OVEN/REF HEIGHT)",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "island": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "UF3 (DW)",
+          "quantity": 1
+        },
+        {
+          "code": "UF642 (DWR)",
+          "quantity": 1
+        },
+        {
+          "code": "HWC 2X4X96 (DWR)",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 21
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 7
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 5
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 2
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48 (VENT BOX)",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ (VENT BOX)",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8 (TRIM @ CEILING)",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "VSB3634H BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 2",
+      "cabinets": [
+        {
+          "code": "VSB5434H BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "STANDARD BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "VSB4834H",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 1
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "W3336 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "W3036 BUTT",
+          "quantity": 2
+        },
+        {
+          "code": "B30 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "B33 BUTT",
+          "quantity": 1
+        },
+        {
+          "code": "UF3",
+          "quantity": 2
+        },
+        {
+          "code": "UF342",
+          "quantity": 4
+        }
+      ],
+      "perimeter": [
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24 (VOIDS)",
+          "quantity": 2
+        },
+        {
+          "code": "BTK8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN (VAR OPTS)",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94 (CROWN CLEAT)",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL (VAR OPTS)",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}

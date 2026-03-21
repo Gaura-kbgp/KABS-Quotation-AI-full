@@ -1,0 +1,165 @@
+Project dd7a5593-42ee-4428-89c1-480320d7c275 has 6 rooms.
+
+Room: STANDARD 42" KITCHEN
+  Key 'bump': 2 items
+    - SHM8 (x5)
+    - OCM8 BLD (x2)
+  Key 'cabinets': 14 items
+    - W3042 BUTT (x4)
+    - W3024 BUTT (x1)
+    - W2442 BUTT (x1)
+    - B30 BUTT (x4)
+    - RANGE1.30 (x1)
+    - UF3 (x1)
+    - UF342 (x2)
+    - DWR3 {L} (x1)
+    - DISH-IQ6 (x1)
+    - SB36 BUTT (x1)
+    - B15R (x1)
+    - B24 BUTT (x1)
+    - W3624 BUTT (x1)
+    - REF.2D.36 (x1)
+  Key 'hardware': 2 items
+    - DOORS (x27)
+    - DRAWERS (x6)
+  Key 'island': 5 items
+    - BTK8 (x1)
+    - SM8 (x1)
+    - UF3 (DW) (x1)
+    - UF642 (DWR) (x1)
+    - HWC 2X4X96 (DW) (x1)
+  Key 'opt_crown': 2 items
+    - CROWN (VAR OPTS) (x4)
+    - HWC 1X2X94 (CROWN CLEAT) (x4)
+  Key 'opt_light_rail': 1 items
+    - LIGHT RAIL (VAR OPTS) (x4)
+  Key 'perimeter': 5 items
+    - BTK8 (x3)
+    - SM8 (x5)
+    - FL48 (VOIDS) (x1)
+    - TOUCHUP KIT (x2)
+    - TOUCHUP SPRAY (x1)
+  Key 'vent_chase_material': 6 items
+    - BACK-B48 (VENT BOX) (x1)
+    - 48" SHELF ADJ (VENT BOX) (x2)
+    - WTEP84 (x1)
+    - SM8 (x1)
+    - OCM8 BLD (x1)
+    - QM8 (TRIM @ CEILING) (x1)
+
+Room: OPT GOURMET KITCHEN
+  Key 'bump': 2 items
+    - SHM8 (x5)
+    - OCM8 BLD (x2)
+  Key 'cabinets': 17 items
+    - W4242 (x1)
+    - B42 (x1)
+    - HOOD CKT.30 (x1)
+    - W3942 (x1)
+    - B39 (x1)
+    - OVD3396 AS BUTT 1DDWR (x1)
+    - UF392 (x1)
+    - RR120FL {R} (x1)
+    - DWR3 {L} (x1)
+    - DISH-IQ6 (x1)
+    - SB36 BUTT (x2)
+    - B15R (x1)
+    - B24 BUTT (x1)
+    - W3624 X 24 DP BUTT (x1)
+    - W2442 BUTT (x1)
+    - UF3 (x1)
+    - UF342 (x1)
+  Key 'hardware': 2 items
+    - DOORS (x21)
+    - DRAWERS (x7)
+  Key 'island': 5 items
+    - BTK8 (x1)
+    - SM8 (x1)
+    - UF3 (DW) (x1)
+    - UF642 (DWR) (x1)
+    - HWC 2X4X96 (DWR) (x1)
+  Key 'opt_crown': 2 items
+    - CROWN (VAR OPTS) (x4)
+    - HWC 1X2X94 (CROWN CLEAT) (x4)
+  Key 'opt_light_rail': 1 items
+    - LIGHT RAIL (VAR OPTS) (x4)
+  Key 'perimeter': 8 items
+    - BTK8 (x3)
+    - SM8 (x5)
+    - FL48 (VOIDS) (x1)
+    - S3324 (OVEN) (x1)
+    - UF642 (OVEN) (x1)
+    - S3S396 (OVEN/REF HEIGHT) (x2)
+    - TOUCHUP KIT (x2)
+    - TOUCHUP SPRAY (x1)
+  Key 'vent_chase_material': 6 items
+    - BACK-B48 (VENT BOX) (x1)
+    - 48" SHELF ADJ (VENT BOX) (x2)
+    - WTEP84 (x1)
+    - SM8 (x1)
+    - OCM8 BLD (x1)
+    - QM8 (TRIM @ CEILING) (x1)
+
+Room: STANDARD OWNERS BATH
+  Key 'bump': 1 items
+    - SHM8 (x1)
+  Key 'cabinets': 2 items
+    - VSB3634H BUTT (x2)
+    - UF3 (x2)
+  Key 'hardware': 2 items
+    - DOORS (x4)
+    - DRAWERS (x0)
+  Key 'perimeter': 2 items
+    - BTK8 (x1)
+    - SM8 (x1)
+
+Room: STANDARD BATH 2
+  Key 'bump': 2 items
+    - SHM8 (x1)
+    - OCM8 BLD (x1)
+  Key 'cabinets': 2 items
+    - VSB5434H BUTT (x1)
+    - UF3 (x1)
+  Key 'hardware': 2 items
+    - DOORS (x4)
+    - DRAWERS (x0)
+  Key 'perimeter': 2 items
+    - BTK8 (x1)
+    - SM8 (x1)
+
+Room: STANDARD BATH 3 UPSTAIRS
+  Key 'bump': 2 items
+    - SHM8 (x1)
+    - OCM8 BLD (x1)
+  Key 'cabinets': 2 items
+    - VSB4834H (x1)
+    - UF3 (x1)
+  Key 'hardware': 2 items
+    - DOORS (x3)
+    - DRAWERS (x0)
+  Key 'perimeter': 2 items
+    - BTK8 (x1)
+    - SM8 (x1)
+
+Room: OPT LAUNDRY
+  Key 'bump': 1 items
+    - SHM8 (x1)
+  Key 'cabinets': 6 items
+    - W3336 BUTT (x2)
+    - W3036 BUTT (x2)
+    - B30 BUTT (x1)
+    - B33 BUTT (x1)
+    - UF3 (x2)
+    - UF342 (x4)
+  Key 'hardware': 2 items
+    - DOORS (x12)
+    - DRAWERS (x2)
+  Key 'opt_crown': 2 items
+    - CROWN (VAR OPTS) (x2)
+    - HWC 1X2X94 (CROWN CLEAT) (x2)
+  Key 'opt_light_rail': 1 items
+    - LIGHT RAIL (VAR OPTS) (x2)
+  Key 'perimeter': 3 items
+    - SM8 (x3)
+    - FL24 (VOIDS) (x2)
+    - BTK8 (x1)
