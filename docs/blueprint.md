@@ -1,6 +1,6 @@
 # **App Name**: KABS Quotation AI
 
-## Core Features:
+## Core Features
 
 - Secure Admin Authentication: User login, session management using cookies, server-side validation, and middleware protection for all '/admin' routes, integrated with Supabase authentication.
 - Public Facing Pages: A homepage with navigation to the 'Quotation AI' start page and 'Design AI' coming soon page. Includes placeholder content for AI features.
@@ -10,7 +10,7 @@
 - NKBA Rules Document Management: Admin tools to upload, replace, and delete the NKBA Rules PDF document, with files stored in Supabase Storage and metadata in the database.
 - Supabase Infrastructure Setup: Initialization of Supabase tables (manufacturers, manufacturer_files, nkba_files), implementation of Row Level Security (RLS), and configuration of Supabase Storage buckets with validation rules.
 
-## Style Guidelines:
+## Style Guidelines
 
 - Main application background: A deep, dark blue-gray, `#0f172a`, providing a sleek, premium, and focused environment.
 - Primary interactive color: A vibrant Sky Blue, `#05ACFE`, for calls to action, highlights, and primary visual interest, enhancing the modern, techy feel on the dark background.
