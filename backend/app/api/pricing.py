@@ -341,11 +341,14 @@ async def get_manufacturer_config(id: str):
     """
     try:
         supabase = get_supabase()
-        page_size = 50000
+        # Optimized batch fetch for large catalogs (avoid OOM/Timeout on Render)
+        page_size = 10000 
         off = 0
         mapping = {}
+        max_scan = 100000 # Config usually covers all collections within first 100k rows
         
-        while off < 500000:
+        while off < max_scan:
+            print(f"DEBUG: Fetching config batch at offset {off}...")
             res = supabase.table("manufacturer_pricing").select("collection_name, door_style") \
                 .eq("manufacturer_id", id) \
                 .range(off, off + page_size - 1).execute()
@@ -369,6 +372,7 @@ async def get_manufacturer_config(id: str):
             
             if len(batch) < page_size: break
             off += page_size
+
             
         final_mapping = {}
         exclude = {'UNIVERSAL', 'B1', 'C1', 'D1', 'E1', 'F1', 'G1', 'COL B', 'COL C', 'COL D', 'COL E', 'COL F', 'COL G'}
