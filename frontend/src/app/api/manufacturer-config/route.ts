@@ -7,21 +7,31 @@ export async function GET(req: Request) {
       return Response.json({ error: 'Missing Manufacturer ID' }, { status: 400 });
     }
 
-    const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
+    const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
     
-    // Proxy to Python FastAPI backend which handles 100k+ records much faster and without timeout
-    const backendRes = await fetch(`${BACKEND_URL}/api/manufacturer-config?id=${id}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
+    try {
+      // Proxy to Python FastAPI backend which handles 100k+ records much faster and without timeout
+      const backendRes = await fetch(`${BACKEND_URL}/api/manufacturer-config?id=${id}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
 
-    if (!backendRes.ok) {
-      const errText = await backendRes.text();
-      return Response.json({ error: `Backend error: ${errText}` }, { status: 500 });
+      if (!backendRes.ok) {
+        const errText = await backendRes.text();
+        console.error(`[API Proxy] Backend returned error: ${errText} from URL: ${BACKEND_URL}`);
+        return Response.json({ error: `Backend error: ${errText}` }, { status: 500 });
+      }
+
+      const data = await backendRes.json();
+      return Response.json(data);
+    } catch (fetchErr: any) {
+      console.error(`[API Proxy] Connection Error to Backend: ${fetchErr.message}. BACKEND_URL: ${BACKEND_URL}`);
+      return Response.json({ 
+        error: `Could not connect to backend at ${BACKEND_URL}. Ensure BACKEND_URL environment variable is set correctly on Render.`,
+        details: fetchErr.message 
+      }, { status: 500 });
     }
 
-    const data = await backendRes.json();
-    return Response.json(data);
 
   } catch (err: any) {
     console.error('[API Proxy] Config Handler Error:', err);
