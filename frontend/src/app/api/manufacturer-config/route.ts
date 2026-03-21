@@ -7,11 +7,15 @@ export async function GET(req: Request) {
       return Response.json({ error: 'Missing Manufacturer ID' }, { status: 400 });
     }
 
-    const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+    let BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+    // Remove trailing slash if present
+    BACKEND_URL = BACKEND_URL.replace(/\/$/, '');
     
     try {
-      // Proxy to Python FastAPI backend which handles 100k+ records much faster and without timeout
-      const backendRes = await fetch(`${BACKEND_URL}/api/manufacturer-config?id=${id}`, {
+      const targetUrl = `${BACKEND_URL}/api/manufacturer-config?id=${id}`;
+      console.log(`[API Proxy] Probing backend: ${targetUrl}`);
+      
+      const backendRes = await fetch(targetUrl, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });

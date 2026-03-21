@@ -193,11 +193,20 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
     try {
       const res = await fetch(`/api/manufacturer-config?id=${id}`);
       const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Unknown error loading brands');
+      }
       setManMapping(data.mapping || {});
-    } catch (err) {
-      toast({ variant: 'destructive', title: 'Error loading brands' });
+    } catch (err: any) {
+      console.error('[Client] Load config error:', err);
+      toast({ 
+        variant: 'destructive', 
+        title: 'Error loading brands', 
+        description: err.message || 'The connection to the pricing backend failed.' 
+      });
     }
   };
+
 
   return (
     <div className="flex flex-col min-h-screen">
