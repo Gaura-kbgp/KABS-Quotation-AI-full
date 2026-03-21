@@ -41,4 +41,6 @@ __pycache__/
 *.pyc
 venv/
 .venv/
-
+# ignore scan results
+frontend/scan_result_*.json
+frontend/*.log
