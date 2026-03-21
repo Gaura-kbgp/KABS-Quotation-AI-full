@@ -1,0 +1,36 @@
+# Render Blueprint Configuration
+# This file automatically sets up the Frontend and Backend services on Render.
+
+services:
+  # Python Backend Service (FastAPI)
+  - type: web
+    name: kabs-quotation-backend
+    env: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PORT
+        value: 8000
+
+  # Next.js Frontend Service
+  - type: web
+    name: kabs-quotation-frontend
+    env: node
+    plan: starter # Starter or better for build memory
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm run start
+    envVars:
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: NEXT_PUBLIC_BACKEND_URL # Point this to the backend's URL on Render
+        sync: false
+      - key: PORT
+        value: 3000
