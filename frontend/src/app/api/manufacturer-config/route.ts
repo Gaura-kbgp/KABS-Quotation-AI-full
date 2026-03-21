@@ -27,7 +27,11 @@ export async function GET(req: Request) {
       }
 
       const data = await backendRes.json();
+      if (data.debug) {
+        console.log(`[API Proxy] Backend scan summary: ${JSON.stringify(data.debug)} for ID: ${id}`);
+      }
       return Response.json(data);
+
     } catch (fetchErr: any) {
       console.error(`[API Proxy] Connection Error to Backend: ${fetchErr.message}. BACKEND_URL: ${BACKEND_URL}`);
       return Response.json({ 

@@ -381,9 +381,34 @@ async def get_manufacturer_config(id: str):
             if c not in exclude:
                 final_mapping[c] = sorted(list(styles))
                 
-        return {"success": True, "mapping": final_mapping}
+        return {
+            "success": True, 
+            "mapping": final_mapping,
+            "debug": {
+                "scan_count": off,
+                "collections_found": len(final_mapping)
+            }
+        }
+
         
     except Exception as e:
-        print(f"Error in get_manufacturer_config: {e}")
         return {"success": False, "error": str(e)}
+
+
+@router.get("/db-check")
+async def db_check():
+    """Diagnostic endpoint to verify database connectivity."""
+    try:
+        supabase = get_supabase()
+        # Simple count check to verify RLS and Keys
+        res = supabase.table("manufacturer_pricing").select("sku", count="exact").limit(1).execute()
+        return {
+            "success": True, 
+            "message": "Database connection verified", 
+            "pricing_count": res.count,
+            "sample": res.data
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e), "trace": traceback.format_exc()}
+
 
