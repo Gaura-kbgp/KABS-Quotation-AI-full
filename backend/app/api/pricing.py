@@ -24,11 +24,13 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
     global_map = lookup_maps.get('global', {})
     compressed_map = lookup_maps.get('compressed', {})
 
-    log_path = r"c:\KAB projects ongoing\Quotation-AI-main\backend\pricing_match_debug.log"
+    log_path = os.path.join(os.path.dirname(__file__), "..", "..", "pricing_match_debug.log")
 
     def log_match(message):
-        with open(log_path, "a") as f:
-            f.write(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {message}\n")
+        try:
+            with open(log_path, "a") as f:
+                f.write(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {message}\n")
+        except: pass
 
     def try_match(sku_variant: str, match_type_suffix: str):
         if not sku_variant: return None
@@ -64,9 +66,12 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
 
     # TIER 2: CLEAN PARENS (strip (), {}, [])
     clean_target = re.sub(r'[\(\{\[].*?[\)\}\]]', '', target).strip()
+    # Strip estimation suffixes too
+    clean_target = re.sub(r'\s*(-EST|EST\.)$', '', clean_target).strip()
+    
     if clean_target != target:
         log_match(f"TRYING TIER 2 (Clean): {clean_target}")
-        match = try_match(clean_target, "NO_PARENS")
+        match = try_match(clean_target, "CLEANED")
         if match: return match
 
     # TIER 3: REMOVE NKBA SUFFIXES
@@ -76,22 +81,22 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
         match = try_match(no_suffix_target, "NO_SUFFIX")
         if match: return match
 
-    no_suffix_target_2 = re.sub(r'(BUTT|L|R|FL|S|D)$', '', clean_target).strip()
-    if no_suffix_target_2 != no_suffix_target:
-        log_match(f"TRYING TIER 3b (No Suffix 2): {no_suffix_target_2}")
-        match = try_match(no_suffix_target_2, "NO_SUFFIX_2")
-        if match: return match
+    # TIER 4: COMPRESSED (NEW)
+    comp_target = compress_sku(clean_target)
+    if comp_target in compressed_map:
+        log_match(f"MATCH: {comp_target} (Compressed)")
+        return compressed_map[comp_target], "COMPRESSED"
 
-    # TIER 4: COMPRESSED
-    target_comp = compress_sku(clean_target)
-    if target_comp in compressed_map:
-        log_match(f"MATCH: {target_comp} (Compressed)")
-        return compressed_map[target_comp], "COMPRESSED"
-        
-    no_suffix_comp = compress_sku(no_suffix_target_2)
-    if no_suffix_comp in compressed_map:
-        log_match(f"MATCH: {no_suffix_comp} (Compressed No Suffix)")
-        return compressed_map[no_suffix_comp], "COMPRESSED_NO_SUFFIX"
+    # TIER 5: FUZZY (Last Resort)
+    if col in lookup_maps.get('col_skus', {}):
+        choices = lookup_maps['col_skus'][col]
+        if choices:
+            best_sku, score = process.extractOne(target, choices, scorer=fuzz.ratio)
+            if score > 85: # Increased threshold for safety
+                log_match(f"MATCH: {best_sku} (Fuzzy {score}%)")
+                key = f"{best_sku}|{col}"
+                match = local_map.get(key) or local_map.get(f"{best_sku}|{col}|{style}") or global_map.get(best_sku)
+                if match: return match, f"FUZZY_{score}"
 
     log_match(f"FAIL: {target} (Required review)")
     return {
@@ -119,7 +124,7 @@ async def generate_bom(project_id: str, manufacturer_id: str):
             if room.get('door_style'): required_styles.add(str(room['door_style']).upper().strip())
             
             # 2. Collect all SKUs from any relevant room categories
-            for cat in ['cabinets', 'perimeter', 'island', 'hardware']:
+            for cat in ['cabinets', 'perimeter', 'island', 'hardware', 'bump', 'opt_crown', 'opt_light_rail', 'vent_chase_material']:
                 for item in room.get(cat, []):
                     code = str(item.get('code') or '').strip().upper()
                     if code:
@@ -157,7 +162,7 @@ async def generate_bom(project_id: str, manufacturer_id: str):
                     if off > 500000: break
             return results
 
-        # 3. FAST FETCH: Targeted SKUs
+        # 3. FAST FETCH: Targeted SKUs + Full Collections
         sku_rows = fetch_in_batches("sku", list(project_skus))
         for row in sku_rows:
             r_id = row.get('id')
@@ -165,26 +170,25 @@ async def generate_bom(project_id: str, manufacturer_id: str):
                 seen_ids.add(r_id)
                 pricing_data.append(row)
 
-        # 4. SAFETY FETCH: Also grab everything from 'UNIVERSAL' collection (small catalog)
-        # to ensure accessories/fillers/trim are always fully present for global match
-        uni_rows = supabase.table("manufacturer_pricing").select("id,sku,price,collection_name,door_style") \
-            .eq("manufacturer_id", manufacturer_id) \
-            .eq("collection_name", "UNIVERSAL") \
-            .limit(10000).execute().data or []
-        
-        for row in uni_rows:
-            r_id = row.get('id')
-            if r_id and r_id not in seen_ids:
-                seen_ids.add(r_id)
-                pricing_data.append(row)
+        if required_cols:
+            print(f"DEBUG: Fetching full collections: {required_cols}")
+            col_rows = fetch_in_batches("collection_name", list(required_cols))
+            for row in col_rows:
+                r_id = row.get('id')
+                if r_id and r_id not in seen_ids:
+                    seen_ids.add(r_id)
+                    pricing_data.append(row)
 
         print(f"DEBUG: TOTAL Targeted pricing rows: {len(pricing_data)}")
 
 
-        lookup_maps = {'local': {}, 'global': {}, 'compressed': {}, 'category_skus': {}, 'category_sums': {}}
+        lookup_maps = {
+            'local': {}, 'global': {}, 'compressed': {}, 
+            'col_skus': {}, 'category_skus': {}, 'category_sums': {}
+        }
         for p in pricing_data:
             sku = str(p['sku']).strip().upper()
-            price = float(p['price'])
+            price = float(p.get('price') or 0)
             col = str(p.get('collection_name', '')).strip().upper()
             style = str(p.get('door_style', '')).strip().upper()
             cat = detect_category(sku)
@@ -193,12 +197,25 @@ async def generate_bom(project_id: str, manufacturer_id: str):
             # Indexing: prioritize more specific keys
             if col and style: lookup_maps['local'][f"{sku}|{col}|{style}"] = item
             if col: lookup_maps['local'][f"{sku}|{col}"] = item
+            if col:
+                if col not in lookup_maps['col_skus']: lookup_maps['col_skus'][col] = []
+                lookup_maps['col_skus'][col].append(sku)
+            
             if style: lookup_maps['local'][f"{sku}|{style}"] = item
             
             if sku not in lookup_maps['global'] or price > lookup_maps['global'][sku]['price']: 
                 lookup_maps['global'][sku] = item
             comp = compress_sku(sku)
             if comp not in lookup_maps['compressed']: lookup_maps['compressed'][comp] = item
+            # Index stripped version (remove common suffixes from CATALOG as well)
+            stripped = re.sub(r'[\s-]*(BUTT|H|L|R|FL|S|D)$', '', sku).strip()
+            if stripped != sku:
+                lookup_maps['local'][f"{stripped}|{col}|{style}"] = item
+                lookup_maps['local'][f"{stripped}|{col}"] = item
+                lookup_maps['local'][f"{stripped}|{style}"] = item
+                if stripped not in lookup_maps['global']:
+                    lookup_maps['global'][stripped] = item
+            
             if cat not in lookup_maps['category_skus']: lookup_maps['category_skus'][cat] = []
             lookup_maps['category_skus'][cat].append(sku)
             if cat not in lookup_maps['category_sums']: lookup_maps['category_sums'][cat] = [0.0, 0]
@@ -211,8 +228,7 @@ async def generate_bom(project_id: str, manufacturer_id: str):
 
         bom_items = []
         # Filter categories to only essential items requested by user
-        # 'cabinets' covers wall/base/vanity; 'island' covers island materials; 'hardware' covers hinges/accessories.
-        categories_to_flatten = ['cabinets', 'perimeter', 'island', 'hardware']
+        categories_to_flatten = ['cabinets', 'perimeter', 'island', 'hardware', 'bump', 'opt_crown', 'opt_light_rail', 'vent_chase_material']
         for room in rooms:
             flat_items = []
             print(f"DEBUG: Processing room: {room.get('room_name')}")
@@ -228,8 +244,13 @@ async def generate_bom(project_id: str, manufacturer_id: str):
                     qty = int(float(item.get('quantity', item.get('qty', 1))))
                     price = float(match['price'])
                     if str(price) == 'nan': price = 0.0
+                    
+                    # Round price as requested by user
+                    price = round(price)
+                    
                     total = price * qty
                     if str(total) == 'nan': total = 0.0
+                    total = round(total)
                     
                     bom_items.append({
                         "project_id": project_id,
@@ -276,9 +297,8 @@ async def generate_bom(project_id: str, manufacturer_id: str):
 
         return {"success": True, "count": len(bom_items)}
     except Exception as e:
+        import traceback
         traceback.print_exc()
-        with open(r"c:\KAB projects ongoing\Quotation-AI-main\backend\last_error.txt", "w") as f:
-            f.write(str(e))
         print(f"DEBUG ERROR: {e}")
         return {"success": False, "error": str(e)}
 

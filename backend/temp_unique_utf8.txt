@@ -1,4 +1,0 @@
-﻿--- 1951 Cabintery Unique Data ---
-Collections: ['UNIVERSAL']
-Styles: ['UNIVERSAL']
-Total records: 1000

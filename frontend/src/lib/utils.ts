@@ -77,16 +77,16 @@ export function detectCategory(sku: string): string {
   if (s.startsWith('UF') || s.startsWith('F')) return 'Universal Fillers';
 
   // 2. Wall Cabinets
-  if (s.startsWith('W') && /\d/.test(s)) return 'Wall Cabinets';
+  if (s.startsWith('W')) return 'Wall Cabinets';
   
   // 3. Base Cabinets (Standard & Sink)
-  if ((s.startsWith('SB') || s.startsWith('B')) && /\d/.test(s)) return 'Base Cabinets';
+  if (s.startsWith('SB') || s.startsWith('B')) return 'Base Cabinets';
   
   // 4. Tall Cabinets (Pantry, Oven, Utility)
-  if (anyPrefix(s, ['T', 'P', 'O', 'UTIL', 'REF']) && (/\d/.test(s) || s.startsWith('REF') || s.startsWith('UTIL'))) return 'Tall Cabinets';
+  if (anyPrefix(s, ['T', 'P', 'O', 'UTIL', 'REF'])) return 'Tall Cabinets';
   
   // 5. Vanity Cabinets
-  if (s.startsWith('V') && /\d/.test(s)) return 'Vanity Cabinets';
+  if (s.startsWith('V')) return 'Vanity Cabinets';
   
   // 6. Hardwares
   if (s.startsWith('HW') || s.includes('KNOB') || s.includes('PULL') || s.includes('HINGE')) return 'Hardwares';

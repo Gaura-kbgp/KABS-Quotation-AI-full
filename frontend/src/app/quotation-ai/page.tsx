@@ -74,7 +74,7 @@ export default function QuotationAiPage() {
           </Link>
           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-sky-50 border border-sky-100">
             <Sparkles className="w-3 h-3 text-sky-600" />
-            <span className="text-[10px] font-bold uppercase text-sky-600">Gemini 3.1 Flash Lite</span>
+            <span className="text-[10px] font-bold uppercase text-sky-600">Fast Quotation AI</span>
           </div>
         </div>
 

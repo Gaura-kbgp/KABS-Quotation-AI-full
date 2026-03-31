@@ -12,22 +12,23 @@ PROMPT = """You are an expert cabinet estimator. Analyze the provided PDF drawin
 The drawing contains cabinet layouts with SKUs inside boxes.
 
 YOUR TASK:
-Scan the drawing visually and extract every single cabinet SKU and accessory.
-Focus 100% on the VISUAL IMAGE of the boxes and text within them.
+Scan the drawing and extract CABINETS and ACCESSORIES into structured categories.
 
-1. Identify Room Names (KITCHEN, BATH 1, etc.) from headers/footers/title blocks.
-2. Extract every item (cabinets, hardware, fillers, etc.) into a single "cabinets" list for each room.
-3. Extract quantities (e.g., "3-BTK8" -> quantity 3, SKU BTK8). Default quantity is 1.
+CATEGORIES (each room):
+- "cabinets": Primary cabinet boxes (W, B, SB, VSB, UF SKUs)
+- "perimeter", "island", "hardware", "bump", "opt_crown", "opt_light_rail", "vent_chase_material"
 
-OUTPUT FORMAT (STRICT JSON):
-Every extracted item MUST be an object with "code" and "quantity".
+QUANTITIES:
+- Often in "QUANTITY-CODE" format (e.g. "24-DOORS", "5-DRAWERS").
+- SUM any duplicate items within the SAME room.
+
+OUTPUT FORMAT:
 {
   "rooms": [
     {
       "room_name": "NAME",
-      "cabinets": [
-        {"code": "SKU", "quantity": 1}
-      ]
+      "cabinets": [{"code": "W3042", "quantity": 5}],
+      "hardware": [{"code": "DOORS", "quantity": 27}]
     }
   ]
 }

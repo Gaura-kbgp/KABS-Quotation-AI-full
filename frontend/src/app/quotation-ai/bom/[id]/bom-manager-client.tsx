@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,13 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
 import { 
   Printer, 
   ArrowLeft, 
@@ -82,6 +89,51 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
     }))
   );
 
+  const [mfgConfig, setMfgConfig] = useState<Record<string, string[]>>({});
+  const [roomConfigs, setRoomConfigs] = useState<any>(() => {
+    const configs: any = {};
+    project.extracted_data?.rooms?.forEach((r: any) => {
+      configs[r.room_name] = {
+        collection: r.collection || 'UNIVERSAL',
+        door_style: r.door_style || 'UNIVERSAL'
+      };
+    });
+    return configs;
+  });
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch(`/api/manufacturer-config?id=${project.manufacturer_id}`);
+        const data = await res.json();
+        if (data.success) setMfgConfig(data.mapping);
+      } catch (err) {
+        console.error('Failed to fetch manufacturer config:', err);
+      }
+    };
+    fetchConfig();
+  }, [project.manufacturer_id]);
+
+  const handleRoomConfigUpdate = async (roomName: string, updates: any) => {
+    const newConfigs = { ...roomConfigs, [roomName]: { ...roomConfigs[roomName], ...updates } };
+    setRoomConfigs(newConfigs);
+
+    // Sync back to project.extracted_data.rooms and update project
+    const updatedRooms = project.extracted_data.rooms.map((r: any) => 
+      r.room_name === roomName ? { ...r, ...updates } : r
+    );
+
+    try {
+      await updateProjectAction(id, {
+        extracted_data: { ...project.extracted_data, rooms: updatedRooms }
+      });
+      toast({ title: `Room ${roomName} Updated. Re-pricing...` });
+      handleReprice();
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Update Failed', description: err.message });
+    }
+  };
+
   const roomsList = useMemo(() => {
     const uniqueRooms = Array.from(new Set(bom.map(i => i.room)));
     const extractionOrder = project.extracted_data?.rooms?.map((r: any) => r.room_name) || [];
@@ -117,7 +169,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
   });
 
   const [dealer, setDealer] = useState({
-    name: project.bom_data?.dealerName || manufacturerName,
+    name: project.bom_data?.dealerName || "Elite Building Solutions",
     address: project.bom_data?.dealerAddress || "123 Manufacturing Way, Industry City, IN 46201",
     phone: project.bom_data?.dealerPhone || "(800) 555-KABS",
     email: project.bom_data?.dealerEmail || `orders@${manufacturerName.toLowerCase().replace(/\s+/g, '')}.com`
@@ -155,6 +207,9 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
     const estimatedMfgCost = dealerCost;
     const estimatedProfit = netTotal - dealerCost;
 
+    // Calculate scaling factor for individual items/rooms (Pre-Tax)
+    const scalingFactor = listSubtotal > 0 ? netTotal / listSubtotal : 0;
+
     return { 
       listSubtotal, 
       dealerCost, 
@@ -164,6 +219,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
       netTotal, 
       taxes, 
       grandTotal,
+      scalingFactor,
       estimatedMfgCost,
       estimatedProfit
     };
@@ -322,30 +378,86 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
 
               {roomsList.map(roomName => {
                 const roomItems = bom.filter(i => i.room === roomName);
-                const isSelected = selectedRooms.includes(roomName);
-                const categories = ['Wall Cabinets', 'Base Cabinets', 'Tall Cabinets', 'Vanity Cabinets', 'Universal Fillers'];
+                      const isSelected = selectedRooms.includes(roomName);
+                const categories = ['Wall Cabinets', 'Base Cabinets', 'Tall Cabinets', 'Vanity Cabinets', 'Universal Fillers', 'Molding & Trim', 'Hardwares'];
+                
+                // Calculate cabinet count (excluding fillers)
+                const cabCount = roomItems.filter(i => {
+                  const cat = detectCategory(i.sku);
+                  return cat.includes('Cabinets');
+                }).reduce((sum, item) => sum + item.qty, 0);
+
+                const currentConfig = roomConfigs[roomName] || {};
+                const availableCollections = Object.keys(mfgConfig || {});
+                const availableStyles = mfgConfig[currentConfig.collection] || [];
 
                 return (
                   <section key={roomName} className={cn("space-y-4 transition-opacity duration-300", !isSelected && "opacity-40 grayscale-[0.5]")}>
-                    <div className="flex items-center justify-between border-b-2 border-slate-900 pb-2 mb-4">
-                       <div className="flex items-center gap-3">
-                          <Checkbox checked={isSelected} onCheckedChange={v => toggleRoom(roomName, !!v)} />
-                          <Box className="w-5 h-5 text-sky-600" />
-                          <h2 className="text-xl font-black uppercase tracking-tight">{roomName}</h2>
+                    <div className="flex flex-col gap-4 border-b-2 border-slate-900 pb-4 mb-4">
+                       <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                             <Checkbox checked={isSelected} onCheckedChange={v => toggleRoom(roomName, !!v)} />
+                             <Box className="w-5 h-5 text-sky-600" />
+                             <h2 className="text-xl font-black uppercase tracking-tight">{roomName}</h2>
+                          </div>
+
+                          <div className="flex items-center gap-3 print:hidden">
+                            <div className="flex flex-col gap-1 min-w-[200px]">
+                              <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Collection</Label>
+                              <Select 
+                                value={currentConfig.collection} 
+                                onValueChange={(val) => handleRoomConfigUpdate(roomName, { collection: val, door_style: mfgConfig[val]?.[0] || '' })}
+                              >
+                                <SelectTrigger className="h-9 rounded-lg border-slate-200 text-xs font-bold">
+                                  <SelectValue placeholder="Collection" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-80">
+                                  {availableCollections.map(c => <SelectItem key={c} value={c} className="text-xs font-bold">{c}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="flex flex-col gap-1 min-w-[200px]">
+                              <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Door Style</Label>
+                              <Select 
+                                value={currentConfig.door_style} 
+                                onValueChange={(val) => handleRoomConfigUpdate(roomName, { door_style: val })}
+                              >
+                                <SelectTrigger className="h-9 rounded-lg border-slate-200 text-xs font-bold">
+                                  <SelectValue placeholder="Door Style" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-80">
+                                  {availableStyles.map(s => <SelectItem key={s} value={s} className="text-xs font-bold">{s}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
                        </div>
                        
-                       {roomsList.length > 1 && isSelected && (
-                         <div className="flex items-center gap-4 bg-slate-100/50 px-4 py-1.5 rounded-full border border-slate-200">
-                            <Tag className="w-3.5 h-3.5 text-sky-600" />
-                            <Label className="text-[10px] font-black uppercase text-slate-500">Room Discount (%)</Label>
-                            <Input 
-                              type="number" 
-                              value={roomDiscounts[roomName] || 0} 
-                              onChange={(e) => setRoomDiscounts(prev => ({ ...prev, [roomName]: parseFloat(e.target.value) || 0 }))}
-                              className="w-16 h-7 text-center font-bold bg-white border-none text-xs"
-                            />
-                         </div>
-                       )}
+                       <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4 text-[10px] font-bold uppercase text-slate-400">
+                             <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-full">
+                                <Box className="w-3 h-3" />
+                                <span>{cabCount} Total Cabinets</span>
+                             </div>
+                             <div className="hidden md:block">
+                                Selected: <span className="text-sky-600">{currentConfig.collection}</span> / <span className="text-sky-600">{currentConfig.door_style}</span>
+                             </div>
+                          </div>
+
+                          {roomsList.length > 1 && isSelected && (
+                            <div className="flex items-center gap-4 bg-slate-100/50 px-4 py-1.5 rounded-full border border-slate-200">
+                               <Tag className="w-3.5 h-3.5 text-sky-600" />
+                               <Label className="text-[10px] font-black uppercase text-slate-500">Room Discount (%)</Label>
+                               <Input 
+                                 type="number" 
+                                 value={roomDiscounts[roomName] || 0} 
+                                 onChange={(e) => setRoomDiscounts(prev => ({ ...prev, [roomName]: parseFloat(e.target.value) || 0 }))}
+                                 className="w-16 h-7 text-center font-bold bg-white border-none text-xs"
+                               />
+                            </div>
+                          )}
+                       </div>
                     </div>
 
                     {categories.map(cat => {
@@ -425,6 +537,42 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                         </AccordionItem>
                       </Accordion>
                     )}
+
+                    <div className="mt-4 p-6 bg-slate-900 rounded-2xl flex items-center justify-between text-white shadow-lg overflow-hidden relative group">
+                        <div className="absolute right-0 top-0 h-full w-32 bg-sky-500/20 skew-x-[-20deg] translate-x-16 group-hover:translate-x-12 transition-transform" />
+                        <div className="flex gap-12 relative z-10">
+                            <div className="space-y-1">
+                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Cabinetry Style</p>
+                                <p className="text-sm font-bold">{currentConfig.collection} / {currentConfig.door_style}</p>
+                            </div>
+                            <div className="space-y-1 border-l border-slate-700 pl-8">
+                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Unit Count</p>
+                                <p className="text-sm font-bold flex items-center gap-2">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                  {cabCount} Total Units
+                                </p>
+                            </div>
+                        </div>
+                        <div className="text-right relative z-10">
+                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                                {isSelected ? "Room Total (Sale)" : "Room Total (List)"}
+                            </p>
+                            <p className="text-2xl font-black font-mono">
+                                {isSelected ? (
+                                    "$" + (
+                                        roomItems.filter(i => i.is_billable).reduce((sum, item) => sum + (item.unit_price * item.qty), 0)
+                                        * (1 - (roomDiscounts[roomName] || 0) / 100)
+                                        * (financials.scalingFactor || 1)
+                                    ).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                                ) : (
+                                    "$" + roomItems.filter(i => i.is_billable).reduce((sum, item) => sum + (item.unit_price * item.qty), 0).toLocaleString(undefined, { minimumFractionDigits: 0 })
+                                )}
+                            </p>
+                            {isSelected && (
+                                <p className="text-[8px] font-black uppercase text-sky-400 mt-1 opacity-80">Calculated Final Price</p>
+                            )}
+                        </div>
+                    </div>
                   </section>
                 )
               })}
@@ -534,84 +682,240 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                   <div className="border-l border-slate-200 pl-6 flex flex-wrap gap-2 items-center justify-center">
                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest whitespace-nowrap">Download Room PDF:</p>
                     {selectedRooms.map(room => (
-                      <Button key={room} variant="outline" size="sm" className="text-[9px] h-8 rounded-lg px-3" onClick={() => triggerPrint(room)}>
-                        {room}
-                      </Button>
-                    ))}
-                  </div>
-               </div>
-
-               <div className="bg-white shadow-2xl rounded-sm p-16 print:p-0 print:shadow-none print:rounded-none border border-slate-100 print-page-wrapper">
-                  <div className="flex justify-between items-start mb-16 border-b-2 border-slate-900 pb-10">
-                    <div className="space-y-4 max-w-[48%] flex flex-col items-start">
-                      <div>
-                        <h2 className="text-3xl font-black tracking-tight text-slate-900 uppercase leading-none">{dealer.name}</h2>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Cabinetry Manufacturer</p>
+                                      <Button key={room} variant="outline" size="sm" className="text-[9px] h-8 rounded-lg px-3" onClick={() => triggerPrint(room)}>
+                                        {room}
+                                      </Button>
+                                    ))}
+                                  </div>
+                               </div>
+                               <div className="bg-white shadow-2xl rounded-sm p-12 print:p-0 print:shadow-none print:rounded-none border border-slate-100 print-page-wrapper font-sans text-slate-800">
+                  {/* Header Section */}
+                  <div className="flex justify-between items-end mb-8">
+                    {viewMode === 'client' ? (
+                      <div className="flex flex-col items-center">
+                        <div className="flex flex-col items-center border-2 border-[#002060] p-2 bg-white">
+                           <div className="relative w-32 h-16 flex flex-col items-center justify-center">
+                              <div className="absolute top-0 w-0 h-0 border-l-[40px] border-l-transparent border-r-[40px] border-r-transparent border-b-[20px] border-b-[#002060]" />
+                              <div className="mt-4 text-[#2E7D32] text-3xl font-black tracking-tighter leading-none italic">ELITE</div>
+                              <div className="text-[#002060] text-[10px] font-black uppercase tracking-widest mt-1">Building Solutions</div>
+                           </div>
+                        </div>
+                        <div className="mt-2 text-[8px] font-bold text-[#002060] uppercase tracking-tighter flex gap-2 border-t border-slate-200 pt-1">
+                           <span>Honesty</span> | <span>Integrity</span> | <span>Respect</span>
+                        </div>
                       </div>
-                      <div className="space-y-1 text-xs text-slate-600">
-                        <p className="flex items-center gap-2"><MapPin className="w-3 h-3 shrink-0" /> {dealer.address}</p>
-                        <p className="flex items-center gap-2"><Phone className="w-3 h-3 shrink-0" /> {dealer.phone}</p>
-                        <p className="flex items-center gap-2 font-medium text-sky-600">{dealer.email}</p>
+                    ) : (
+                      <div className="space-y-1">
+                        <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">{dealer.name}</h2>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">Interal Billing & Margin Analysis</p>
                       </div>
-                    </div>
-                    <div className="text-right space-y-4 max-w-[48%] flex flex-col items-end">
-                      <div>
-                        <h1 className="text-4xl font-black text-slate-900 uppercase leading-none">Invoice</h1>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">Ref: {id.substring(0, 8).toUpperCase()}</p>
-                      </div>
-                      <div className="space-y-1 text-xs text-slate-900">
-                        <p className="font-black uppercase tracking-widest text-[10px] text-slate-400 mb-1">Bill To:</p>
-                        <p className="font-bold text-sm">{customer.name || 'VALUED CUSTOMER'}</p>
-                        <p>{customer.address || 'PROJECT ADDRESS PENDING'}</p>
-                        <p className="flex items-center justify-end gap-2"><Phone className="w-3 h-3 shrink-0" /> {customer.phone || 'PHONE PENDING'}</p>
-                        {customer.delivery && (
-                           <p className="flex items-center justify-end gap-2 text-sky-600 font-medium">
-                             <Truck className="w-3 h-3 shrink-0" /> Ship to: {customer.delivery}
-                           </p>
-                        )}
-                      </div>
-                    </div>
+                    )}
+                    <h1 className="text-4xl font-black text-[#002060] tracking-tighter uppercase italic">
+                       {viewMode === 'client' ? 'Billing Invoice' : 'Internal Quotation'}
+                    </h1>
                   </div>
 
-                  <div className="space-y-12 min-h-[400px]">
-                    {selectedRooms.filter(r => !activePrintRoom || r === activePrintRoom).map(roomName => {
-                      const roomItems = bom.filter(i => i.room === roomName && i.is_billable);
-                      if (roomItems.length === 0) return null;
-                      return (
-                        <div key={roomName} className="avoid-break mb-8">
-                          <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 mb-4 bg-slate-50 p-2 border-l-4 border-slate-900">{roomName}</h3>
-                          <Table>
-                             <TableHeader className="bg-slate-50 border-y border-slate-200">
-                               <TableRow className="h-10 hover:bg-transparent">
-                                 <TableHead className="text-[10px] font-bold uppercase p-2 text-slate-900">CAB Code</TableHead>
-                                 <TableHead className="text-center text-[10px] font-bold uppercase p-2 w-12 text-slate-900">QTY</TableHead>
-                                 <TableHead className="text-right text-[10px] font-bold uppercase p-2 text-slate-900">Unit Price</TableHead>
-                                 <TableHead className="text-right text-[10px] font-bold uppercase p-2 text-slate-900">Amount</TableHead>
-                               </TableRow>
-                             </TableHeader>
-                             <TableBody>
-                                {roomItems.map(item => (
-                                  <TableRow key={item.id} className="border-b border-slate-100 h-10 hover:bg-transparent">
-                                     <TableCell className="font-medium text-[11px] p-2">{item.sku}</TableCell>
-                                     <TableCell className="text-center text-[11px] w-12 p-2">{item.qty}</TableCell>
-                                     <TableCell className="text-right font-mono text-[11px] p-2">
-                                       ${viewMode === 'internal' ? item.unit_price.toFixed(2) : (item.unit_price * (financials.grandTotal / financials.listSubtotal)).toFixed(2)}
-                                     </TableCell>
-                                     <TableCell className="text-right font-mono text-[11px] font-bold p-2 text-slate-900">
-                                       ${(item.unit_price * item.qty * (viewMode === 'internal' ? 1 : (financials.grandTotal / financials.listSubtotal))).toFixed(2)}
+                  {/* Dates Bar */}
+                  <div className="bg-[#D1E6D3] px-6 py-2 mb-2 flex justify-center gap-12 border-y border-[#A5D6A7]">
+                    <div className="text-[11px] font-bold text-slate-700">Date: <span className="font-black ml-1 text-slate-900">{new Date().toLocaleDateString()}</span></div>
+                    <div className="text-[11px] font-bold text-slate-700">Quote Ref: <span className="font-black ml-1 text-slate-900">{id.substring(0, 8).toUpperCase()}</span></div>
+                  </div>
+
+                  {/* Project Info Box */}
+                  <div className="grid grid-cols-2 border border-[#002060] mb-8 bg-white min-h-[140px]">
+                    <div className="p-6 border-r border-[#002060] flex flex-col items-center justify-center text-center space-y-1">
+                       <p className="text-sm font-black text-[#002060] uppercase">{customer.name || 'VALUED CUSTOMER'}</p>
+                       <p className="text-sm font-black text-[#002060] uppercase">{project.project_name}</p>
+                       <p className="text-sm font-black text-[#002060] uppercase">{customer.address || "JOB SITE ADDRESS"}</p>
+                    </div>
+                    <div className="p-6 flex flex-col items-center justify-center text-center space-y-1">
+                       <div className="bg-slate-50 w-full py-1 mb-2">
+                          <p className="text-[10px] font-black text-[#002060] uppercase tracking-widest text-center">Cabinet Style</p>
+                       </div>
+                       <p className="text-sm font-black text-[#002060] uppercase">{selectedRooms.length > 0 ? roomConfigs[selectedRooms[0]]?.collection : 'STANDARD'}</p>
+                       <p className="text-sm font-black text-[#002060] uppercase">{selectedRooms.length > 0 ? roomConfigs[selectedRooms[0]]?.door_style : 'CABINETS'}</p>
+                    </div>
+                  </div>
+
+                  {/* Dynamic Content Section */}
+                  <div className="space-y-10 min-h-[400px]">
+                    <div className="space-y-8">
+                      {(activePrintRoom ? [activePrintRoom] : selectedRooms).map(roomName => {
+                        const roomItems = bom.filter(i => i.room === roomName && i.is_billable && i.unit_price > 0);
+                        if (roomItems.length === 0) return null;
+                        return (
+                          <div key={roomName} className="avoid-break mb-8 overflow-hidden border border-slate-200 rounded-lg">
+                            <div className="bg-[#B0C4DE] border-b border-[#002060] py-2 px-4 flex justify-between items-center">
+                               <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#002060] italic">{roomName}</h3>
+                               <span className="text-[10px] font-black text-[#002060] bg-white/50 px-2 py-0.5 rounded-full uppercase">Room Subtotal (Sell)</span>
+                            </div>
+                            <Table>
+                               <TableHeader className="bg-slate-50 border-b border-slate-200">
+                                 <TableRow className="h-10 hover:bg-transparent">
+                                   <TableHead className="text-[10px] font-black uppercase p-2 text-slate-900 border-r border-slate-100 italic">CAB Code</TableHead>
+                                   <TableHead className="text-center text-[10px] font-black uppercase p-2 w-16 text-slate-900 border-r border-slate-100 italic">QTY</TableHead>
+                                   <TableHead className="text-right text-[10px] font-black uppercase p-2 text-slate-900 border-r border-slate-100 italic">Sell Price</TableHead>
+                                   <TableHead className="text-right text-[10px] font-black uppercase p-2 text-slate-900 italic">Amount</TableHead>
+                                 </TableRow>
+                               </TableHeader>
+                               <TableBody>
+                                   {(() => {
+                                      const groups: Record<string, any[]> = {};
+                                      roomItems.forEach(item => {
+                                         const cat = detectCategory(item.sku);
+                                         if (!groups[cat]) groups[cat] = [];
+                                         groups[cat].push(item);
+                                      });
+                                      
+                                      const order = [
+                                        'Wall Cabinets', 
+                                        'Base Cabinets', 
+                                        'Tall Cabinets', 
+                                        'Vanity Cabinets', 
+                                        'Universal Fillers', 
+                                        'Molding & Trim', 
+                                        'Hardwares', 
+                                        'Accessories'
+                                      ];
+                                      
+                                      return order.map(cat => {
+                                         const items = groups[cat] || [];
+                                         if (items.length === 0) return null;
+                                         return (
+                                           <React.Fragment key={cat}>
+                                              <TableRow className="bg-slate-100/30 h-8 border-b border-slate-100">
+                                                 <TableCell colSpan={4} className="text-[9px] font-black uppercase tracking-[0.15em] text-[#002060] bg-slate-50/80 pl-4 italic">
+                                                   {cat}
+                                                 </TableCell>
+                                              </TableRow>
+                                              {items.map(item => (
+                                                <TableRow key={item.id} className="border-b border-slate-100 h-10 hover:bg-transparent even:bg-slate-50/50">
+                                                   <TableCell className="font-bold text-[10px] p-2 text-slate-700 border-r border-slate-50">{item.sku}</TableCell>
+                                                   <TableCell className="text-center text-[10px] font-black w-16 p-2 text-slate-900 border-r border-slate-50">{item.qty}</TableCell>
+                                                   <TableCell className="text-right font-mono text-[10px] font-bold p-2 text-slate-600 border-r border-slate-50">
+                                                      ${(item.unit_price * (financials.scalingFactor || 1)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                   </TableCell>
+                                                   <TableCell className="text-right font-mono text-[10px] font-black p-2 text-[#002060]">
+                                                      ${(item.unit_price * item.qty * (financials.scalingFactor || 1)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                   </TableCell>
+                                                </TableRow>
+                                              ))}
+                                           </React.Fragment>
+                                         );
+                                      });
+                                   })()}
+                                  <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
+                                     <TableCell colSpan={3} className="text-[10px] font-black text-right uppercase italic pr-4">Room {roomName} Total:</TableCell>
+                                     <TableCell className="text-right font-mono text-[11px] font-black text-[#002060]">
+                                        ${(roomItems.reduce((s, i) => s + (i.unit_price * i.qty), 0) * (1 - (roomDiscounts[roomName] || 0) / 100) * (financials.scalingFactor || 1)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                      </TableCell>
                                   </TableRow>
-                                ))}
-                             </TableBody>
-                          </Table>
+                               </TableBody>
+                            </Table>
+                          </div>
+                        );
+                      })}
+
+                      {/* Miscellaneous Section */}
+                      <div className="avoid-break mb-8 overflow-hidden border border-slate-200 rounded-lg">
+                          <div className="bg-[#B0C4DE] border-b border-[#002060] py-2 px-4 flex justify-between items-center">
+                             <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#002060] italic">Miscellaneous & Included Items</h3>
+                          </div>
+                          <div className="flex justify-between items-center px-12 py-3 bg-white border-b border-slate-100">
+                              <span className="text-[10px] font-black text-[#002060] uppercase italic">Quarter Round at Floor - Whole House Included</span>
+                              <span className="text-[10px] font-black font-mono text-[#002060]">$0.00</span>
+                          </div>
+                          <div className="flex justify-between items-center px-12 py-3 bg-slate-50/50">
+                              <span className="text-[10px] font-black text-[#002060] uppercase italic">Standard 36" Upper Cabinets / Raised Vanities</span>
+                              <span className="text-[10px] font-black font-mono text-[#002060]">Included</span>
+                          </div>
                         </div>
-                      )
-                    })}
+                    </div>
                   </div>
 
-                  <div className="mt-20 pt-10 border-t-2 border-slate-900 flex flex-col items-end text-right avoid-break">
-                    <div className="w-full max-w-sm space-y-4">
-                      {viewMode === 'internal' && (
+                  {/* Final Summary Box */}
+                  <div className="mt-8 mb-12 flex justify-end">
+                    <div className="w-80 border border-[#002060] overflow-hidden rounded-lg">
+                       <div className="bg-[#B0C4DE] py-2 px-4 border-b border-[#002060]">
+                          <p className="text-xs font-black text-[#002060] uppercase tracking-widest text-center italic">Final Summary</p>
+                       </div>
+                       
+                       <div className="bg-slate-50 flex justify-between items-center px-6 py-2 border-b border-slate-200">
+                          <span className="text-[10px] font-black text-[#002060] uppercase italic">Proposed Subtotal</span>
+                          <span className="text-[11px] font-black font-mono text-[#002060]">${financials.netTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                       </div>
+
+                       <div className="bg-white flex justify-between items-center px-6 py-2 border-b border-slate-200">
+                          <span className="text-[10px] font-black text-red-700 uppercase italic">Estimated Sales Tax ({taxRate}%)</span>
+                          <span className="text-[11px] font-black font-mono text-red-700">${financials.taxes.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                       </div>
+
+                       <div className="bg-[#B0C4DE] flex justify-between items-center px-6 py-3">
+                          <span className="text-xs font-black text-[#002060] uppercase italic tracking-widest underline decoration-2">Total Amount Due</span>
+                          <span className="text-sm font-black font-mono text-[#002060] underline underline-offset-4 decoration-2">
+                             ${financials.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                       </div>
+                    </div>
+                  </div>
+                  <div className="space-y-6 mb-16 mt-12">
+                    <div className="bg-[#B0C4DE] py-1 px-4 italic">
+                         <h3 className="text-xs font-black text-[#002060] uppercase tracking-widest">
+                            {viewMode === 'client' ? 'Proposal Details and Disclaimers' : 'Internal Billing Notes'}
+                         </h3>
+                      </div>
+                      <div className="px-4 space-y-4 text-[11px] font-black italic tracking-tight leading-relaxed">
+                         {viewMode === 'client' ? (
+                           <>
+                             <p className="text-[#002060]">STANDARD CONSTRUCTION INCLUDED - SEE CONSTRUCTION SPEC SHEET</p>
+                             <p className="text-[#002060]">6-WAY ADJUSTABLE HINGES, STANDARD DRAWER</p>
+                             <p className="text-red-700">36" UPPERS / RAISED VANITIES / SCRIBE AT WALLS AND QUARTER ROUND AT FLOOR / NO HARDWARE / NO VENT BOX</p>
+                             <p className="text-[#002060]">TWO RETURN TRIPS INCLUDED IN PRICING. ADDITIONAL RETURN TRIPS IS NEEDED IT WILL BE BILLED ACCORDINGLY.</p>
+                           </>
+                         ) : (
+                           <p className="text-[#002060]">PRICES ABOVE INCLUDE MARGINS, TAXES, AND GLOBAL CHARGES SCALED PROPORTIONALLY PER ITEM.</p>
+                         )}
+                    </div>
+                  </div>
+
+                  {/* Signatures */}
+                  {viewMode === 'client' && (
+                    <div className="grid grid-cols-1 gap-12 mt-20">
+                       <div className="flex items-end justify-between gap-8 max-w-3xl">
+                          <div className="flex-1 flex flex-col">
+                             <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-black text-[#002060] shrink-0">{dealer.name}</span>
+                                <div className="w-full border-b border-slate-400 h-4" />
+                             </div>
+                          </div>
+                          <div className="w-48 flex flex-col">
+                             <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-black text-[#002060] shrink-0">Date</span>
+                                <div className="w-full border-b border-slate-400 h-4" />
+                             </div>
+                          </div>
+                       </div>
+                       <div className="flex items-end justify-between gap-8 max-w-3xl">
+                          <div className="flex-1 flex flex-col">
+                             <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-black text-[#002060] shrink-0">Client</span>
+                                <div className="w-full border-b border-slate-400 h-4" />
+                             </div>
+                          </div>
+                          <div className="w-48 flex flex-col">
+                             <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-black text-[#002060] shrink-0">Date</span>
+                                <div className="w-full border-b border-slate-400 h-4" />
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+                  )}
+               </div>
+
+                  {viewMode === 'internal' && (
+                    <div className="mt-20 pt-10 border-t-2 border-slate-900 flex flex-col items-end text-right avoid-break pr-20">
+                      <div className="w-full max-w-sm space-y-4">
                         <div className="bg-slate-50 p-6 rounded-lg mb-4 space-y-2 border border-slate-200 text-left">
                           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Internal Cost Breakdown</p>
                           <div className="flex justify-between text-[11px] font-bold uppercase text-slate-500">
@@ -643,31 +947,31 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                              <span className="font-mono">${financials.grandTotal.toFixed(2)}</span>
                           </div>
                         </div>
-                      )}
-                      
-                      <div className="flex justify-between text-xs font-bold uppercase text-slate-500 px-2">
-                         <span>Subtotal</span>
-                         <span className="font-mono">${(financials.netTotal).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-xs font-bold uppercase text-slate-500 px-2">
-                         <span>Tax ({taxRate}%)</span>
-                         <span className="font-mono">${financials.taxes.toFixed(2)}</span>
-                      </div>
-                      <div className="border-t border-slate-200 my-2" />
-                      
-                      <div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg border border-slate-200">
-                         <span className="text-sm font-black uppercase text-slate-900 tracking-widest">Total Amount</span>
-                         <span className="font-mono text-xl font-black text-sky-600 whitespace-nowrap ml-4">
-                            ${financials.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                         </span>
-                      </div>
-
-                      <div className="pt-8 space-y-1">
-                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Valid until: {new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString()}</p>
-                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Terms: Net 30</p>
+                        
+                        <div className="flex justify-between text-xs font-bold uppercase text-slate-500 px-2">
+                           <span>Subtotal</span>
+                           <span className="font-mono">${(financials.netTotal).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs font-bold uppercase text-slate-500 px-2">
+                           <span>Tax ({taxRate}%)</span>
+                           <span className="font-mono">${financials.taxes.toFixed(2)}</span>
+                        </div>
+                        <div className="border-t border-slate-200 my-2" />
+                        
+                        <div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg border border-slate-200">
+                           <span className="text-sm font-black uppercase text-slate-900 tracking-widest">Total Amount</span>
+                           <span className="font-mono text-xl font-black text-sky-600 whitespace-nowrap ml-4">
+                              ${financials.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                           </span>
+                        </div>
+  
+                        <div className="pt-8 space-y-1">
+                          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Valid until: {new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString()}</p>
+                          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Terms: Net 30</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   <div className="mt-32 pt-10 border-t border-slate-100 flex justify-center gap-6 print:hidden">
                     <Button size="lg" className="gradient-button h-16 px-12 text-lg rounded-2xl shadow-xl shadow-sky-500/30" onClick={() => triggerPrint()}>
@@ -677,9 +981,8 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                       <FileDown className="w-5 h-5 mr-3" /> Save Single PDF
                     </Button>
                   </div>
-               </div>
-            </div>
-          )}
+                </div>
+           )}
         </div>
 
         <aside className="print:hidden lg:sticky lg:top-24 h-fit">
@@ -742,8 +1045,22 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                   </div>
                 </div>
 
-                <div className="pt-6 border-t border-slate-100 space-y-3">
-                   <div className="flex justify-between text-xs">
+                <div className="pt-6 border-t border-slate-100 space-y-4">
+                   <div className="space-y-2">
+                       <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Room Sale Summary</p>
+                       {selectedRooms.map(room => {
+                           const rSub = bom.filter(i => i.room === room && i.is_billable).reduce((sum, item) => sum + (item.unit_price * item.qty), 0);
+                           const rFinal = rSub * (1 - (roomDiscounts[room] || 0) / 100) * (financials.scalingFactor || 0);
+                           return (
+                               <div key={room} className="flex justify-between items-center text-[10px] font-bold text-slate-500">
+                                   <span className="truncate max-w-[140px]">{room}</span>
+                                   <span className="font-mono text-slate-900">${rFinal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                               </div>
+                           );
+                       })}
+                   </div>
+
+                   <div className="pt-4 border-t border-slate-50 flex justify-between text-xs">
                       <span className="text-slate-400 font-bold uppercase tracking-widest">Net Value</span>
                       <span className="font-mono text-slate-900 font-bold">${financials.netTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                    </div>

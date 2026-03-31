@@ -65,20 +65,20 @@ def detect_category(sku: str) -> str:
         return 'Universal Fillers'
 
     # 2. Wall Cabinets
-    if s.startswith('W') and any(char.isdigit() for char in s):
+    if s.startswith('W'):
         return 'Wall Cabinets'
     
     # 3. Base Cabinets (Standard & Sink)
-    if (s.startswith('SB') or s.startswith('B')) and any(char.isdigit() for char in s):
+    if (s.startswith('SB') or s.startswith('B')):
         return 'Base Cabinets'
     
     # 4. Tall Cabinets (Pantry, Oven, Utility, Refrigerator)
     tall_prefixes = ['T', 'P', 'O', 'UTIL', 'REF']
-    if any(s.startswith(p) for p in tall_prefixes) and (any(char.isdigit() for char in s) or s.startswith('REF') or s.startswith('UTIL')):
+    if any(s.startswith(p) for p in tall_prefixes):
         return 'Tall Cabinets'
     
     # 5. Vanity Cabinets
-    if s.startswith('V') and any(char.isdigit() for char in s):
+    if s.startswith('V'):
         return 'Vanity Cabinets'
     
     # 6. Hardwares

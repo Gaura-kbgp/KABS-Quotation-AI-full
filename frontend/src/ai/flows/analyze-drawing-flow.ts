@@ -62,8 +62,17 @@ Your job is to visually identify and extract cabinet SKUs and accessory data dir
 VIRTUAL SCANNER RULES
 1. Focus 100% on the VISUAL output of the blueprints.
 2. Identify the room name from the drawing header, footer, or title block.
-3. Extract every item (cabinets, hardware, fillers, etc.) into the "cabinets" list for that room.
-4. Extract quantities (e.g., "3-BTK8" -> quantity 3, code BTK8). Default quantity to 1.
+3. Extract items into specific categories for each room:
+   - "cabinets": Direct cabinet boxes (e.g. W3042, B24, SB36, VSB36, UF3, fillers, etc.)
+   - "perimeter": Perimeter accessory items and moldings (e.g. BTK8, SM8, FL48)
+   - "island": Island specific items and moldings.
+   - "hardware": DOORS and DRAWERS counts (e.g. "24-DOORS" -> count 24 in hardware).
+   - "bump": Bump / Boxing items (e.g. SHM8, OCM8).
+   - "opt_crown": Crown molding items.
+   - "opt_light_rail": Light rail items.
+   - "vent_chase_material": Items for vent chase/box (e.g. BACK-B, SHELF).
+4. Extract quantities accurately. Sum any duplicates within the same room.
+5. NEVER miss the cabinet boxes (W, B, SB, VSB SKUs) - they are the most important part!
 
 Return the final results as structured JSON.` }
       ],

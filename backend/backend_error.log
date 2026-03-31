@@ -1,7 +1,0 @@
-
-[2026-03-20 17:11:55.938154] ERROR in generate_bom:
-Traceback (most recent call last):
-  File "C:\KAB projects ongoing\Quotation-AI-main\backend\app\api\pricing.py", line 168, in generate_bom
-  File "C:\Users\admin\anaconda3\Lib\site-packages\postgrest\_sync\request_builder.py", line 53, in execute
-    raise APIError(dict(json_obj))
-postgrest.exceptions.APIError: {'message': 'invalid input syntax for type integer: "1.0"', 'code': '22P02', 'hint': None, 'details': None}

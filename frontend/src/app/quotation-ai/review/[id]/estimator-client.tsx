@@ -110,21 +110,43 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
   const collections = useMemo(() => Object.keys(manMapping).sort(), [manMapping]);
 
   const handleUpdateQty = (rIdx: number, catKey: string, iIdx: number, val: number) => {
-    const nr = [...rooms];
-    nr[rIdx][catKey][iIdx].quantity = val;
-    setRooms(nr);
+    setRooms(prev => {
+      const nr = [...prev];
+      const items = [...nr[rIdx][catKey]];
+      items[iIdx] = { ...items[iIdx], quantity: val };
+      nr[rIdx] = { ...nr[rIdx], [catKey]: items };
+      return nr;
+    });
   };
 
   const handleUpdateCode = (rIdx: number, catKey: string, iIdx: number, val: string) => {
-    const nr = [...rooms];
-    nr[rIdx][catKey][iIdx].code = val.toUpperCase();
-    setRooms(nr);
+    setRooms(prev => {
+      const nr = [...prev];
+      const items = [...nr[rIdx][catKey]];
+      items[iIdx] = { ...items[iIdx], code: val.toUpperCase() };
+      nr[rIdx] = { ...nr[rIdx], [catKey]: items };
+      return nr;
+    });
   };
 
   const handleDelete = (rIdx: number, catKey: string, iIdx: number) => {
-    const nr = [...rooms];
-    nr[rIdx][catKey].splice(iIdx, 1);
-    setRooms(nr);
+    setRooms(prev => {
+      const nr = [...prev];
+      const items = [...nr[rIdx][catKey]];
+      items.splice(iIdx, 1);
+      nr[rIdx] = { ...nr[rIdx], [catKey]: items };
+      return nr;
+    });
+  };
+
+  const handleAddItem = (rIdx: number, catKey: string, defaultCode = '') => {
+    setRooms(prev => {
+      const nr = [...prev];
+      const items = [...(nr[rIdx][catKey] || [])];
+      items.push({ code: defaultCode, quantity: 1 });
+      nr[rIdx] = { ...nr[rIdx], [catKey]: items };
+      return nr;
+    });
   };
 
   const handleAddRoom = () => {
@@ -145,13 +167,6 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
   const handleRemoveRoom = (idx: number) => {
     if (!confirm('Are you sure you want to remove this room?')) return;
     setRooms(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  const handleAddItem = (rIdx: number, catKey: string) => {
-    const nr = [...rooms];
-    if (!nr[rIdx][catKey]) nr[rIdx][catKey] = [];
-    nr[rIdx][catKey].push({ code: '', quantity: 1 });
-    setRooms(nr);
   };
 
   const handleBack = () => {
@@ -289,13 +304,13 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                           'Accessories'
                         ];
 
-                        return Object.entries(groupedCabs)
-                          .sort(([a], [b]) => {
-                            const aIdx = cabOrder.indexOf(a);
-                            const bIdx = cabOrder.indexOf(b);
-                            return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
-                          })
-                          .map(([catName, entries]) => (
+                        return cabOrder.map(catName => {
+                          const entries = groupedCabs[catName] || [];
+                          // Hide Molding, Hardwares, Accessories if empty, but keep main 5 always visible
+                          const isCore = ['Wall Cabinets', 'Base Cabinets', 'Tall Cabinets', 'Vanity Cabinets', 'Universal Fillers'].includes(catName);
+                          if (!isCore && entries.length === 0) return null;
+
+                          return (
                             <Card key={catName} className="rounded-2xl border-slate-100 shadow-sm overflow-hidden bg-white">
                               <div className="px-6 py-3 bg-slate-50 flex items-center justify-between">
                                  <span className="text-xs font-black uppercase tracking-widest text-slate-600 flex items-center gap-2">
@@ -308,41 +323,52 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                                    )} />
                                    {catName} ({entries.length})
                                  </span>
-                                 <Button variant="ghost" size="sm" onClick={() => handleAddItem(rIdx, 'cabinets')} className="h-7 text-[10px] uppercase font-bold text-sky-600 bg-sky-50">
+                                 <Button variant="ghost" size="sm" onClick={() => {
+                                   const prefix = catName.includes('Wall') ? 'W' : 
+                                                 catName.includes('Base') ? 'B' : 
+                                                 catName.includes('Tall') ? 'T' : 
+                                                 catName.includes('Vanity') ? 'V' : 
+                                                 catName.includes('Filler') ? 'UF' : 
+                                                 catName.includes('Molding') ? 'M' : '';
+                                   handleAddItem(rIdx, 'cabinets', prefix);
+                                 }} className="h-7 text-[10px] uppercase font-bold text-sky-600 bg-sky-50">
                                    <Plus className="w-3 h-3 mr-1" /> Add
                                  </Button>
                               </div>
-                              <Table>
-                                <TableBody>
-                                  {entries.map(({ originalIndex, item }, iIdx) => (
-                                    <TableRow key={iIdx} className="h-14 hover:bg-slate-50 border-slate-50">
-                                      <TableCell className="w-24 pl-6">
-                                        <Input 
-                                          type="number" 
-                                          value={item.quantity} 
-                                          onChange={(e) => handleUpdateQty(rIdx, 'cabinets', originalIndex, parseInt(e.target.value) || 0)}
-                                          className="w-16 h-9 text-center font-bold bg-slate-50 border-none"
-                                        />
-                                      </TableCell>
-                                      <TableCell>
-                                        <Input 
-                                          value={item.code}
-                                          onChange={(e) => handleUpdateCode(rIdx, 'cabinets', originalIndex, e.target.value)}
-                                          className="border-none bg-transparent font-bold text-slate-900 text-base"
-                                          placeholder="SKU"
-                                        />
-                                      </TableCell>
-                                      <TableCell className="text-right pr-6">
-                                        <Button variant="ghost" size="icon" onClick={() => handleDelete(rIdx, 'cabinets', originalIndex)} className="text-slate-300 hover:text-red-500">
-                                          <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
+                              {entries.length > 0 && (
+                                <Table>
+                                  <TableBody>
+                                    {entries.map(({ originalIndex, item }, iIdx) => (
+                                      <TableRow key={iIdx} className="h-14 hover:bg-slate-50 border-slate-50">
+                                        <TableCell className="w-24 pl-6">
+                                          <Input 
+                                            type="number" 
+                                            value={item.quantity} 
+                                            onChange={(e) => handleUpdateQty(rIdx, 'cabinets', originalIndex, parseInt(e.target.value) || 0)}
+                                            className="w-16 h-9 text-center font-bold bg-slate-50 border-none"
+                                          />
+                                        </TableCell>
+                                        <TableCell>
+                                          <Input 
+                                            value={item.code}
+                                            onChange={(e) => handleUpdateCode(rIdx, 'cabinets', originalIndex, e.target.value)}
+                                            className="border-none bg-transparent font-bold text-slate-900 text-base"
+                                            placeholder="SKU"
+                                          />
+                                        </TableCell>
+                                        <TableCell className="text-right pr-6">
+                                          <Button variant="ghost" size="icon" onClick={() => handleDelete(rIdx, 'cabinets', originalIndex)} className="text-slate-300 hover:text-red-500">
+                                            <Trash2 className="w-4 h-4" />
+                                          </Button>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              )}
                             </Card>
-                          ));
+                          );
+                        });
                       })()}
 
                       <Accordion type="multiple" className="w-full space-y-4">
@@ -371,12 +397,12 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                                     <TableBody>
                                     {items.map((item: Item, iIdx: number) => (
                                         <TableRow key={iIdx} className="h-12 border-slate-100/50 bg-white">
-                                          <TableCell className="w-24 pl-6">
+                                          <TableCell className="w-28 pl-6">
                                             <Input 
                                               type="number" 
                                               value={item.quantity} 
                                               onChange={(e) => handleUpdateQty(rIdx, cat.key, iIdx, parseInt(e.target.value) || 0)}
-                                              className="w-12 h-8 text-center font-bold text-xs bg-slate-50 border-none"
+                                              className="w-16 h-9 text-center font-bold text-sm bg-slate-50 border-none"
                                             />
                                           </TableCell>
                                           <TableCell>
