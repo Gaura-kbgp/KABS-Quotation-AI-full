@@ -62,7 +62,7 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
     const isPrisingPdf = isAddingFile.type === 'spec' && uploadFile.name.toLowerCase().endsWith('.pdf');
     
     const apiRoute = (isAddingFile.type === 'pricing' || isPrisingPdf)
-      ? `http://localhost:8000/api/upload-pricing?manufacturer_id=${id}` 
+      ? `/api/upload-pricing?manufacturer_id=${id}` 
       : '/api/upload-spec';
 
     try {

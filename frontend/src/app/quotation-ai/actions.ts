@@ -3,6 +3,7 @@
 import { createServerSupabase } from '@/lib/supabase-server';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
+const BACKEND_URL = (process.env.BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 /**
  * Generic project update for extracted_data and metadata.
@@ -76,7 +77,7 @@ export async function generateBOMAction(projectId: string, manufacturerId: strin
     if (updateError) throw updateError;
 
     // 4. Trigger Python FastAPI Pricing Engine
-    const res = await fetch(`http://localhost:8000/api/generate-bom?project_id=${projectId}&manufacturer_id=${manufacturerId}`, {
+    const res = await fetch(`${BACKEND_URL}/api/generate-bom?project_id=${projectId}&manufacturer_id=${manufacturerId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
