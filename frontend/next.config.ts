@@ -35,8 +35,20 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: '/api/:path*',
-        destination: 'http://localhost:8000/api/:path*',
+        source: '/api/generate-bom',
+        destination: 'http://localhost:8000/api/generate-bom',
+      },
+      {
+        source: '/api/upload-pricing',
+        destination: 'http://localhost:8000/api/upload-pricing',
+      },
+      {
+        source: '/api/manufacturer-config',
+        destination: 'http://localhost:8000/api/manufacturer-config',
+      },
+      {
+        source: '/api/db-check',
+        destination: 'http://localhost:8000/api/db-check',
       },
     ];
   },

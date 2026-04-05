@@ -40,7 +40,7 @@ export async function updateBomItemAction(id: string, updates: any) {
 /**
  * Triggers the pricing engine after applying global specs.
  */
-export async function generateBOMAction(projectId: string, manufacturerId: string, collection: string, doorStyle: string) {
+export async function generateBOMAction(projectId: string, manufacturerId: string, collection: string, doorStyle: string, allSpecs: any = {}) {
   try {
     const supabase = createServerSupabase();
     
@@ -56,8 +56,12 @@ export async function generateBOMAction(projectId: string, manufacturerId: strin
     // 2. Apply global specs to all rooms
     const updatedRooms = (project.extracted_data?.rooms || []).map((room: any) => ({
       ...room,
-      collection,
-      door_style: doorStyle
+      collection: collection || room.collection,
+      door_style: doorStyle || room.door_style,
+      box_construction: allSpecs.box_construction || room.box_construction || '',
+      finish: allSpecs.finish || room.finish || '',
+      wood_species: allSpecs.wood_species || room.wood_species || '',
+      drawer_box: allSpecs.drawer_box || room.drawer_box || ''
     }));
 
     // 3. Update database

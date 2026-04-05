@@ -30,7 +30,9 @@ const RoomSchema = z.object({
   perimeter: z.array(ItemSchema).optional().default([]),
   island: z.array(ItemSchema).optional().default([]),
   hardware: z.array(ItemSchema).optional().default([]),
+  island_hardware: z.array(ItemSchema).optional().default([]),
   bump: z.array(ItemSchema).optional().default([]),
+  island_bump: z.array(ItemSchema).optional().default([]),
   opt_crown: z.array(ItemSchema).optional().default([]),
   opt_light_rail: z.array(ItemSchema).optional().default([]),
   vent_chase_material: z.array(ItemSchema).optional().default([]),
@@ -66,12 +68,23 @@ VIRTUAL SCANNER RULES
    - "cabinets": Direct cabinet boxes (e.g. W3042, B24, SB36, VSB36, UF3, fillers, etc.)
    - "perimeter": Perimeter accessory items and moldings (e.g. BTK8, SM8, FL48)
    - "island": Island specific items and moldings.
-   - "hardware": DOORS and DRAWERS counts (e.g. "24-DOORS" -> count 24 in hardware).
-   - "bump": Bump / Boxing items (e.g. SHM8, OCM8).
+   - "hardware": DOORS and DRAWERS counts that appear in the PERIMETER / MAIN section ONLY (e.g. "24-DOORS" -> code "DOORS" quantity 24).
+   - "island_hardware": DOORS and DRAWERS counts that appear in the ISLAND section ONLY (e.g. "3-DOORS" -> code "DOORS" quantity 3).
+   - "bump": Bump / Boxing items (e.g. SHM8, OCM8) from the PERIMETER / MAIN section.
+   - "island_bump": Bump / Boxing items from the ISLAND section.
    - "opt_crown": Crown molding items.
    - "opt_light_rail": Light rail items.
    - "vent_chase_material": Items for vent chase/box (e.g. BACK-B, SHELF).
-4. Extract quantities accurately. Sum any duplicates within the same room.
+
+**CRITICAL**: The drawing often has TWO SEPARATE columns — one for PERIMETER/MAIN kitchen and one for ISLAND.
+Each column may have its own HARDWARE and BUMP sub-section. You MUST keep them separate:
+  - Perimeter HARDWARE => "hardware"
+  - Island HARDWARE     => "island_hardware"
+  - Perimeter BUMP      => "bump"
+  - Island BUMP         => "island_bump"
+Do NOT merge them into one section.
+
+4. Extract quantities accurately. Sum any duplicates within the same category.
 5. NEVER miss the cabinet boxes (W, B, SB, VSB SKUs) - they are the most important part!
 
 Return the final results as structured JSON.` }

@@ -31,7 +31,14 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [selectedManId, setSelectedManId] = useState<string>('');
-  const [config, setConfig] = useState({ collection: '', doorStyle: '' });
+  const [config, setConfig] = useState<any>({ 
+    collection: '', 
+    doorStyle: '',
+    box_construction: '',
+    finish: '',
+    wood_species: '',
+    drawer_box: ''
+  });
   const [availableCollections, setAvailableCollections] = useState<string[]>([]);
   const [availableStyles, setAvailableStyles] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -47,7 +54,14 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
       const data = await res.json();
       setAvailableCollections(data.collections || []);
       setAvailableStyles(data.styles || []);
-      setConfig({ collection: '', doorStyle: '' });
+      setConfig({ 
+        collection: '', 
+        doorStyle: '',
+        box_construction: '',
+        finish: '',
+        wood_species: '',
+        drawer_box: ''
+      });
     } catch (err) {
       toast({ variant: 'destructive', title: 'Error fetching config' });
     } finally {
@@ -60,7 +74,7 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
     
     setIsGenerating(true);
     try {
-      const result = await generateBOMAction(project.id, selectedManId, config.collection, config.doorStyle);
+      const result = await generateBOMAction(project.id, selectedManId, config.collection, config.doorStyle, config);
       if (result.success) {
         toast({ title: 'BOM Generated Successfully' });
         router.push(`/quotation-ai/bom/${project.id}`);
@@ -116,7 +130,9 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
                   { key: 'perimeter', label: 'Perimeter Specs', icon: Layers },
                   { key: 'island', label: 'Island Specs', icon: Layout },
                   { key: 'hardware', label: 'Hardware', icon: Package },
+                  { key: 'island_hardware', label: 'Island Hardware', icon: Package },
                   { key: 'bump', label: 'Bump / Boxing', icon: Layers },
+                  { key: 'island_bump', label: 'Island Bump / Boxing', icon: Layers },
                 ].map((section) => {
                   const items = room[section.key] || [];
                   if (items.length === 0) return null;
@@ -175,13 +191,15 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
               {selectedManId && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-1">Collection</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-1">
+                       {manufacturers.find(m => m.id === selectedManId)?.name === "Aristocraft" ? "Door Style" : "Collection"}
+                    </label>
                     <Select 
                       disabled={isFetchingConfig} 
-                      onValueChange={(v) => setConfig(prev => ({ ...prev, collection: v }))}
+                      onValueChange={(v) => setConfig((prev: any) => ({ ...prev, collection: v }))}
                     >
                       <SelectTrigger className="bg-slate-50 border-none h-14 text-slate-900 rounded-2xl shadow-inner">
-                        <SelectValue placeholder={isFetchingConfig ? "Syncing..." : "Choose Collection"} />
+                        <SelectValue placeholder={isFetchingConfig ? "Syncing..." : (manufacturers.find(m => m.id === selectedManId)?.name === "Aristocraft" ? "Choose Style" : "Choose Collection")} />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-slate-200 text-slate-900">
                         {availableCollections.map(c => (
@@ -192,13 +210,15 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-1">Door Style</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-1">
+                       {manufacturers.find(m => m.id === selectedManId)?.name === "Aristocraft" ? "Price Point" : "Door Style"}
+                    </label>
                     <Select 
                       disabled={isFetchingConfig || !config.collection} 
-                      onValueChange={(v) => setConfig(prev => ({ ...prev, doorStyle: v }))}
+                      onValueChange={(v) => setConfig((prev: any) => ({ ...prev, doorStyle: v }))}
                     >
                       <SelectTrigger className="bg-slate-50 border-none h-14 text-slate-900 rounded-2xl shadow-inner">
-                        <SelectValue placeholder="Choose Style" />
+                        <SelectValue placeholder={manufacturers.find(m => m.id === selectedManId)?.name === "Aristocraft" ? "Choose Point" : "Choose Style"} />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-slate-200 text-slate-900">
                         {availableStyles.map(s => (
@@ -207,6 +227,80 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {manufacturers.find(m => m.id === selectedManId)?.name === "Integrity Cabinets" && (
+                    <div className="pt-4 space-y-4 border-t border-slate-100 mt-4 animate-in zoom-in-95">
+                       <p className="text-[10px] font-black text-sky-600 uppercase tracking-widest flex items-center gap-2">
+                          <Factory className="w-3 h-3" />
+                          Global Integrity Specs
+                       </p>
+                       <div className="grid grid-cols-1 gap-4">
+                          <div className="space-y-1.5">
+                             <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Box Construction</label>
+                             <Select onValueChange={(v) => setConfig((p: any) => ({ ...p, box_construction: v }))}>
+                                <SelectTrigger className="bg-sky-50/50 border-none h-10 text-xs font-bold rounded-xl"><SelectValue placeholder="Select Box" /></SelectTrigger>
+                                <SelectContent>
+                                   <SelectItem value="Frameless Plywood" className="font-bold">Frameless Plywood</SelectItem>
+                                   <SelectItem value="Standard Plywood" className="font-bold">Standard Plywood</SelectItem>
+                                   <SelectItem value="Particle Board" className="font-bold">Particle Board</SelectItem>
+                                </SelectContent>
+                             </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                             <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Finish</label>
+                             <Select onValueChange={(v) => setConfig((p: any) => ({ ...p, finish: v }))}>
+                                <SelectTrigger className="bg-sky-50/50 border-none h-10 text-xs font-bold rounded-xl"><SelectValue placeholder="Select Finish" /></SelectTrigger>
+                                <SelectContent>
+                                   <SelectItem value="Standard Stain" className="font-bold">Standard Stain</SelectItem>
+                                   <SelectItem value="Paint" className="font-bold">Paint</SelectItem>
+                                   <SelectItem value="Glazed" className="font-bold">Glazed</SelectItem>
+                                </SelectContent>
+                             </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                             <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Wood Species</label>
+                             <Select onValueChange={(v) => setConfig((p: any) => ({ ...p, wood_species: v }))}>
+                                <SelectTrigger className="bg-sky-50/50 border-none h-10 text-xs font-bold rounded-xl"><SelectValue placeholder="Wood Type" /></SelectTrigger>
+                                <SelectContent>
+                                   <SelectItem value="Maple" className="font-bold">Maple</SelectItem>
+                                   <SelectItem value="Oak" className="font-bold">Oak</SelectItem>
+                                   <SelectItem value="Cherry" className="font-bold">Cherry</SelectItem>
+                                </SelectContent>
+                             </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                             <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Drawer Box</label>
+                             <Select onValueChange={(v) => setConfig((p: any) => ({ ...p, drawer_box: v }))}>
+                                <SelectTrigger className="bg-sky-50/50 border-none h-10 text-xs font-bold rounded-xl"><SelectValue placeholder="Drawer Type" /></SelectTrigger>
+                                <SelectContent>
+                                   <SelectItem value="Dovetail Wood" className="font-bold">Dovetail Wood</SelectItem>
+                                   <SelectItem value="Metal Box" className="font-bold">Metal Box</SelectItem>
+                                </SelectContent>
+                             </Select>
+                          </div>
+                       </div>
+                    </div>
+                  )}
+
+                  {manufacturers.find(m => m.id === selectedManId)?.name === "Aristocraft" && (
+                    <div className="pt-4 space-y-4 border-t border-slate-100 mt-4 animate-in zoom-in-95">
+                       <p className="text-[10px] font-black text-sky-600 uppercase tracking-widest flex items-center gap-2">
+                          <Package className="w-3 h-3" />
+                          Aristocraft Options
+                       </p>
+                       <div className="space-y-1.5">
+                          <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Door Finishing</label>
+                          <Select onValueChange={(v) => setConfig((p: any) => ({ ...p, finish: v }))}>
+                             <SelectTrigger className="bg-sky-50/50 border-none h-10 text-xs font-bold rounded-xl"><SelectValue placeholder="Select Finish" /></SelectTrigger>
+                             <SelectContent>
+                                <SelectItem value="Standard" className="font-bold">Standard</SelectItem>
+                                <SelectItem value="Paint" className="font-bold">Paint</SelectItem>
+                                <SelectItem value="Glazed" className="font-bold">Glazed</SelectItem>
+                             </SelectContent>
+                          </Select>
+                       </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -51,7 +51,9 @@ interface Room {
   perimeter: Item[];
   island: Item[];
   hardware: Item[];
+  island_hardware: Item[];
   bump: Item[];
+  island_bump: Item[];
   opt_crown?: Item[];
   opt_light_rail?: Item[];
   vent_chase_material?: Item[];
@@ -70,7 +72,9 @@ const CATEGORIES = [
   { key: 'perimeter', label: 'Perimeter Specs', icon: Layers },
   { key: 'island', label: 'Island Specs', icon: Layout },
   { key: 'hardware', label: 'Hardware', icon: Package },
+  { key: 'island_hardware', label: 'Island Hardware', icon: Package },
   { key: 'bump', label: 'Bump / Boxing', icon: Layers },
+  { key: 'island_bump', label: 'Island Bump / Boxing', icon: Layers },
   { key: 'opt_crown', label: 'Optional Crown', icon: Layers },
   { key: 'opt_light_rail', label: 'Optional Light Rail', icon: Layers },
   { key: 'vent_chase_material', label: 'Vent Chase Material', icon: Layers },
@@ -86,6 +90,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
   const [selectedManId, setSelectedManId] = useState<string>(project.manufacturer_id || '');
   const [manMapping, setManMapping] = useState<Record<string, string[]>>({});
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isFetchingConfig, setIsFetchingConfig] = useState(false);
 
   useEffect(() => {
     if (initialSyncRef.current) return;
@@ -156,7 +161,9 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
       perimeter: [],
       island: [],
       hardware: [],
+      island_hardware: [],
       bump: [],
+      island_bump: [],
       opt_crown: [],
       opt_light_rail: [],
       vent_chase_material: [],
@@ -205,6 +212,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
   };
 
   const fetchManConfig = async (id: string) => {
+    setIsFetchingConfig(true);
     try {
       const res = await fetch(`/api/manufacturer-config?id=${id}`);
       const data = await res.json();
@@ -219,6 +227,8 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
         title: 'Error loading brands', 
         description: err.message || 'The connection to the pricing backend failed.' 
       });
+    } finally {
+      setIsFetchingConfig(false);
     }
   };
 
@@ -284,92 +294,99 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                    </div>
                    
                    <div className="grid grid-cols-1 gap-6">
-                      {/* GROUPED CABINETS SECTION */}
-                      {(() => {
-                        const groupedCabs: Record<string, { originalIndex: number; item: Item }[]> = {};
-                        (room.cabinets || []).forEach((item, originalIndex) => {
-                          const cat = detectCategory(item.code);
-                          if (!groupedCabs[cat]) groupedCabs[cat] = [];
-                          groupedCabs[cat].push({ originalIndex, item });
-                        });
+                       {/* GROUPED CABINETS SECTION — Smart: only shows categories that have items */}
+                       {(() => {
+                         const groupedCabs: Record<string, { originalIndex: number; item: Item }[]> = {};
+                         (room.cabinets || []).forEach((item, originalIndex) => {
+                           const cat = detectCategory(item.code);
+                           if (!groupedCabs[cat]) groupedCabs[cat] = [];
+                           groupedCabs[cat].push({ originalIndex, item });
+                         });
 
-                        const cabOrder = [
-                          'Wall Cabinets',
-                          'Base Cabinets',
-                          'Tall Cabinets',
-                          'Vanity Cabinets',
-                          'Universal Fillers',
-                          'Molding & Trim',
-                          'Hardwares',
-                          'Accessories'
-                        ];
+                         const cabOrder = [
+                           'Wall Cabinets', 'Base Cabinets', 'Tall Cabinets',
+                           'Vanity Cabinets', 'Universal Fillers',
+                           'Molding & Trim', 'Hardwares', 'Accessories'
+                         ];
+                         const extraCats = Object.keys(groupedCabs).filter(c => !cabOrder.includes(c));
+                         const finalOrder = [...cabOrder, ...extraCats];
 
-                        return cabOrder.map(catName => {
-                          const entries = groupedCabs[catName] || [];
-                          // Hide Molding, Hardwares, Accessories if empty, but keep main 5 always visible
-                          const isCore = ['Wall Cabinets', 'Base Cabinets', 'Tall Cabinets', 'Vanity Cabinets', 'Universal Fillers'].includes(catName);
-                          if (!isCore && entries.length === 0) return null;
+                         const cards = finalOrder.map(catName => {
+                           const entries = groupedCabs[catName] || [];
+                           if (entries.length === 0) return null;
 
-                          return (
-                            <Card key={catName} className="rounded-2xl border-slate-100 shadow-sm overflow-hidden bg-white">
-                              <div className="px-6 py-3 bg-slate-50 flex items-center justify-between">
-                                 <span className="text-xs font-black uppercase tracking-widest text-slate-600 flex items-center gap-2">
-                                   <Box className={cn(
-                                     "w-4 h-4",
-                                     catName.includes('Wall') ? "text-amber-500" : 
-                                     catName.includes('Base') ? "text-sky-500" : 
-                                     catName.includes('Vanity') ? "text-purple-500" : 
-                                     catName.includes('Tall') ? "text-emerald-500" : "text-slate-400"
-                                   )} />
-                                   {catName} ({entries.length})
-                                 </span>
-                                 <Button variant="ghost" size="sm" onClick={() => {
-                                   const prefix = catName.includes('Wall') ? 'W' : 
-                                                 catName.includes('Base') ? 'B' : 
-                                                 catName.includes('Tall') ? 'T' : 
-                                                 catName.includes('Vanity') ? 'V' : 
-                                                 catName.includes('Filler') ? 'UF' : 
-                                                 catName.includes('Molding') ? 'M' : '';
-                                   handleAddItem(rIdx, 'cabinets', prefix);
-                                 }} className="h-7 text-[10px] uppercase font-bold text-sky-600 bg-sky-50">
-                                   <Plus className="w-3 h-3 mr-1" /> Add
-                                 </Button>
-                              </div>
-                              {entries.length > 0 && (
-                                <Table>
-                                  <TableBody>
-                                    {entries.map(({ originalIndex, item }, iIdx) => (
-                                      <TableRow key={iIdx} className="h-14 hover:bg-slate-50 border-slate-50">
-                                        <TableCell className="w-24 pl-6">
-                                          <Input 
-                                            type="number" 
-                                            value={item.quantity} 
-                                            onChange={(e) => handleUpdateQty(rIdx, 'cabinets', originalIndex, parseInt(e.target.value) || 0)}
-                                            className="w-16 h-9 text-center font-bold bg-slate-50 border-none"
-                                          />
-                                        </TableCell>
-                                        <TableCell>
-                                          <Input 
-                                            value={item.code}
-                                            onChange={(e) => handleUpdateCode(rIdx, 'cabinets', originalIndex, e.target.value)}
-                                            className="border-none bg-transparent font-bold text-slate-900 text-base"
-                                            placeholder="SKU"
-                                          />
-                                        </TableCell>
-                                        <TableCell className="text-right pr-6">
-                                          <Button variant="ghost" size="icon" onClick={() => handleDelete(rIdx, 'cabinets', originalIndex)} className="text-slate-300 hover:text-red-500">
-                                            <Trash2 className="w-4 h-4" />
-                                          </Button>
-                                        </TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-                              )}
-                            </Card>
-                          );
-                        });
-                      })()}
+                           return (
+                             <Card key={catName} className="rounded-2xl border-slate-100 shadow-sm overflow-hidden bg-white">
+                               <div className="px-6 py-3 bg-slate-50 flex items-center justify-between">
+                                  <span className="text-xs font-black uppercase tracking-widest text-slate-600 flex items-center gap-2">
+                                    <Box className={cn(
+                                      "w-4 h-4",
+                                      catName.includes('Wall') ? "text-amber-500" : 
+                                      catName.includes('Base') ? "text-sky-500" : 
+                                      catName.includes('Vanity') ? "text-purple-500" : 
+                                      catName.includes('Tall') ? "text-emerald-500" : "text-slate-400"
+                                    )} />
+                                    {catName} ({entries.length})
+                                  </span>
+                                  <Button variant="ghost" size="sm" onClick={() => {
+                                    const prefix = catName.includes('Wall') ? 'W' : 
+                                                  catName.includes('Base') ? 'B' : 
+                                                  catName.includes('Tall') ? 'T' : 
+                                                  catName.includes('Vanity') ? 'V' : 
+                                                  catName.includes('Filler') ? 'UF' : 
+                                                  catName.includes('Molding') ? 'M' : '';
+                                    handleAddItem(rIdx, 'cabinets', prefix);
+                                  }} className="h-7 text-[10px] uppercase font-bold text-sky-600 bg-sky-50">
+                                    <Plus className="w-3 h-3 mr-1" /> Add
+                                  </Button>
+                               </div>
+                               <Table>
+                                 <TableBody>
+                                   {entries.map(({ originalIndex, item }, iIdx) => (
+                                     <TableRow key={iIdx} className="h-14 hover:bg-slate-50 border-slate-50">
+                                       <TableCell className="w-24 pl-6">
+                                         <Input 
+                                           type="number" 
+                                           value={item.quantity} 
+                                           onChange={(e) => handleUpdateQty(rIdx, 'cabinets', originalIndex, parseInt(e.target.value) || 0)}
+                                           className="w-16 h-9 text-center font-bold bg-slate-50 border-none"
+                                         />
+                                       </TableCell>
+                                       <TableCell>
+                                         <Input 
+                                           value={item.code}
+                                           onChange={(e) => handleUpdateCode(rIdx, 'cabinets', originalIndex, e.target.value)}
+                                           className="border-none bg-transparent font-bold text-slate-900 text-base"
+                                           placeholder="SKU"
+                                         />
+                                       </TableCell>
+                                       <TableCell className="text-right pr-6">
+                                         <Button variant="ghost" size="icon" onClick={() => handleDelete(rIdx, 'cabinets', originalIndex)} className="text-slate-300 hover:text-red-500">
+                                           <Trash2 className="w-4 h-4" />
+                                         </Button>
+                                       </TableCell>
+                                     </TableRow>
+                                   ))}
+                                 </TableBody>
+                               </Table>
+                             </Card>
+                           );
+                         });
+
+                         return (
+                           <>
+                             {cards}
+                             {/* Add Cabinet button — always visible for manual additions */}
+                             <Button
+                               variant="outline"
+                               onClick={() => handleAddItem(rIdx, 'cabinets', '')}
+                               className="w-full h-12 rounded-2xl border-dashed border-2 border-slate-200 text-slate-400 hover:border-sky-400 hover:text-sky-600 transition-all"
+                             >
+                               <Plus className="w-4 h-4 mr-2" /> Add Cabinet
+                             </Button>
+                           </>
+                         );
+                       })()}
 
                       <Accordion type="multiple" className="w-full space-y-4">
                         {CATEGORIES.slice(1).map((cat) => {
@@ -479,12 +496,82 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
         {step === 'specifications' && (
           <div className="max-w-4xl mx-auto py-8 space-y-6 animate-in fade-in duration-500">
             <h2 className="text-xl font-black text-center text-slate-900">Configure Brands</h2>
+
+            {/* LOADING STATE */}
+            {isFetchingConfig && (
+              <Card className="p-8 rounded-2xl bg-white border-slate-100 shadow-md">
+                <div className="flex flex-col items-center justify-center gap-4">
+                  <div className="relative">
+                    <Loader2 className="w-10 h-10 text-sky-500 animate-spin" />
+                    <div className="absolute inset-0 w-10 h-10 rounded-full border-2 border-sky-100" />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-bold text-slate-900 text-sm">Loading Collections & Door Styles</p>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1">Syncing with pricing database...</p>
+                  </div>
+                </div>
+              </Card>
+            )}
+            
+            {/* APPLY TO ALL ROOMS — Master Selector */}
+            {!isFetchingConfig && (
+            <>
+            <Card className="p-6 rounded-2xl bg-gradient-to-r from-sky-50 to-indigo-50 border-sky-200 shadow-md">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-sky-500 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900 text-sm">Apply to All Rooms</p>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Select once, apply everywhere</p>
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-black uppercase text-sky-600 tracking-widest pl-1">Collection</p>
+                    <Select onValueChange={(v) => {
+                      const nr = rooms.map(r => ({ ...r, collection: v, door_style: '' }));
+                      setRooms(nr);
+                    }}>
+                      <SelectTrigger className="w-44 h-11 text-sm bg-white border-sky-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent className="bg-white border-slate-100 max-h-80">
+                        {collections.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-black uppercase text-sky-600 tracking-widest pl-1">Door Style</p>
+                    <Select onValueChange={(v) => {
+                      const nr = rooms.map(r => ({ ...r, door_style: v }));
+                      setRooms(nr);
+                    }} disabled={!rooms[0]?.collection}>
+                      <SelectTrigger className="w-44 h-11 text-sm bg-white border-sky-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent className="bg-white border-slate-100">
+                        {rooms[0]?.collection && manMapping[rooms[0].collection]?.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* INDIVIDUAL ROOM OVERRIDES */}
+            <div className="flex items-center gap-3 pt-2">
+              <div className="h-px flex-1 bg-slate-200" />
+              <span className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">Or configure per room</span>
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+
             <div className="grid grid-cols-1 gap-4">
               {rooms.map((room, rIdx) => (
                 <Card key={rIdx} className="p-6 rounded-2xl flex items-center justify-between gap-4 bg-white border-slate-100 shadow-sm">
                   <div className="flex items-center gap-3">
                     <Layout className="w-5 h-5 text-sky-500" />
                     <span className="font-bold text-slate-900">{room.room_name}</span>
+                    {room.collection && room.door_style && (
+                      <span className="text-[9px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full tracking-wider">✓ Set</span>
+                    )}
                   </div>
                   <div className="flex gap-4">
                     <div className="space-y-1">
@@ -521,6 +608,8 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
             <Button onClick={handleGenerateQuote} className="w-full h-14 gradient-button mt-4 shadow-xl shadow-sky-500/10" disabled={isProcessing}>
               {isProcessing ? <Loader2 className="animate-spin" /> : 'Finalize Pricing'}
             </Button>
+            </>
+            )}
           </div>
         )}
       </div>

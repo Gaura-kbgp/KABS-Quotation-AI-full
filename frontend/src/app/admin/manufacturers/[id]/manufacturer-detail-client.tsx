@@ -59,7 +59,9 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
     formData.append('file', uploadFile);
     formData.append('manufacturerId', id);
 
-    const apiRoute = isAddingFile.type === 'pricing' 
+    const isPrisingPdf = isAddingFile.type === 'spec' && uploadFile.name.toLowerCase().endsWith('.pdf');
+    
+    const apiRoute = (isAddingFile.type === 'pricing' || isPrisingPdf)
       ? `http://localhost:8000/api/upload-pricing?manufacturer_id=${id}` 
       : '/api/upload-spec';
 
@@ -164,7 +166,9 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
 
                       </div>
                       <div className="flex gap-2">
-                        <Button variant="ghost" size="icon" asChild><a href={file.file_url} target="_blank"><ExternalLink className="w-4 h-4" /></a></Button>
+                        {file.file_url && file.file_url !== "#" && (
+                          <Button variant="ghost" size="icon" asChild><a href={file.file_url} target="_blank"><ExternalLink className="w-4 h-4" /></a></Button>
+                        )}
                         <Button variant="ghost" size="icon" onClick={() => handleDeleteFile(file)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></Button>
                       </div>
                     </div>
@@ -209,7 +213,9 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Button variant="ghost" size="icon" asChild><a href={file.file_url} target="_blank"><ExternalLink className="w-4 h-4" /></a></Button>
+                        {file.file_url && file.file_url !== "#" && (
+                          <Button variant="ghost" size="icon" asChild><a href={file.file_url} target="_blank"><ExternalLink className="w-4 h-4" /></a></Button>
+                        )}
                         <Button variant="ghost" size="icon" onClick={() => handleDeleteFile(file)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></Button>
                       </div>
                     </div>
@@ -280,7 +286,7 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
               <input 
                 id="file-input" 
                 type="file" 
-                accept={isAddingFile.type === 'pricing' ? '.xlsx,.xlsm,.csv' : '.pdf'} 
+                accept={isAddingFile.type === 'pricing' ? '.xlsx,.xlsm,.csv,.pdf' : '.pdf'} 
                 className="hidden" 
                 onChange={e => setUploadFile(e.target.files?.[0] || null)} 
               />
@@ -295,7 +301,7 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
                   <>
                     <UploadCloud className="w-10 h-10 text-slate-300 mb-2" />
                     <p className="text-sm font-medium">Drag & drop or <span className="text-sky-600">browse</span></p>
-                    <p className="text-xs text-slate-400 mt-1">Supports XLSX, XLSM, and CSV</p>
+                    <p className="text-xs text-slate-400 mt-1">Supports XLSX, XLSM, CSV, and PDF (Integrity)</p>
                   </>
                 )}
               </label>
