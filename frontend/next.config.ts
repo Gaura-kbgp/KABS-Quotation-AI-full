@@ -36,19 +36,19 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/generate-bom',
-        destination: 'http://127.0.0.1:8000/api/generate-bom',
+        destination: `${process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/generate-bom`,
       },
       {
         source: '/api/upload-pricing',
-        destination: 'http://127.0.0.1:8000/api/upload-pricing',
+        destination: `${process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/upload-pricing`,
       },
       {
         source: '/api/manufacturer-config',
-        destination: 'http://127.0.0.1:8000/api/manufacturer-config',
+        destination: `${process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/manufacturer-config`,
       },
       {
         source: '/api/db-check',
-        destination: 'http://127.0.0.1:8000/api/db-check',
+        destination: `${process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/db-check`,
       },
     ];
   },

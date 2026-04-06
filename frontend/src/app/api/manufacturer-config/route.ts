@@ -7,9 +7,7 @@ export async function GET(req: Request) {
       return Response.json({ error: 'Missing Manufacturer ID' }, { status: 400 });
     }
 
-    let BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
-    // Remove trailing slash if present
-    BACKEND_URL = BACKEND_URL.replace(/\/$/, '');
+    const BACKEND_URL = (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
     
     try {
       const targetUrl = `${BACKEND_URL}/api/manufacturer-config?id=${id}`;

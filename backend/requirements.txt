@@ -6,3 +6,6 @@ pandas
 openpyxl
 thefuzz
 python-multipart
+pdfplumber
+gunicorn
+uvicorn

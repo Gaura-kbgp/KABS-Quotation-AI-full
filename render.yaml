@@ -21,7 +21,7 @@ services:
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false
       - key: BACKEND_URL
-        value: http://localhost:8000
+        value: http://127.0.0.1:8000
       - key: NEXT_PUBLIC_BACKEND_URL 
-        value: http://localhost:8000
+        value: http://127.0.0.1:8000
 
