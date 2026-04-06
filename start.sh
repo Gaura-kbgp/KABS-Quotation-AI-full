@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Start the Python FastAPI backend on port 8000 using Gunicorn for production stability
+# Start the Python FastAPI backend on port 8000 in the background
 echo "Starting KABS Backend on port 8000..."
-cd /app/backend && gunicorn -w 2 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000 --daemon
+cd /app/backend && uvicorn main:app --host 0.0.0.0 --port 8000 &
 
 # Wait a moment for the backend to initialize
-sleep 2
+sleep 4
 
 # Start the Next.js Frontend on the Render-provided $PORT
 echo "Starting KABS Frontend on port $PORT..."
