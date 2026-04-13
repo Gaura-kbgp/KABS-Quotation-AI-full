@@ -19,6 +19,14 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from '@/components/ui/dialog';
+import {
   Plus,
   Trash2,
   ChevronRight,
@@ -34,6 +42,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { updateProjectAction } from '../../actions';
+import { refineBomFlow } from '@/ai/flows/refine-bom-flow';
 import { useRouter } from 'next/navigation';
 import { cn, detectCategory, isPrimaryCabinet } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -91,11 +100,21 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
   const [manMapping, setManMapping] = useState<Record<string, string[]>>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [isFetchingConfig, setIsFetchingConfig] = useState(false);
+  
+  const [isRunningAgent, setIsRunningAgent] = useState(false);
+  const [agentResult, setAgentResult] = useState<{ corrected_rooms: any[], explanations: string[] } | null>(null);
 
   useEffect(() => {
     if (initialSyncRef.current) return;
     if (project.extracted_data?.rooms) {
-      setRooms(project.extracted_data.rooms);
+      const enrichedRooms = project.extracted_data.rooms.map((r: any) => ({
+        ...r,
+        cabinets: (r.cabinets || []).map((c: any) => ({
+          ...c,
+          _assignedCategory: c._assignedCategory || detectCategory(c.code)
+        }))
+      }));
+      setRooms(enrichedRooms);
     }
     initialSyncRef.current = true;
   }, [project]);
@@ -144,11 +163,15 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
     });
   };
 
-  const handleAddItem = (rIdx: number, catKey: string, defaultCode = '') => {
+  const handleAddItem = (rIdx: number, catKey: string, defaultCode = '', specificCat = '') => {
     setRooms(prev => {
       const nr = [...prev];
       const items = [...(nr[rIdx][catKey] || [])];
-      items.push({ code: defaultCode, quantity: 1 });
+      const newItem: any = { code: defaultCode, quantity: 1 };
+      if (catKey === 'cabinets') {
+        newItem._assignedCategory = specificCat || detectCategory(defaultCode);
+      }
+      items.push(newItem);
       nr[rIdx] = { ...nr[rIdx], [catKey]: items };
       return nr;
     });
@@ -232,6 +255,18 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
     }
   };
 
+  const handleRunSmartAgent = async () => {
+    setIsRunningAgent(true);
+    try {
+      const result = await refineBomFlow({ rooms });
+      setAgentResult(result);
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Smart Agent Error', description: err.message || 'Failed to refine BOM.' });
+    } finally {
+      setIsRunningAgent(false);
+    }
+  };
+
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -266,10 +301,16 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                   <Sparkles className="w-5 h-5 text-sky-500" />
                   <p className="text-sm font-bold text-slate-600">Review all extracted items and apply manufacturer specifications below.</p>
                </div>
-               <Button onClick={() => setStep('manufacturer')} className="h-12 px-10 gradient-button text-base">
-                  Select Manufacturer
-                  <ChevronRight className="ml-2 w-5 h-5" />
-               </Button>
+               <div className="flex items-center gap-3">
+                 <Button onClick={handleRunSmartAgent} variant="outline" disabled={isRunningAgent} className="h-12 px-6 border-purple-200 text-purple-700 hover:bg-purple-50 hover:text-purple-800 bg-purple-50/50 shadow-sm font-bold">
+                    {isRunningAgent ? <Loader2 className="w-5 h-5 mr-2 animate-spin text-purple-600" /> : <Sparkles className="w-5 h-5 mr-2 text-purple-600" />}
+                    Quotation Smart Agent
+                 </Button>
+                 <Button onClick={() => setStep('manufacturer')} className="h-12 px-10 gradient-button text-base">
+                    Select Manufacturer
+                    <ChevronRight className="ml-2 w-5 h-5" />
+                 </Button>
+               </div>
             </div>
 
             <div className="space-y-12">
@@ -297,8 +338,8 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                        {/* GROUPED CABINETS SECTION — Smart: only shows categories that have items */}
                        {(() => {
                          const groupedCabs: Record<string, { originalIndex: number; item: Item }[]> = {};
-                         (room.cabinets || []).forEach((item, originalIndex) => {
-                           const cat = detectCategory(item.code);
+                         (room.cabinets || []).forEach((item: any, originalIndex) => {
+                           const cat = item._assignedCategory || detectCategory(item.code);
                            if (!groupedCabs[cat]) groupedCabs[cat] = [];
                            groupedCabs[cat].push({ originalIndex, item });
                          });
@@ -335,7 +376,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                                                   catName.includes('Vanity') ? 'V' : 
                                                   catName.includes('Filler') ? 'UF' : 
                                                   catName.includes('Molding') ? 'M' : '';
-                                    handleAddItem(rIdx, 'cabinets', prefix);
+                                    handleAddItem(rIdx, 'cabinets', prefix, catName);
                                   }} className="h-7 text-[10px] uppercase font-bold text-sky-600 bg-sky-50">
                                     <Plus className="w-3 h-3 mr-1" /> Add
                                   </Button>
@@ -613,6 +654,60 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
           </div>
         )}
       </div>
+
+      {/* Quotation Smart Agent Review Dialog */}
+      <Dialog open={!!agentResult} onOpenChange={(open) => { if (!open) setAgentResult(null); }}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-purple-700">
+              <Sparkles className="w-5 h-5" />
+              Smart Agent Review Complete
+            </DialogTitle>
+            <DialogDescription>
+              The AI has reviewed your Bill of Materials based on NKBA structural rules. Here are the suggested changes:
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4 space-y-2 max-h-[60vh] overflow-y-auto">
+            {agentResult?.explanations && agentResult.explanations.length > 0 ? (
+              agentResult.explanations.map((exp, idx) => (
+                <div key={idx} className="p-3 bg-purple-50 text-purple-900 border border-purple-100 rounded-lg text-sm flex gap-3">
+                  <Sparkles className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
+                  <span>{exp}</span>
+                </div>
+              ))
+            ) : (
+              <div className="p-6 text-center text-emerald-600 bg-emerald-50 rounded-xl border border-emerald-100 flex flex-col items-center gap-2">
+                <Sparkles className="w-8 h-8" />
+                <p className="font-bold">Perfect! No corrections needed.</p>
+                <p className="text-xs">Your extracted items perfectly match standard NKBA taxonomies.</p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setAgentResult(null)}>Cancel</Button>
+            {agentResult?.explanations && agentResult.explanations.length > 0 && (
+              <Button onClick={() => {
+                if (agentResult) {
+                  const enrichedRooms = agentResult.corrected_rooms.map((r: any) => ({
+                    ...r,
+                    cabinets: (r.cabinets || []).map((c: any) => ({
+                      ...c,
+                      _assignedCategory: c._assignedCategory || detectCategory(c.code)
+                    }))
+                  }));
+                  setRooms(enrichedRooms);
+                }
+                setAgentResult(null);
+                toast({ title: 'Corrections Applied', description: 'The suggested changes have been merged.' });
+              }} className="bg-purple-600 hover:bg-purple-700 text-white">
+                Approve & Apply Corrections
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

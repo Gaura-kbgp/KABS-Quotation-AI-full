@@ -10,9 +10,17 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # Load environment variables
 load_dotenv()
 
+# Disable system proxies to prevent httpx 'proxy' argument bug
+os.environ['HTTP_PROXY'] = ''
+os.environ['HTTPS_PROXY'] = ''
+os.environ['http_proxy'] = ''
+os.environ['https_proxy'] = ''
+os.environ['NO_PROXY'] = '*'
+
 from app.api.pricing import router as pricing_router
 
 app = FastAPI(title="KABS Quotation AI Backend")
+# Force reload v3
 
 # Setup CORS
 app.add_middleware(
@@ -25,6 +33,22 @@ app.add_middleware(
 
 # Include routes
 app.include_router(pricing_router, prefix="/api")
+
+@app.get("/debug/env")
+async def debug_env():
+    import sys
+    import httpx
+    try:
+        import postgrest
+        p_ver = getattr(postgrest, '__version__', 'unknown')
+    except:
+        p_ver = 'not installed'
+    return {
+        "python_version": sys.version,
+        "python_path": sys.path,
+        "httpx_version": httpx.__version__,
+        "postgrest_version": p_ver
+    }
 
 @app.get("/")
 async def root():

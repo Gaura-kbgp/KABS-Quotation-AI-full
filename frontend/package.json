@@ -6,7 +6,7 @@
     "node": "20.x"
   },
   "scripts": {
-    "dev": "next dev -p 9007",
+    "dev": "node --max-old-space-size=4096 node_modules/next/dist/bin/next dev -p 3000",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "next build",

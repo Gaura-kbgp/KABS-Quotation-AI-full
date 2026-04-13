@@ -1,5 +1,6 @@
 import { createServerSupabase } from '@/lib/supabase-server';
 import { analyzeDrawing } from '@/ai/flows/analyze-drawing-flow';
+import { refineBomFlow } from '@/ai/flows/refine-bom-flow';
 import * as fs from 'fs';
 
 export const maxDuration = 300;
@@ -69,14 +70,22 @@ export async function POST(req: Request) {
         projectName: projectName
       });
       
-      logHit("AI Analysis finished. Saving fallback result...");
-      fs.writeFileSync(`scan_result_${project.id}.json`, JSON.stringify(result, null, 2));
+      logHit("AI Analysis finished. Running Quotation Smart Agent...");
+      const smartAgentResult = await refineBomFlow({ rooms: result.rooms || [] });
+
+      const finalExtractedData = {
+        rooms: smartAgentResult.corrected_rooms,
+        smart_agent_explanations: smartAgentResult.explanations
+      };
+
+      logHit("Smart Agent finished. Saving fallback result...");
+      fs.writeFileSync(`scan_result_${project.id}.json`, JSON.stringify(finalExtractedData, null, 2));
       
       logHit("Updating Supabase with extracted data...");
       const { error: updateError } = await supabase
         .from('quotation_projects')
         .update({
-          extracted_data: result,
+          extracted_data: finalExtractedData,
           status: 'Reviewing'
         })
         .eq('id', project.id);

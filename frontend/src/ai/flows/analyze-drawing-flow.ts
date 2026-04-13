@@ -84,8 +84,13 @@ Each column may have its own HARDWARE and BUMP sub-section. You MUST keep them s
   - Island BUMP         => "island_bump"
 Do NOT merge them into one section.
 
-4. Extract quantities accurately. Sum any duplicates within the same category.
-5. NEVER miss the cabinet boxes (W, B, SB, VSB SKUs) - they are the most important part!
+8. **CRITICAL MODIFIERS (e.g. BUTT) & FORMATTING**: 
+   - If a cabinet has a modifier like "BUTT" or "MD" attached to it, append it directly to the cabinet code (e.g. "W3042 BUTT" becomes "W3042BUTT"). Do NOT list "BUTT" as its own separate accessory.
+   - You MUST clean all spaces and special characters (like '-', '_', '/') from the final extracted "code" string. For example, "W3042-BUTT" MUST be output strictly as "W3042BUTT".
+
+9. Extract quantities accurately. Sum any duplicates within the same category.
+10. NEVER miss the cabinet boxes (W, B, SB, VSB SKUs) - they are the most important part!
+11. **CRITICAL: EXHAUSTIVE MULTI-PAGE SCAN**. The document contains MULTIPLE rooms across MULTIPLE pages. You MUST scan every single page and extract every single room. DO NOT stop after the first room. Extract data for every room title you see until the very end of the document!
 
 Return the final results as structured JSON.` }
       ],

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File
 from app.core.supabase_client import get_supabase
-from app.utils.cabinet_utils import compress_sku, detect_category
+from app.utils.cabinet_utils import compress_sku, detect_category, parse_sku_dimensions, find_nearest_cabinet_match, classify_cabinet_type, INTEGRITY_PREFIX_ALIASES
 from app.utils.excel_processor import parse_specifications_python
 from app.utils.pdf_processor import parse_pricing_pdf
 from thefuzz import process, fuzz
@@ -21,7 +21,7 @@ def get_cache_path(mfg_id: str) -> str:
 
 router = APIRouter()
 
-def find_best_match(item_code: str, room_collection: str, room_door_style: str, lookup_maps: dict):
+def find_best_match(item_code: str, room_collection: str, room_door_style: str, lookup_maps: dict, manufacturer_hint: str = ""):
     target = str(item_code or "").strip().upper()
     if not target: return None, None
     
@@ -107,11 +107,111 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
                 match = local_map.get(key) or local_map.get(f"{best_sku}|{col}|{style}") or global_map.get(best_sku)
                 if match: return match, f"FUZZY_{score}"
 
+    # TIER 5.5: INTELLIGENT NEAREST-CABINET DIMENSION MATCH
+    # ─────────────────────────────────────────────────────────────────────
+    # When no exact / fuzzy match is found, classify the cabinet type from
+    # the drawing code (Wall, Base, Sink Base, Vanity, Tall, Molding, etc.)
+    # and find the geometrically closest same-type cabinet in the catalog.
+    # This gives a REAL price (not a category average) and is especially
+    # critical for Integrity Cabinets where the catalog uses different SKU
+    # conventions but contains the corresponding size cabinet.
+    # ─────────────────────────────────────────────────────────────────────
+    cabinet_type = classify_cabinet_type(clean_target)
+    catalog_rows = lookup_maps.get('all_catalog_rows', [])
+    if cabinet_type and catalog_rows:
+        nearest = find_nearest_cabinet_match(
+            target_sku=clean_target,
+            catalog_skus=catalog_rows,
+            collection_filter=col or None,
+            manufacturer_hint=manufacturer_hint,
+        )
+        if nearest:
+            delta_w = ""
+            # Try to log what size we landed on
+            from app.utils.cabinet_utils import parse_sku_dimensions as _psd
+            t_dims = _psd(clean_target)
+            n_dims = _psd(str(nearest.get('sku', '')))
+            tw = t_dims.get('width') or 0
+            nw = n_dims.get('width') or 0
+            th = t_dims.get('height') or 0
+            nh = n_dims.get('height') or 0
+            if tw and nw:
+                delta_w = f" Δw={abs(tw - nw)}"
+            # Build a clear price reference string for the frontend
+            ref_sku = nearest.get('sku', '')
+            ref_col = nearest.get('collection_name', '')
+            size_note = ""
+            if tw and nw and tw != nw:
+                size_note = f" (nearest {nw}\" wide)"
+            elif th and nh and th != nh:
+                size_note = f" (nearest {nh}\" tall)"
+            nearest['price_ref'] = f"Ref: {ref_sku}{size_note} [{ref_col}]"
+            log_match(f"MATCH: {nearest['sku']} (NearestDim type={cabinet_type}{delta_w})")
+            return nearest, f"NEAREST_DIM_{cabinet_type.replace(' ', '_').upper()}"
+
+    # TIER 6: DIMENSION MATCH (Cross-Manufacturer)
+    dims = parse_sku_dimensions(clean_target)
+    if dims.get('prefix') and dims.get('width'):
+        dim_key = f"{dims['prefix']}|{dims['width']}|{dims.get('height') or ''}"
+        # Try finding a match in the same collection
+        dim_map = lookup_maps.get('dim', {})
+        if f"{dim_key}|{col}" in dim_map:
+            match = dim_map[f"{dim_key}|{col}"]
+            log_match(f"MATCH: {dim_key} (Dimension Col)")
+            return match, "DIMENSION_COL"
+        
+        # Try global dimension match (any collection)
+        if dim_key in dim_map:
+            match = dim_map[dim_key]
+            log_match(f"MATCH: {dim_key} (Dimension Global)")
+            return match, "DIMENSION_GLOBAL"
+
+    # TIER 7: CATEGORY FALLBACK  (Better than $0)
+    # Even in the avg-price fallback, we resolve the NEAREST real catalog SKU
+    # so the designer always sees an actual manufacturer code as the reference.
+    cat_sums = lookup_maps.get('category_sums', {})
+    if category in cat_sums:
+        total_price, count = cat_sums[category]
+        if count > 0:
+            avg_price = total_price / count
+
+            # Find closest real catalog SKU inside this category
+            all_rows = lookup_maps.get('all_catalog_rows', [])
+            cat_items = [r for r in all_rows if detect_category(r.get('sku', '')) == category]
+            nearest_ref_sku = None
+            nearest_ref_col = None
+            if cat_items:
+                _nearest = find_nearest_cabinet_match(
+                    target_sku=clean_target,
+                    catalog_skus=cat_items,
+                    collection_filter=col or None,
+                    manufacturer_hint=manufacturer_hint,
+                )
+                if _nearest:
+                    nearest_ref_sku = _nearest.get('sku', '')
+                    nearest_ref_col = _nearest.get('collection_name', '')
+
+            # Use real catalog SKU as matched label; fall back to synthetic only if none found
+            matched_label = nearest_ref_sku or f"{target} (Est. {category})"
+            if nearest_ref_sku:
+                ref_text = f"Catalog Ref: {nearest_ref_sku} [{nearest_ref_col}] (avg. of {count} {category} items)"
+            else:
+                ref_text = f"Avg. of {count} {category} items in catalog"
+
+            log_match(f"MATCH: {category} (Category Average — catalog ref: {nearest_ref_sku})")
+            return {
+                "sku": matched_label,
+                "price": avg_price,
+                "collection_name": col or "N/A",
+                "price_ref": ref_text
+            }, "CATEGORY_AVERAGE"
+
     log_match(f"FAIL: {target} (Required review)")
     return {
         "sku": f"{target} (Review)",
         "price": 0.0,
-        "collection_name": col or "N/A"
+        "collection_name": col or "N/A",
+        "price_ref": "No catalog match found — manual pricing required"
     }, "MANUAL_PRICING_REQUIRED"
 
 @router.post("/generate-bom")
@@ -200,29 +300,58 @@ async def generate_bom(project_id: str, manufacturer_id: str):
                     cache_group[key] = []
             return results
 
-        # 3. FAST FETCH: Targeted SKUs + Full Collections
-        sku_rows = fetch_in_batches("sku", list(project_skus))
-        for row in sku_rows:
-            r_id = row.get('id')
-            if r_id and r_id not in seen_ids:
-                seen_ids.add(r_id)
-                pricing_data.append(row)
+        # 3. COMPREHENSIVE FETCH: Get all manufacturer data (up to 50k) to ensure fallback accuracy
+        print(f"DEBUG: Starting comprehensive fetch for {manufacturer_id}")
+        count_res = supabase.table("manufacturer_pricing").select("id", count="exact").eq("manufacturer_id", manufacturer_id).execute()
+        total_mfg_items = count_res.count or 0
+        print(f"DEBUG: Total items in database for manufacturer: {total_mfg_items}")
 
-        if required_cols:
-            print(f"DEBUG: Fetching full collections: {required_cols}")
-            col_rows = fetch_in_batches("collection_name", list(required_cols))
-            for row in col_rows:
+        if total_mfg_items < 50000:
+            off = 0
+            while off < total_mfg_items:
+                res = supabase.table("manufacturer_pricing").select("id,sku,price,collection_name,door_style") \
+                    .eq("manufacturer_id", manufacturer_id) \
+                    .range(off, off + page_size - 1).execute()
+                batch = res.data or []
+                for row in batch:
+                    r_id = row.get('id')
+                    if r_id and r_id not in seen_ids:
+                        seen_ids.add(r_id)
+                        pricing_data.append(row)
+                if len(batch) < page_size: break
+                off += page_size
+        else:
+            # FALLBACK: Use targeted fetch if too many items
+            sku_rows = fetch_in_batches("sku", list(project_skus))
+            for row in sku_rows:
                 r_id = row.get('id')
                 if r_id and r_id not in seen_ids:
                     seen_ids.add(r_id)
                     pricing_data.append(row)
 
-        print(f"DEBUG: TOTAL Targeted pricing rows: {len(pricing_data)}")
+            if required_cols:
+                col_rows = fetch_in_batches("collection_name", list(required_cols))
+                for row in col_rows:
+                    r_id = row.get('id')
+                    if r_id and r_id not in seen_ids:
+                        seen_ids.add(r_id)
+                        pricing_data.append(row)
 
+        print(f"DEBUG: Total pricing records loaded: {len(pricing_data)}")
+
+
+        # Determine manufacturer hint (for Integrity-specific logic)
+        project_mfg_name = str(project.get('metadata', {}).get('mfg_name', '')).lower()
+        is_integrity = (
+            manufacturer_id == "4c5206ec-fd02-46cb-81bf-f4663a7333d0"
+            or "integrity" in project_mfg_name
+        )
+        mfg_hint = "integrity" if is_integrity else project_mfg_name
 
         lookup_maps = {
-            'local': {}, 'global': {}, 'compressed': {}, 
-            'col_skus': {}, 'category_skus': {}, 'category_sums': {}
+            'local': {}, 'global': {}, 'compressed': {}, 'dim': {},
+            'col_skus': {}, 'category_skus': {}, 'category_sums': {},
+            'all_catalog_rows': []  # Full flat list for nearest-dim engine
         }
         for p in pricing_data:
             sku = str(p['sku']).strip().upper()
@@ -231,6 +360,8 @@ async def generate_bom(project_id: str, manufacturer_id: str):
             style = str(p.get('door_style', '')).strip().upper()
             cat = detect_category(sku)
             item = {"sku": sku, "price": price, "collection_name": col, "door_style": style}
+            # Always add to flat list for dimension engine
+            lookup_maps['all_catalog_rows'].append(item)
             
             # Indexing: prioritize more specific keys
             if col and style: lookup_maps['local'][f"{sku}|{col}|{style}"] = item
@@ -259,6 +390,19 @@ async def generate_bom(project_id: str, manufacturer_id: str):
             if cat not in lookup_maps['category_sums']: lookup_maps['category_sums'][cat] = [0.0, 0]
             lookup_maps['category_sums'][cat][0] += price
             lookup_maps['category_sums'][cat][1] += 1
+            
+            # Dimension Indexing for Cross-Manufacturer Fallback
+            dims = parse_sku_dimensions(sku)
+            if dims.get('prefix') and dims.get('width'):
+                dim_key = f"{dims['prefix']}|{dims['width']}|{dims.get('height') or ''}"
+                # Store by col for better precision, but also globally
+                if f"{dim_key}|{col}" not in lookup_maps['dim']:
+                    lookup_maps['dim'][f"{dim_key}|{col}"] = item
+                if dim_key not in lookup_maps['dim']:
+                    lookup_maps['dim'][dim_key] = item
+        
+        print(f"DEBUG: CATEGORIES DISCOVERED in catalog: {list(lookup_maps['category_sums'].keys())}")
+        print(f"DEBUG: Category sums: {lookup_maps['category_sums']}")
         
         print(f"DEBUG: Loaded {len(pricing_data)} records. Mean Price: {sum(p['price'] for p in pricing_data)/len(pricing_data) if pricing_data else 0}")
         print(f"DEBUG: Min Price: {min(p['price'] for p in pricing_data) if pricing_data else 0}")
@@ -289,7 +433,7 @@ async def generate_bom(project_id: str, manufacturer_id: str):
                 
             print(f"DEBUG: Total flat items for room: {len(flat_items)}")
             for item in flat_items:
-                match, match_type = find_best_match(item['code'], effective_col, room.get('door_style', ''), lookup_maps)
+                match, match_type = find_best_match(item['code'], effective_col, room.get('door_style', ''), lookup_maps, manufacturer_hint=mfg_hint)
                 if match:
                     qty = int(float(item.get('quantity', item.get('qty', 1))))
                     price = float(match['price'])
@@ -305,7 +449,10 @@ async def generate_bom(project_id: str, manufacturer_id: str):
                     bom_items.append({
                         "project_id": project_id,
                         "sku": item['code'],
-                        "matched_sku": match['sku'],
+                        # Store full reference string in matched_sku so designer can
+                        # always trace which catalog SKU was used for the price.
+                        # Format:  "REF_SKU" or "Catalog Ref: REF_SKU [COLLECTION] (note)"
+                        "matched_sku": match.get('price_ref') or match['sku'],
                         "qty": qty,
                         "unit_price": price,
                         "line_total": total,
@@ -314,7 +461,8 @@ async def generate_bom(project_id: str, manufacturer_id: str):
                         "door_style": room.get('door_style') or 'UNIVERSAL',
                         "price_source": f"Python Engine ({match_type})",
                         "precision_level": match_type,
-                        # Use a simpler date format to avoid any potential datetime conversion issues
+                        # NOTE: 'price_reference' column does NOT exist in quotation_boms.
+                        # Reference info is encoded in matched_sku above.
                         "created_at": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
                     })
         
@@ -551,14 +699,189 @@ async def db_check():
     """Diagnostic endpoint to verify database connectivity."""
     try:
         supabase = get_supabase()
-        # Simple count check to verify RLS and Keys
         res = supabase.table("manufacturer_pricing").select("sku", count="exact").limit(1).execute()
         return {
-            "success": True, 
-            "message": "Database connection verified", 
+            "success": True,
+            "message": "Database connection verified",
             "pricing_count": res.count,
             "sample": res.data
         }
+    except Exception as e:
+        return {"success": False, "error": str(e), "trace": traceback.format_exc()}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# INSTALL RULES  (manufacturer defaults + client overrides)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.post("/install-rules/upload")
+async def upload_install_rules(
+    file: UploadFile = File(...),
+    manufacturer_id: str = None
+):
+    """
+    Bulk-upload install rules from an Excel file.
+
+    Expected columns (case-insensitive):
+      Item Code | Item Type | Install Factor | Include in 3PL | Count Basis
+
+    All rows are upserted with the supplied manufacturer_id.
+    """
+    import io
+    try:
+        import openpyxl
+    except ImportError:
+        return {"success": False, "error": "openpyxl not installed on server."}
+
+    if not manufacturer_id:
+        return {"success": False, "error": "manufacturer_id query param is required."}
+
+    try:
+        contents = await file.read()
+        wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
+        ws = wb.active
+
+        header_map: dict[str, int] = {}
+        header_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+        for col_idx, cell_val in enumerate(header_row):
+            if cell_val:
+                header_map[str(cell_val).strip().lower()] = col_idx
+
+        col_aliases = {
+            "item_code":       ["item code", "item_code", "sku", "code"],
+            "item_type":       ["item type", "item_type", "type"],
+            "install_factor":  ["install factor", "install_factor", "factor"],
+            "include_in_3pl":  ["include in 3pl", "include_in_3pl", "3pl"],
+            "count_basis":     ["count basis", "count_basis", "basis"],
+        }
+
+        def find_col(field: str):
+            for alias in col_aliases[field]:
+                if alias in header_map:
+                    return header_map[alias]
+            return None
+
+        col_code    = find_col("item_code")
+        col_type    = find_col("item_type")
+        col_factor  = find_col("install_factor")
+        col_3pl     = find_col("include_in_3pl")
+        col_basis   = find_col("count_basis")
+
+        if col_code is None or col_factor is None:
+            return {"success": False, "error": "Excel must have 'Item Code' and 'Install Factor' columns."}
+
+        supabase = get_supabase()
+        rows_upserted = 0
+        rows_skipped = 0
+
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            item_code = str(row[col_code]).strip().upper() if row[col_code] else None
+            if not item_code or item_code == "NONE":
+                rows_skipped += 1
+                continue
+
+            try:
+                factor = float(row[col_factor]) if row[col_factor] is not None else 1.0
+            except (ValueError, TypeError):
+                rows_skipped += 1
+                continue
+
+            item_type  = str(row[col_type]).strip().lower()  if (col_type  is not None and row[col_type])  else "cabinet"
+            count_basis = str(row[col_basis]).strip().lower() if (col_basis is not None and row[col_basis]) else "quantity"
+
+            raw_3pl = row[col_3pl] if col_3pl is not None else True
+            if isinstance(raw_3pl, bool):
+                include_3pl = raw_3pl
+            elif isinstance(raw_3pl, str):
+                include_3pl = raw_3pl.strip().upper() not in ("FALSE", "NO", "0", "F", "N")
+            else:
+                include_3pl = bool(raw_3pl) if raw_3pl is not None else True
+
+            payload = {
+                "manufacturer_id": manufacturer_id,
+                "item_code":       item_code,
+                "item_type":       item_type,
+                "install_factor":  factor,
+                "include_in_3pl":  include_3pl,
+                "count_basis":     count_basis,
+            }
+            supabase.table("install_rules").upsert(
+                payload, on_conflict="manufacturer_id,item_code"
+            ).execute()
+            rows_upserted += 1
+
+        return {
+            "success":       True,
+            "rows_upserted": rows_upserted,
+            "rows_skipped":  rows_skipped,
+        }
+
+    except Exception as e:
+        return {"success": False, "error": str(e), "trace": traceback.format_exc()}
+
+
+@router.post("/test-install-rule")
+async def test_install_rule(body: dict):
+    """
+    Test rule lookup for a single item.
+
+    Body: { manufacturer_id, client_name?, item_code, quantity }
+    Returns the matched rule, calculated install units, and 3PL inclusion.
+    """
+    try:
+        manufacturer_id = body.get("manufacturer_id", "")
+        client_name     = (body.get("client_name") or "").strip()
+        item_code       = str(body.get("item_code", "")).strip().upper()
+        quantity        = float(body.get("quantity", 1))
+
+        supabase = get_supabase()
+
+        # 1. Check client overrides first
+        override = None
+        if client_name:
+            res = supabase.table("install_rule_overrides") \
+                .select("*") \
+                .eq("manufacturer_id", manufacturer_id) \
+                .eq("client_name", client_name) \
+                .eq("item_code", item_code) \
+                .limit(1).execute()
+            if res.data:
+                override = res.data[0]
+
+        # 2. Manufacturer default
+        default_rule = None
+        res2 = supabase.table("install_rules") \
+            .select("*") \
+            .eq("manufacturer_id", manufacturer_id) \
+            .eq("item_code", item_code) \
+            .limit(1).execute()
+        if res2.data:
+            default_rule = res2.data[0]
+
+        active_rule = override or default_rule
+        if not active_rule:
+            return {
+                "success":      True,
+                "found":        False,
+                "item_code":    item_code,
+                "message":      f"No rule found for item '{item_code}' with manufacturer '{manufacturer_id}'.",
+            }
+
+        install_units = quantity * float(active_rule["install_factor"])
+        tpl_units     = quantity if active_rule["include_in_3pl"] else 0
+
+        return {
+            "success":       True,
+            "found":         True,
+            "item_code":     item_code,
+            "rule_source":   "client_override" if override else "manufacturer_default",
+            "rule":          active_rule,
+            "quantity":      quantity,
+            "install_units": install_units,
+            "tpl_units":     tpl_units,
+            "include_in_3pl": active_rule["include_in_3pl"],
+        }
+
     except Exception as e:
         return {"success": False, "error": str(e), "trace": traceback.format_exc()}
 

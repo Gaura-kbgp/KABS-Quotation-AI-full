@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,9 +22,9 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { 
-  Printer, 
-  ArrowLeft, 
+import {
+  Printer,
+  ArrowLeft,
   Save,
   ArrowRight,
   RefreshCcw,
@@ -49,17 +49,40 @@ import {
   Tag,
   TrendingUp,
   Factory,
-  Edit
+  Edit,
+  Wrench,
+  Package,
+  AlertTriangle,
+  Plus,
+  X,
+  Settings,
+  Upload,
+  FlaskConical
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn, detectCategory } from '@/lib/utils';
-import { updateBomItemAction, updateProjectAction } from '../../actions';
+import {
+  updateBomItemAction,
+  updateProjectAction,
+  fetchInstallRulesAction,
+  upsertInstallRuleAction,
+  deleteInstallRuleAction,
+  fetchInstallOverridesAction,
+  upsertInstallOverrideAction,
+  deleteInstallOverrideAction,
+  type InstallRule,
+  type InstallOverride,
+} from '../../actions';
 import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 interface BomItem {
   id: string;
   sku: string;
+  // matched_sku stores the full catalog reference string:
+  // exact match → catalog SKU code
+  // nearest-dim → "Ref: SKU (nearest Xin wide) [COLLECTION]"
+  // category avg → "Catalog Ref: SKU [COLLECTION] (avg. of N items)"
   matched_sku: string;
   qty: number;
   unit_price: number;
@@ -118,6 +141,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
     };
     fetchConfig();
   }, [project.manufacturer_id]);
+
 
   const handleRoomConfigUpdate = async (roomName: string, updates: any) => {
     const newConfigs = { ...roomConfigs, [roomName]: { ...roomConfigs[roomName], ...updates } };
@@ -186,6 +210,23 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
     delivery: project.bom_data?.customerDelivery || '',
   });
 
+  // Fetch install rules + client overrides (runs after customer is declared)
+  useEffect(() => {
+    const fetchInstallData = async () => {
+      try {
+        const [rulesResult, overridesResult] = await Promise.all([
+          fetchInstallRulesAction(project.manufacturer_id),
+          fetchInstallOverridesAction(project.manufacturer_id, customer.name || undefined),
+        ]);
+        if (rulesResult.success) setInstallRules(rulesResult.rules);
+        if (overridesResult.success) setInstallOverrides(overridesResult.overrides);
+      } catch (err) {
+        console.error('Failed to fetch install rules:', err);
+      }
+    };
+    fetchInstallData();
+  }, [project.manufacturer_id, customer.name]);
+
   const [dealer, setDealer] = useState({
     name: project.bom_data?.dealerName || "Elite Building Solutions",
     address: project.bom_data?.dealerAddress || "123 Manufacturing Way, Industry City, IN 46201",
@@ -197,19 +238,40 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
   const [isPricing, setIsPricing] = useState(false);
   const [activePrintRoom, setActivePrintRoom] = useState<string | null>(null);
 
-  const getCabinetAddons = (item: BomItem) => {
-      const cat = detectCategory(item.sku);
-      if (cat.includes('Cabinet')) {
-          const custom = customItemCharges[item.id] || {};
-          const inst = custom.installation !== undefined ? custom.installation : installationCharges;
-          const lab = custom.labor !== undefined ? custom.labor : laborCharges;
-          return (Number(inst) || 0) + (Number(lab) || 0);
-      }
-      return 0;
-  };
+  // ── Install Rules ──────────────────────────────────────────────────────────
+  const [installRules, setInstallRules] = useState<InstallRule[]>([]);
+  const [installOverrides, setInstallOverrides] = useState<InstallOverride[]>([]);
+  const [newRule, setNewRule] = useState<{
+    item_code: string; item_type: string; install_factor: number; include_in_3pl: boolean;
+  }>({ item_code: '', item_type: 'cabinet', install_factor: 1.0, include_in_3pl: true });
+  const [isSavingRule, setIsSavingRule] = useState(false);
+  // Test-rule state
+  const [testRuleInput, setTestRuleInput] = useState<{ item_code: string; quantity: string }>({ item_code: '', quantity: '1' });
+  const [testRuleResult, setTestRuleResult] = useState<any>(null);
+  const [isTestingRule, setIsTestingRule] = useState(false);
+  // Excel upload for bulk rules
+  const [isUploadingRules, setIsUploadingRules] = useState(false);
+  // Quick-fill state for missing items
+  const [quickFillValues, setQuickFillValues] = useState<Record<string, { factor: string; include_3pl: boolean }>>({});
+  const [isSavingQuickFill, setIsSavingQuickFill] = useState(false);
+  const manageRulesRef = useRef<HTMLDivElement>(null);
 
   const getEffectiveUnitPrice = (item: BomItem) => {
-      return (Number(item.unit_price) || 0) + getCabinetAddons(item);
+      return (Number(item.unit_price) || 0);
+  };
+
+  // Returns colour-coded badge config for each pricing tier
+  const getPrecisionBadge = (precision: string) => {
+    const p = (precision || '').toUpperCase();
+    if (p.startsWith('EXACT') || p === 'COMPRESSED' || p.startsWith('FUZZY') || p.startsWith('DIMENSION'))
+      return { label: 'Exact Match', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    if (p.startsWith('NEAREST_DIM'))
+      return { label: 'Nearest Size', cls: 'bg-amber-50 text-amber-700 border-amber-200' };
+    if (p === 'CATEGORY_AVERAGE')
+      return { label: 'Est. Average', cls: 'bg-orange-50 text-orange-700 border-orange-200' };
+    if (p === 'MANUAL_PRICING_REQUIRED')
+      return { label: 'Review Needed', cls: 'bg-red-50 text-red-700 border-red-200' };
+    return { label: precision, cls: 'bg-slate-100 text-slate-500 border-slate-200' };
   };
 
   const financials = useMemo(() => {
@@ -257,6 +319,74 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
       estimatedProfit
     };
   }, [bom, selectedRooms, activePrintRoom, pricingFactor, targetMargin, globalDiscount, taxRate, freight, fuelSurcharge, miscCharges, installationCharges, laborCharges, roomDiscounts, customItemCharges]);
+
+  // ── Install / 3PL Calculations ─────────────────────────────────────────────
+  // Lookup priority: client overrides → manufacturer defaults → missing
+  const installCalculations = useMemo(() => {
+    const activeItems = bom.filter(
+      item => item.is_billable && selectedRooms.includes(item.room)
+    );
+
+    let totalInstallUnits = 0;
+    let total3PLUnits = 0;
+    let missingRulesCount = 0;
+
+    const itemCalcs: Record<string, {
+      installUnits: number;
+      tplUnits: number;
+      factor: number;
+      ruleSource: 'override' | 'default' | 'missing';
+    }> = {};
+
+    activeItems.forEach(item => {
+      const skuKey = (item.sku || '').toUpperCase().trim();
+      const override = installOverrides.find(o => o.item_code.toUpperCase().trim() === skuKey);
+      const defRule  = installRules.find(r => r.item_code.toUpperCase().trim() === skuKey);
+      const rule = override ?? defRule ?? null;
+
+      if (rule) {
+        const factor       = Number(rule.install_factor);
+        const installUnits = Number(item.qty) * factor;
+        const tplUnits     = rule.include_in_3pl ? Number(item.qty) : 0;
+        totalInstallUnits += installUnits;
+        total3PLUnits     += tplUnits;
+        itemCalcs[item.id] = {
+          installUnits,
+          tplUnits,
+          factor,
+          ruleSource: override ? 'override' : 'default',
+        };
+      } else {
+        missingRulesCount++;
+        const category = detectCategory(item.sku);
+        const isCabinetOrFiller = category.includes('Cabinets') || category === 'Universal Fillers';
+        const factor = isCabinetOrFiller ? 1 : 0;
+        const installUnits = Number(item.qty) * factor;
+        const tplUnits = isCabinetOrFiller ? Number(item.qty) : 0;
+        
+        totalInstallUnits += installUnits;
+        total3PLUnits += tplUnits;
+        
+        itemCalcs[item.id] = { installUnits, tplUnits, factor, ruleSource: 'missing' };
+      }
+    });
+
+    return { totalInstallUnits, total3PLUnits, missingRulesCount, itemCalcs };
+  }, [bom, selectedRooms, installRules, installOverrides]);
+
+  // List of billable BOM items that have no install rule configured
+  const missingRuleItems = useMemo(() => {
+    const activeItems = bom.filter(item => item.is_billable && selectedRooms.includes(item.room));
+    const seen = new Set<string>();
+    return activeItems.filter(item => {
+      const skuKey = (item.sku || '').toUpperCase().trim();
+      if (seen.has(skuKey)) return false;
+      seen.add(skuKey);
+      const override = installOverrides.find(o => o.item_code.toUpperCase().trim() === skuKey);
+      const defRule = installRules.find(r => r.item_code.toUpperCase().trim() === skuKey);
+      return !override && !defRule;
+    });
+  }, [bom, selectedRooms, installRules, installOverrides]);
 
   const toggleAllRooms = (checked: boolean) => {
     setSelectedRooms(checked ? roomsList : []);
@@ -345,6 +475,113 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
       toast({ variant: 'destructive', title: 'Save Failed', description: err.message });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // ── Install Rule Handlers ──────────────────────────────────────────────────
+  const handleSaveRule = async () => {
+    if (!newRule.item_code.trim()) return;
+    setIsSavingRule(true);
+    try {
+      const result = await upsertInstallRuleAction({
+        manufacturer_id: project.manufacturer_id,
+        item_code:       newRule.item_code.toUpperCase().trim(),
+        item_type:       newRule.item_type,
+        install_factor:  newRule.install_factor,
+        include_in_3pl:  newRule.include_in_3pl,
+        count_basis:     'quantity',
+      });
+      if (result.success) {
+        const fresh = await fetchInstallRulesAction(project.manufacturer_id);
+        if (fresh.success) setInstallRules(fresh.rules);
+        setNewRule({ item_code: '', item_type: 'cabinet', install_factor: 1.0, include_in_3pl: true });
+        toast({ title: 'Rule saved' });
+      } else {
+        toast({ variant: 'destructive', title: 'Save failed', description: result.error });
+      }
+    } finally {
+      setIsSavingRule(false);
+    }
+  };
+
+  const handleDeleteRule = async (ruleId: string) => {
+    await deleteInstallRuleAction(ruleId);
+    setInstallRules(prev => prev.filter(r => r.id !== ruleId));
+    toast({ title: 'Rule deleted' });
+  };
+
+  const handleTestRule = async () => {
+    if (!testRuleInput.item_code.trim()) return;
+    setIsTestingRule(true);
+    setTestRuleResult(null);
+    try {
+      const res = await fetch('/api/test-install-rule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          manufacturer_id: project.manufacturer_id,
+          client_name:     customer.name || '',
+          item_code:       testRuleInput.item_code.trim().toUpperCase(),
+          quantity:        parseFloat(testRuleInput.quantity) || 1,
+        }),
+      });
+      const data = await res.json();
+      setTestRuleResult(data);
+    } catch (err: any) {
+      setTestRuleResult({ success: false, error: err.message });
+    } finally {
+      setIsTestingRule(false);
+    }
+  };
+
+  const handleUploadRulesExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingRules(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(
+        `/api/install-rules-upload?manufacturer_id=${project.manufacturer_id}`,
+        { method: 'POST', body: fd }
+      );
+      const data = await res.json();
+      if (data.success) {
+        const fresh = await fetchInstallRulesAction(project.manufacturer_id);
+        if (fresh.success) setInstallRules(fresh.rules);
+        toast({ title: `Uploaded: ${data.rows_upserted} rules (${data.rows_skipped} skipped)` });
+      } else {
+        toast({ variant: 'destructive', title: 'Upload failed', description: data.error });
+      }
+    } finally {
+      setIsUploadingRules(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleQuickFillAll = async () => {
+    const entries = Object.entries(quickFillValues).filter(([, v]) => v.factor.trim() !== '');
+    if (entries.length === 0) return;
+    setIsSavingQuickFill(true);
+    try {
+      await Promise.all(entries.map(([sku, val]) =>
+        upsertInstallRuleAction({
+          manufacturer_id: project.manufacturer_id,
+          item_code: sku.toUpperCase().trim(),
+          item_type: 'cabinet',
+          install_factor: parseFloat(val.factor) || 1,
+          include_in_3pl: val.include_3pl,
+          count_basis: 'quantity',
+        })
+      ));
+      const fresh = await fetchInstallRulesAction(project.manufacturer_id);
+      if (fresh.success) setInstallRules(fresh.rules);
+      setQuickFillValues({});
+      toast({ title: `${entries.length} install rule${entries.length > 1 ? 's' : ''} saved` });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Save failed', description: err.message });
+    } finally {
+      setIsSavingQuickFill(false);
     }
   };
 
@@ -689,8 +926,6 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                  <TableHead className="w-10"></TableHead>
                                  <TableHead className="text-[10px] uppercase font-bold text-slate-400">CAB Code</TableHead>
                                  <TableHead className="text-center text-[10px] uppercase font-bold text-slate-400">QTY</TableHead>
-                                 <TableHead className="text-right text-[10px] uppercase font-bold text-slate-400">INST ($)</TableHead>
-                                 <TableHead className="text-right text-[10px] uppercase font-bold text-slate-400">LABOR ($)</TableHead>
                                  <TableHead className="text-right text-[10px] uppercase font-bold text-slate-400">UNIT PRICE (LIST)</TableHead>
                                  <TableHead className="text-right text-[10px] uppercase font-bold text-slate-400">TOTAL</TableHead>
                                </TableRow>
@@ -704,38 +939,63 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                         <Checkbox checked={item.is_billable} onCheckedChange={v => handleUpdateItem(idx, { is_billable: !!v })} />
                                       </TableCell>
                                       <TableCell>
-                                        <div className="font-bold text-slate-900 text-sm">{item.sku}</div>
-                                        <div className="text-[9px] text-slate-400 font-mono">{item.matched_sku}</div>
+                                        <div className="font-bold text-slate-900 text-sm leading-tight">{item.sku}</div>
+                                        {(() => {
+                                          const badge = getPrecisionBadge(item.precision_level);
+                                          // matched_sku now carries the full reference string from the engine
+                                          const rawRef = item.matched_sku || '';
+                                          const isEstimated = item.precision_level === 'CATEGORY_AVERAGE' || item.precision_level === 'MANUAL_PRICING_REQUIRED';
+                                          const isNearest = (item.precision_level || '').toUpperCase().startsWith('NEAREST_DIM');
+                                          // Parse "Catalog Ref: SKU [COLLECTION] (avg...)" or "Ref: SKU [...]" formats
+                                          const refMatch = rawRef.match(/^(?:Ref:|Catalog Ref:)\s*([A-Z0-9][A-Z0-9\-\.\s]*?)(?:\s*\[|\s*\(|$)/i);
+                                          // For plain SKU codes (exact match), refMatch is null; use rawRef as-is
+                                          const catalogSku = refMatch ? refMatch[1].trim() : rawRef;
+                                          const colMatch = rawRef.match(/\[([^\]]+)\]/);
+                                          const catalogCol = colMatch ? colMatch[1] : '';
+                                          const avgNote = rawRef.match(/\(([^)]+)\)/);
+                                          const avgText = avgNote ? avgNote[1] : '';
+                                          return (
+                                            <div className="mt-1 space-y-1">
+                                              <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border ${badge.cls}`}>
+                                                {isEstimated ? '⚠ ' : isNearest ? '≈ ' : '✓ '}{badge.label}
+                                              </span>
+                                              {catalogSku && catalogSku !== item.sku && (
+                                                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                                                  <span className="text-[8px] font-black uppercase tracking-wider text-slate-400 whitespace-nowrap">Catalog Ref:</span>
+                                                  <span
+                                                    className={`text-[10px] font-black font-mono px-1.5 py-0.5 rounded ${
+                                                      isEstimated ? 'bg-orange-50 text-orange-700 border border-orange-200' :
+                                                      isNearest ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                                      'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                    }`}
+                                                    title={rawRef}
+                                                  >
+                                                    {catalogSku}
+                                                  </span>
+                                                  {catalogCol && <span className="text-[8px] text-slate-400 font-mono">[{catalogCol}]</span>}
+                                                </div>
+                                              )}
+                                              {avgText && (
+                                                <div className="text-[8px] text-slate-400 leading-tight">{avgText}</div>
+                                              )}
+                                            </div>
+                                          );
+                                        })()}
                                       </TableCell>
                                       <TableCell className="text-center">
                                         <Input type="number" value={item.qty} onChange={e => handleUpdateItem(idx, { qty: parseInt(e.target.value) || 0 })} className="w-16 mx-auto text-center h-9 font-bold bg-slate-50 border-none" />
                                       </TableCell>
-                                      <TableCell className="text-right">
-                                        <div className="flex items-center justify-end gap-1 opacity-70 hover:opacity-100 transition-opacity">
-                                           <span className="text-slate-400 font-mono text-xs">$</span>
-                                           <Input type="number" 
-                                              value={customItemCharges[item.id]?.installation !== undefined ? customItemCharges[item.id].installation : installationCharges} 
-                                              onChange={e => setCustomItemCharges(prev => ({ ...prev, [item.id]: { ...prev[item.id], installation: parseFloat(e.target.value) || 0 } }))} 
-                                              className="w-14 text-right h-8 text-xs font-bold bg-slate-100 border-none font-mono" />
-                                        </div>
-                                      </TableCell>
-                                      <TableCell className="text-right">
-                                        <div className="flex items-center justify-end gap-1 opacity-70 hover:opacity-100 transition-opacity">
-                                           <span className="text-slate-400 font-mono text-xs">$</span>
-                                           <Input type="number" 
-                                              value={customItemCharges[item.id]?.labor !== undefined ? customItemCharges[item.id].labor : laborCharges} 
-                                              onChange={e => setCustomItemCharges(prev => ({ ...prev, [item.id]: { ...prev[item.id], labor: parseFloat(e.target.value) || 0 } }))} 
-                                              className="w-14 text-right h-8 text-xs font-bold bg-slate-100 border-none font-mono" />
-                                        </div>
-                                      </TableCell>
+
+
+
                                       <TableCell className="text-right">
                                         <div className="flex items-center justify-end gap-1">
                                            <span className="text-slate-400 font-mono text-xs">$</span>
-                                           <Input type="number" value={getEffectiveUnitPrice(item)} onChange={e => handleUpdateItem(idx, { unit_price: (parseFloat(e.target.value) || 0) - getCabinetAddons(item) })} className="w-24 text-right h-9 font-bold bg-slate-50 border-none font-mono" />
+                                           <Input type="number" value={item.unit_price} onChange={e => handleUpdateItem(idx, { unit_price: parseFloat(e.target.value) || 0 })} className="w-24 text-right h-9 font-bold bg-slate-50 border-none font-mono" />
                                         </div>
                                       </TableCell>
                                       <TableCell className="text-right font-black font-mono text-slate-900 text-sm">
-                                        ${(getEffectiveUnitPrice(item) * item.qty).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        ${(item.unit_price * item.qty).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                       </TableCell>
                                     </TableRow>
                                   );
@@ -774,7 +1034,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
 
                     <div className="mt-4 p-6 bg-slate-900 rounded-2xl flex items-center justify-between text-white shadow-lg overflow-hidden relative group">
                         <div className="absolute right-0 top-0 h-full w-32 bg-sky-500/20 skew-x-[-20deg] translate-x-16 group-hover:translate-x-12 transition-transform" />
-                        <div className="flex gap-12 relative z-10">
+                        <div className="flex gap-8 relative z-10 flex-wrap">
                             <div className="space-y-1">
                                 <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Cabinetry Style</p>
                                 <p className="text-sm font-bold">{currentConfig.collection} / {currentConfig.door_style}</p>
@@ -786,6 +1046,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                   {cabCount} Total Units
                                 </p>
                             </div>
+                            {/* Per-room Install / 3PL summary removed */}
                         </div>
                         <div className="text-right relative z-10">
                             <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
@@ -797,9 +1058,9 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                         roomItems.filter(i => i.is_billable).reduce((sum, item) => sum + (getEffectiveUnitPrice(item) * item.qty), 0)
                                         * (1 - (roomDiscounts[roomName] || 0) / 100)
                                         * (financials.scalingFactor || 1)
-                                    ).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                                    ).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
                                 ) : (
-                                    "$" + roomItems.filter(i => i.is_billable).reduce((sum, item) => sum + (getEffectiveUnitPrice(item) * item.qty), 0).toLocaleString(undefined, { minimumFractionDigits: 0 })
+                                    "$" + roomItems.filter(i => i.is_billable).reduce((sum, item) => sum + (getEffectiveUnitPrice(item) * item.qty), 0).toLocaleString('en-US', { minimumFractionDigits: 0 })
                                 )}
                             </p>
                             {isSelected && (
@@ -998,7 +1259,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                    <div className="flex items-center text-xs font-bold text-[#002060] uppercase">
                                      <span className="ml-2">STD {roomName}</span>
                                    </div>
-                                   <div className="text-xs font-semibold text-[#002060]">${roomTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                                   <div className="text-xs font-semibold text-[#002060]">${roomTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
                                  </div>
                                );
                              })}
@@ -1013,7 +1274,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                            <div className="h-3 bg-[#000040] w-full"></div>
                            <div className="flex items-center px-16 py-2 bg-slate-50 relative">
                              <div className="flex-grow text-center text-xs font-bold text-[#002060] uppercase">TOTAL</div>
-                             <div className="text-xs font-bold text-[#002060]">${financials.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                             <div className="text-xs font-bold text-[#002060]">${financials.grandTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
                            </div>
                          </div>
 
@@ -1127,10 +1388,10 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                                        <TableCell className="font-bold text-[10px] p-2 text-slate-700 border-r border-slate-50">{item.sku}</TableCell>
                                                        <TableCell className="text-center text-[10px] font-black w-16 p-2 text-slate-900 border-r border-slate-50">{item.qty}</TableCell>
                                                        <TableCell className="text-right font-mono text-[10px] font-bold p-2 text-slate-600 border-r border-slate-50">
-                                                          ${(item.unit_price * (financials.scalingFactor || 1)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                          ${(item.unit_price * (financials.scalingFactor || 1)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                        </TableCell>
                                                        <TableCell className="text-right font-mono text-[10px] font-black p-2 text-[#002060]">
-                                                          ${(item.unit_price * item.qty * (financials.scalingFactor || 1)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                          ${(item.unit_price * item.qty * (financials.scalingFactor || 1)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                        </TableCell>
                                                     </TableRow>
                                                   ))}
@@ -1141,7 +1402,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                       <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
                                          <TableCell colSpan={3} className="text-[10px] font-black text-right uppercase italic pr-4">Room {roomName} Total:</TableCell>
                                          <TableCell className="text-right font-mono text-[11px] font-black text-[#002060]">
-                                            ${(roomItems.reduce((s, i) => s + (i.unit_price * i.qty), 0) * (1 - (roomDiscounts[roomName] || 0) / 100) * (financials.scalingFactor || 1)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            ${(roomItems.reduce((s, i) => s + (i.unit_price * i.qty), 0) * (1 - (roomDiscounts[roomName] || 0) / 100) * (financials.scalingFactor || 1)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                          </TableCell>
                                       </TableRow>
                                    </TableBody>
@@ -1174,18 +1435,18 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                            
                            <div className="bg-slate-50 flex justify-between items-center px-6 py-2 border-b border-slate-200">
                               <span className="text-[10px] font-black text-[#002060] uppercase italic">Proposed Subtotal</span>
-                              <span className="text-[11px] font-black font-mono text-[#002060]">${financials.netTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              <span className="text-[11px] font-black font-mono text-[#002060]">${financials.netTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                            </div>
 
                            <div className="bg-white flex justify-between items-center px-6 py-2 border-b border-slate-200">
                               <span className="text-[10px] font-black text-red-700 uppercase italic">Estimated Sales Tax ({taxRate}%)</span>
-                              <span className="text-[11px] font-black font-mono text-red-700">${financials.taxes.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              <span className="text-[11px] font-black font-mono text-red-700">${financials.taxes.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                            </div>
 
                            <div className="bg-[#B0C4DE] flex justify-between items-center px-6 py-3">
                               <span className="text-xs font-black text-[#002060] uppercase italic tracking-widest underline decoration-2">Total Amount Due</span>
                               <span className="text-sm font-black font-mono text-[#002060] underline underline-offset-4 decoration-2">
-                                 ${financials.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                 ${financials.grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
                            </div>
                         </div>
@@ -1238,7 +1499,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                           <div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg border border-slate-200">
                              <span className="text-sm font-black uppercase text-slate-900 tracking-widest">Total Amount</span>
                              <span className="font-mono text-xl font-black text-sky-600 whitespace-nowrap ml-4">
-                                ${financials.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ${financials.grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                              </span>
                           </div>
     
@@ -1322,15 +1583,6 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                       <Input type="number" value={miscCharges} onChange={e => setMiscCharges(parseFloat(e.target.value) || 0)} className="h-10 bg-slate-50 border-slate-100 rounded-lg text-sm" />
                     </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-[11px] font-bold text-slate-400 uppercase">Installation Charges ($)</Label>
-                      <Input type="number" value={installationCharges} onChange={e => setInstallationCharges(parseFloat(e.target.value) || 0)} className="h-10 bg-slate-50 border-slate-100 rounded-lg text-sm" />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-[11px] font-bold text-slate-400 uppercase">Labor Charges ($)</Label>
-                      <Input type="number" value={laborCharges} onChange={e => setLaborCharges(parseFloat(e.target.value) || 0)} className="h-10 bg-slate-50 border-slate-100 rounded-lg text-sm" />
-                    </div>
                   </div>
                 </div>
 
@@ -1343,7 +1595,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                            return (
                                <div key={room} className="flex justify-between items-center text-[10px] font-bold text-slate-500">
                                    <span className="truncate max-w-[140px]">{room}</span>
-                                   <span className="font-mono text-slate-900">${rFinal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                   <span className="font-mono text-slate-900">${rFinal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                </div>
                            );
                        })}
@@ -1351,16 +1603,16 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
 
                    <div className="pt-4 border-t border-slate-50 flex justify-between text-xs">
                       <span className="text-slate-400 font-bold uppercase tracking-widest">Net Value</span>
-                      <span className="font-mono text-slate-900 font-bold">${financials.netTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="font-mono text-slate-900 font-bold">${financials.netTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                    </div>
                    <div className="flex justify-between items-center text-xs">
                       <span className="text-sky-600 font-bold uppercase tracking-widest">Dealer Cost</span>
-                      <span className="font-mono text-sky-900 font-bold">${financials.dealerCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="font-mono text-sky-900 font-bold">${financials.dealerCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                    </div>
                    <div className="pt-4 border-t border-slate-50">
                       <p className="text-[10px] font-black uppercase text-sky-600 tracking-[0.3em] mb-1">Total Amount</p>
                       <p className="text-2xl font-black font-mono tracking-tighter text-slate-900">
-                         ${financials.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                         ${financials.grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                    </div>
                 </div>
@@ -1411,6 +1663,8 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                 </div>
               </CardContent>
             </Card>
+
+
 
             <div className="p-6 bg-slate-900 rounded-[2rem] text-white shadow-2xl space-y-4">
                <div className="flex items-center gap-2">
