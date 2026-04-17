@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+supabase
+python-dotenv
+pandas
+openpyxl
+thefuzz
+python-multipart
+pdfplumber
+gunicorn
+uvicorn

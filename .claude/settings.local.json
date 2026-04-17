@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep *)",
+      "Read(//c/c/KABS completed project files/KABS-Quotation-AI-full-main/frontend/src/app/quotation-ai/**)"
+    ]
+  }
+}

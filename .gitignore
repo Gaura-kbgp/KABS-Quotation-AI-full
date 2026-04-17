@@ -1,0 +1,82 @@
+# Node.js
+node_modules/
+dist/
+.next/
+out/
+build/
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+.venv
+venv/
+ENV/
+instance/
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+*.egg-info/
+*.egg
+
+# IDEs & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Project Secrets & Environment
+backend/.env
+frontend/.env
+**/ .env
+**/ .env.local
+
+# Data Results & Scans (Don't track these)
+db_data_dump.json
+scan_result_*.json
+frontend/scan_result_*.json
+backend/mfg_config_*.json
+*.log
+pricing_match_debug.log
+
+# Ensure vital code/config is tracked
+!package.json
+!tsconfig.json
+!next.config.js
+!next.config.ts
+!tailwind.config.js
+!tailwind.config.ts
+!postcss.config.js
+!postcss.config.mjs
+!backend/requirements.txt
+!frontend/package.json
+!**/__init__.py
+!**/*.py
+!**/*.tsx
+!**/*.ts
+!**/*.js
+!**/*.css
+!**/*.md
+!**/*.png
+!**/*.jpg
+!**/*.jpeg
+!**/*.svg
+!**/*.ico
+!**/manifest.json
+!**/components.json
+!**/postcss.config.mjs
