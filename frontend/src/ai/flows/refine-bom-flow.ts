@@ -29,10 +29,8 @@ const RefineBomOutputSchema = z.object({
 
 export type RefineBomOutput = z.infer<typeof RefineBomOutputSchema>;
 
-const openai = new OpenAI({
-  apiKey: process.env.NVIDIA_API_KEY,
-  baseURL: 'https://integrate.api.nvidia.com/v1',
-});
+// Client initialization moved inside function for better error handling and to prevent build-time crashes
+
 
 /**
  * Safe fallback: coerce raw rooms into RefineBomOutput format without AI.
@@ -104,7 +102,20 @@ export async function refineBomFlow(input: {
     return { corrected_rooms: [], explanations: ['No rooms to refine.'] };
   }
 
+  const apiKey = process.env.NVIDIA_API_KEY || process.env.OPENAI_API_KEY;
+  
+  if (!apiKey) {
+    console.warn('[SMART AGENT] No API key found (NVIDIA_API_KEY or OPENAI_API_KEY). Using fallback.');
+    return buildFallbackOutput(input.rooms);
+  }
+
+  const openai = new OpenAI({
+    apiKey: apiKey,
+    baseURL: process.env.NVIDIA_API_KEY ? 'https://integrate.api.nvidia.com/v1' : undefined,
+  });
+
   try {
+
     const prompt = `You are the Quotation Smart Agent, an expert NKBA cabinet estimator and quality assurance reviewer. 
 Your task is to analyze the provided array of Rooms (containing bill of materials items), find any misclassified, missing, or malformed items, and return the CORRECTED array of rooms.
 
