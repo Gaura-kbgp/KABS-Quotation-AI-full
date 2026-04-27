@@ -38,7 +38,8 @@ import {
   PlusCircle,
   Factory,
   Package,
-  Sparkles
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { updateProjectAction } from '../../actions';
@@ -46,6 +47,8 @@ import { refineBomFlow } from '@/ai/flows/refine-bom-flow';
 import { useRouter } from 'next/navigation';
 import { cn, detectCategory, isPrimaryCabinet } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { MANUFACTURER_CONFIG } from '@/lib/manufacturer-config';
+// INTEGRITY_SERIES removed — series are now derived dynamically from the DB mapping
 
 interface Item {
   code: string;
@@ -100,20 +103,46 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
   const [manMapping, setManMapping] = useState<Record<string, string[]>>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [isFetchingConfig, setIsFetchingConfig] = useState(false);
+
+  // Integrity-only: series + collection selection (global + per-room)
+  const [globalSeries, setGlobalSeries] = useState<string>('');
+  const [globalCollection, setGlobalCollection] = useState<string>('');
+  const [roomSeriesMap, setRoomSeriesMap] = useState<Record<number, string>>({});
   
   const [isRunningAgent, setIsRunningAgent] = useState(false);
   const [agentResult, setAgentResult] = useState<{ corrected_rooms: any[], explanations: string[] } | null>(null);
+  const [isRescanning, setIsRescanning] = useState(false);
 
   useEffect(() => {
     if (initialSyncRef.current) return;
     if (project.extracted_data?.rooms) {
-      const enrichedRooms = project.extracted_data.rooms.map((r: any) => ({
-        ...r,
-        cabinets: (r.cabinets || []).map((c: any) => ({
+      const enrichedRooms = project.extracted_data.rooms.map((r: any) => {
+        // Normalize categories: ensure they are arrays of objects with quantity
+        const normalized: any = { ...r, room_name: r.room_name || r.name || "Unknown Room" };
+        
+        const categories = ['cabinets', 'perimeter', 'island', 'hardware', 'island_hardware', 'bump', 'island_bump', 'opt_crown', 'opt_light_rail', 'vent_chase_material'];
+        
+        categories.forEach(cat => {
+          normalized[cat] = (r[cat] || []).map((item: any) => {
+            if (typeof item === 'string') {
+              return { code: item, quantity: 1 };
+            }
+            return {
+              ...item,
+              code: item.code || item.sku || '',
+              quantity: typeof item.quantity === 'number' ? item.quantity : 1
+            };
+          });
+        });
+
+        // Add internal category mapping for UI grouping
+        normalized.cabinets = normalized.cabinets.map((c: any) => ({
           ...c,
           _assignedCategory: c._assignedCategory || detectCategory(c.code)
-        }))
-      }));
+        }));
+
+        return normalized;
+      });
       setRooms(enrichedRooms);
     }
     initialSyncRef.current = true;
@@ -123,15 +152,62 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
     let cabs = 0;
     let accs = 0;
     rooms.forEach(r => {
-      cabs += (r.cabinets || []).reduce((sum, i) => sum + i.quantity, 0);
+      cabs += (r.cabinets || []).reduce((sum, i) => sum + (Number(i?.quantity) || 0), 0);
       CATEGORIES.slice(1).forEach(cat => {
-        accs += (r[cat.key] || []).reduce((sum: number, i: Item) => sum + i.quantity, 0);
+        accs += (r[cat.key] || []).reduce((sum: number, i: any) => sum + (Number(i?.quantity) || 0), 0);
       });
     });
     return { cabinets: cabs, accessories: accs };
   }, [rooms]);
 
-  const collections = useMemo(() => Object.keys(manMapping).sort(), [manMapping]);
+  const allCollections = useMemo(() => Object.keys(manMapping).sort(), [manMapping]);
+
+  const isIntegrity = useMemo(
+    () => manufacturers.find(m => m.id === selectedManId)?.name === 'Integrity Cabinets',
+    [manufacturers, selectedManId]
+  );
+
+  /**
+   * Dynamically extract series names from whatever the DB actually has.
+   * Any collection containing " - " is treated as "SERIES NAME - COLLECTION DETAIL".
+   * This handles any naming convention the DB uses without hardcoding.
+   */
+  const integritySeriesFromDB = useMemo(() => {
+    if (!isIntegrity) return [];
+    const seriesSet = new Set<string>();
+    Object.keys(manMapping).forEach(col => {
+      const dashIdx = col.indexOf(' - ');
+      if (dashIdx > 0) {
+        seriesSet.add(col.substring(0, dashIdx));
+      }
+    });
+    return Array.from(seriesSet).sort();
+  }, [manMapping, isIntegrity]);
+
+  /** Filter collections to those belonging to the selected series. */
+  const getFilteredCollections = (seriesName: string) => {
+    if (!isIntegrity || !seriesName) return allCollections;
+    const prefix = seriesName.toUpperCase() + ' - ';
+    return allCollections.filter(c => c.toUpperCase().startsWith(prefix));
+  };
+
+  /** Strip the series prefix for clean display.
+   *  "CLASSIC SERIES - 24 DEEP LIST PRICE" → "24 DEEP LIST PRICE" */
+  const getCollectionLabel = (collectionValue: string, seriesName: string) => {
+    if (!seriesName) return collectionValue;
+    const separator = seriesName.toUpperCase() + ' - ';
+    if (collectionValue.toUpperCase().startsWith(separator)) {
+      return collectionValue.slice(separator.length);
+    }
+    return collectionValue;
+  };
+
+  // Collections shown in the "Apply to All" card (filtered by globalSeries if Integrity)
+  const collections = useMemo(
+    () => getFilteredCollections(globalSeries),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allCollections, globalSeries, isIntegrity]
+  );
 
   const handleUpdateQty = (rIdx: number, catKey: string, iIdx: number, val: number) => {
     setRooms(prev => {
@@ -242,7 +318,20 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
       if (!data.success) {
         throw new Error(data.error || 'Unknown error loading brands');
       }
-      setManMapping(data.mapping || {});
+      const mapping: Record<string, string[]> = data.mapping || {};
+
+      // Merge static config as fallback for manufacturers with missing door styles in DB
+      const manName = manufacturers.find(m => m.id === id)?.name || '';
+      const staticCfg = MANUFACTURER_CONFIG[manName];
+      if (staticCfg) {
+        staticCfg.collections.forEach(col => {
+          if (!mapping[col.name] || mapping[col.name].length === 0) {
+            mapping[col.name] = col.styles;
+          }
+        });
+      }
+
+      setManMapping(mapping);
     } catch (err: any) {
       console.error('[Client] Load config error:', err);
       toast({ 
@@ -264,6 +353,29 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
       toast({ variant: 'destructive', title: 'Smart Agent Error', description: err.message || 'Failed to refine BOM.' });
     } finally {
       setIsRunningAgent(false);
+    }
+  };
+
+  const handleRescan = async () => {
+    if (!confirm('Re-scan will re-extract all rooms from the original PDF and overwrite current edits. Continue?')) return;
+    setIsRescanning(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/agent/rescan-project`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: project.id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: `Re-scan complete — ${data.rooms_count} rooms found. Reloading…` });
+        router.refresh();
+      } else {
+        throw new Error(data.error || 'Re-scan failed');
+      }
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Re-scan Error', description: err.message });
+    } finally {
+      setIsRescanning(false);
     }
   };
 
@@ -302,6 +414,10 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                   <p className="text-sm font-bold text-slate-600">Review all extracted items and apply manufacturer specifications below.</p>
                </div>
                <div className="flex items-center gap-3">
+                 <Button onClick={handleRescan} variant="outline" disabled={isRescanning} title="Re-extract all rooms from original PDF" className="h-12 px-4 border-slate-200 text-slate-600 hover:bg-slate-50 shadow-sm font-bold">
+                    {isRescanning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                    Re-scan PDF
+                 </Button>
                  <Button onClick={handleRunSmartAgent} variant="outline" disabled={isRunningAgent} className="h-12 px-6 border-purple-200 text-purple-700 hover:bg-purple-50 hover:text-purple-800 bg-purple-50/50 shadow-sm font-bold">
                     {isRunningAgent ? <Loader2 className="w-5 h-5 mr-2 animate-spin text-purple-600" /> : <Sparkles className="w-5 h-5 mr-2 text-purple-600" />}
                     Quotation Smart Agent
@@ -493,7 +609,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                              <div className="flex flex-col">
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Room Cabinets</span>
                                 <div className="flex items-center gap-3">
-                                   <span className="text-2xl font-black text-slate-900">{(room.cabinets || []).reduce((sum, i) => sum + i.quantity, 0)}</span>
+                                   <span className="text-2xl font-black text-slate-900">{(room.cabinets || []).reduce((sum, i) => sum + (Number(i?.quantity) || 0), 0)}</span>
                                    <Box className="w-5 h-5 text-sky-500" />
                                 </div>
                              </div>
@@ -502,7 +618,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Room Accessories</span>
                                 <div className="flex items-center gap-3">
                                    <span className="text-2xl font-black text-slate-500">
-                                      {CATEGORIES.slice(1).reduce((sum, cat) => sum + (room[cat.key] || []).reduce((s: number, i: Item) => s + i.quantity, 0), 0)}
+                                      {CATEGORIES.slice(1).reduce((sum, cat) => sum + (room[cat.key] || []).reduce((s: number, i: any) => s + (Number(i?.quantity) || 0), 0), 0)}
                                    </span>
                                    <Package className="w-5 h-5 text-slate-400" />
                                 </div>
@@ -568,24 +684,58 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                     <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Select once, apply everywhere</p>
                   </div>
                 </div>
-                <div className="flex gap-4">
+                <div className="flex gap-3 flex-wrap">
+                  {/* Integrity only: Series first */}
+                  {isIntegrity && (
+                    <div className="space-y-1">
+                      <p className="text-[9px] font-black uppercase text-indigo-600 tracking-widest pl-1">Series</p>
+                      <Select
+                        value={globalSeries}
+                        onValueChange={(v) => {
+                          setGlobalSeries(v);
+                          setGlobalCollection('');
+                          setRooms(prev => prev.map(r => ({ ...r, collection: '', door_style: '' })));
+                        }}
+                      >
+                        <SelectTrigger className="w-44 h-11 text-sm bg-white border-indigo-200 rounded-xl">
+                          <SelectValue placeholder="Select Series" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border-slate-100">
+                          {integritySeriesFromDB.map(s => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   <div className="space-y-1">
                     <p className="text-[9px] font-black uppercase text-sky-600 tracking-widest pl-1">Collection</p>
-                    <Select onValueChange={(v) => {
-                      const nr = rooms.map(r => ({ ...r, collection: v, door_style: '' }));
-                      setRooms(nr);
-                    }}>
-                      <SelectTrigger className="w-44 h-11 text-sm bg-white border-sky-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                    <Select
+                      key={globalSeries}
+                      value={globalCollection}
+                      disabled={isIntegrity && !globalSeries}
+                      onValueChange={(v) => {
+                        setGlobalCollection(v);
+                        setRooms(prev => prev.map(r => ({ ...r, collection: v, door_style: '' })));
+                      }}
+                    >
+                      <SelectTrigger className="w-44 h-11 text-sm bg-white border-sky-200 rounded-xl">
+                        <SelectValue placeholder={isIntegrity && !globalSeries ? 'Pick series first' : 'Select'} />
+                      </SelectTrigger>
                       <SelectContent className="bg-white border-slate-100 max-h-80">
-                        {collections.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        {collections.map(c => (
+                          <SelectItem key={c} value={c}>
+                            {getCollectionLabel(c, globalSeries)}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
                     <p className="text-[9px] font-black uppercase text-sky-600 tracking-widest pl-1">Door Style</p>
                     <Select onValueChange={(v) => {
-                      const nr = rooms.map(r => ({ ...r, door_style: v }));
-                      setRooms(nr);
+                      setRooms(prev => prev.map(r => ({ ...r, door_style: v })));
                     }} disabled={!rooms[0]?.collection}>
                       <SelectTrigger className="w-44 h-11 text-sm bg-white border-sky-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent className="bg-white border-slate-100">
@@ -614,18 +764,56 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                       <span className="text-[9px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full tracking-wider">✓ Set</span>
                     )}
                   </div>
-                  <div className="flex gap-4">
+                  <div className="flex gap-3 flex-wrap">
+                    {/* Integrity only: Series first per room */}
+                    {isIntegrity && (
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-black uppercase text-indigo-500 tracking-widest pl-1">Series</p>
+                        <Select
+                          value={roomSeriesMap[rIdx] || ''}
+                          onValueChange={(v) => {
+                            setRoomSeriesMap(prev => ({ ...prev, [rIdx]: v }));
+                            // Reset collection + door_style for this room
+                            const nr = [...rooms];
+                            nr[rIdx].collection = '';
+                            nr[rIdx].door_style = '';
+                            setRooms(nr);
+                          }}
+                        >
+                          <SelectTrigger className="w-40 h-11 text-sm bg-indigo-50 border-none rounded-xl">
+                            <SelectValue placeholder="Series" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border-slate-100">
+                            {integritySeriesFromDB.map(s => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
                     <div className="space-y-1">
                       <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest pl-1">Collection</p>
-                      <Select value={room.collection} onValueChange={(v) => {
-                        const nr = [...rooms];
-                        nr[rIdx].collection = v;
-                        nr[rIdx].door_style = '';
-                        setRooms(nr);
-                      }}>
-                        <SelectTrigger className="w-44 h-11 text-sm bg-slate-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <Select
+                        key={roomSeriesMap[rIdx] ?? 'no-series'}
+                        value={room.collection}
+                        disabled={isIntegrity && !roomSeriesMap[rIdx]}
+                        onValueChange={(v) => {
+                          const nr = [...rooms];
+                          nr[rIdx].collection = v;
+                          nr[rIdx].door_style = '';
+                          setRooms(nr);
+                        }}
+                      >
+                        <SelectTrigger className="w-44 h-11 text-sm bg-slate-50 border-none rounded-xl">
+                          <SelectValue placeholder={isIntegrity && !roomSeriesMap[rIdx] ? 'Pick series' : 'Select'} />
+                        </SelectTrigger>
                         <SelectContent className="bg-white border-slate-100 max-h-80">
-                          {collections.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                          {getFilteredCollections(roomSeriesMap[rIdx] || '').map(c => (
+                            <SelectItem key={c} value={c}>
+                              {getCollectionLabel(c, roomSeriesMap[rIdx] || '')}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>

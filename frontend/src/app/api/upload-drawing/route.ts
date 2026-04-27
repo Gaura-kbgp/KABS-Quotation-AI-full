@@ -1,9 +1,8 @@
 import { createServerSupabase } from '@/lib/supabase-server';
 import { analyzeDrawing } from '@/ai/flows/analyze-drawing-flow';
-import { refineBomFlow } from '@/ai/flows/refine-bom-flow';
 import * as fs from 'fs';
 
-export const maxDuration = 300;
+export const maxDuration = 600; // Increased to 10 minutes for large drawing sets
 
 function logHit(msg: string) {
   const timestamp = new Date().toISOString();
@@ -61,26 +60,27 @@ export async function POST(req: Request) {
       throw dbError;
     }
 
-    // 3. Direct Analysis via Genkit Flow (Using Public URL to save memory)
-    logHit(`Triggering AI Analysis for project ${project.id}...`);
-    
+    // 3. Extract cabinet data — local rule-based extractor runs first (fast).
+    //    Smart Agent refinement is available on-demand via the Review page button.
+    logHit(`Triggering extraction for project ${project.id}...`);
+
     try {
+      const startTime = Date.now();
       const result = await analyzeDrawing({
-        pdfDataUri: publicUrl, // Passing the public URL instead of base64
+        pdfDataUri: publicUrl,
         projectName: projectName
       });
-      
-      logHit("AI Analysis finished. Running Quotation Smart Agent...");
-      const smartAgentResult = await refineBomFlow({ rooms: result.rooms || [] });
+      const scanDuration = (Date.now() - startTime) / 1000;
+      logHit(`Extraction finished in ${scanDuration}s. Rooms: ${result.rooms?.length ?? 0}`);
 
       const finalExtractedData = {
-        rooms: smartAgentResult.corrected_rooms,
-        smart_agent_explanations: smartAgentResult.explanations
+        rooms: result.rooms || [],
+        smart_agent_explanations: []
       };
 
-      logHit("Smart Agent finished. Saving fallback result...");
+      logHit("Saving result...");
       fs.writeFileSync(`scan_result_${project.id}.json`, JSON.stringify(finalExtractedData, null, 2));
-      
+
       logHit("Updating Supabase with extracted data...");
       const { error: updateError } = await supabase
         .from('quotation_projects')

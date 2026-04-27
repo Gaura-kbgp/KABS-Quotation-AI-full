@@ -1,0 +1,334 @@
+{
+  "rooms": [
+    {
+      "room_name": "STANDARD 42\" KITCHEN",
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48",
+          "quantity": 1
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 24
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 5
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 3
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT GOURMET KITCHEN",
+      "perimeter": [
+        {
+          "code": "BTK8",
+          "quantity": 3
+        },
+        {
+          "code": "SM8",
+          "quantity": 5
+        },
+        {
+          "code": "FL48",
+          "quantity": 1
+        },
+        {
+          "code": "S3324",
+          "quantity": 1
+        },
+        {
+          "code": "UF642",
+          "quantity": 1
+        },
+        {
+          "code": "S3S396",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP KIT",
+          "quantity": 2
+        },
+        {
+          "code": "TOUCHUP SPRAY",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 18
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 6
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 3
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN",
+          "quantity": 4
+        },
+        {
+          "code": "HWC 1X2X94",
+          "quantity": 4
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL",
+          "quantity": 4
+        }
+      ],
+      "vent_chase_material": [
+        {
+          "code": "BACK-B48",
+          "quantity": 1
+        },
+        {
+          "code": "48\" SHELF ADJ",
+          "quantity": 2
+        },
+        {
+          "code": "WTEP84",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        },
+        {
+          "code": "QM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OWNERS BATH",
+      "cabinets": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "BATH 2",
+      "cabinets": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 4
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "BATH 3 UPSTAIRS",
+      "cabinets": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 1
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 3
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 0
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        },
+        {
+          "code": "OCM8 BLD",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "room_name": "OPT LAUNDRY",
+      "cabinets": [
+        {
+          "code": "BTK8",
+          "quantity": 1
+        },
+        {
+          "code": "SM8",
+          "quantity": 3
+        },
+        {
+          "code": "FL24",
+          "quantity": 2
+        }
+      ],
+      "hardware": [
+        {
+          "code": "DOORS",
+          "quantity": 12
+        },
+        {
+          "code": "DRAWERS",
+          "quantity": 2
+        }
+      ],
+      "bump": [
+        {
+          "code": "SHM8",
+          "quantity": 1
+        }
+      ],
+      "opt_crown": [
+        {
+          "code": "CROWN",
+          "quantity": 2
+        },
+        {
+          "code": "HWC 1X2X94",
+          "quantity": 2
+        }
+      ],
+      "opt_light_rail": [
+        {
+          "code": "LIGHT RAIL",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}

@@ -14,11 +14,9 @@ def get_supabase() -> Client:
     # Some older postgrest versions passed 'proxy' instead of 'proxies' which breaks in newer httpx
     # Or some environments inject 'proxy' into kwargs.
     try:
-        # Try to use a clean httpx client
-        http_client = httpx.Client(trust_env=False)
-        options = ClientOptions(http_client=http_client)
-        return create_client(url, key, options=options)
-    except Exception as e:
-        print(f"DEBUG: Supabase custom client creation failed ({e}), falling back to standard...")
+        # Standard client initialization
         return create_client(url, key)
+    except Exception as e:
+        print(f"DEBUG: Supabase client creation failed ({e})")
+        raise
 

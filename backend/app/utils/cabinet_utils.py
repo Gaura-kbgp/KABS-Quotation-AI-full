@@ -11,8 +11,12 @@ CABINET_TYPE_MAP = {
     "WB":   "Wall Cabinet with Blind",
     "WC":   "Wall Corner Cabinet",
     "WDC":  "Wall Diagonal Corner Cabinet",
+    "WLS":  "Wall Lazy Susan",
     "WR":   "Wall Refrigerator Cabinet",
     "WO":   "Wall Oven Cabinet",
+    "WAC":  "Wall Asymmetric Corner Cabinet",
+    "WANGL":"Wall Angle Cabinet",
+    "WBC":  "Wall Blind Corner Cabinet",
 
     # Base Cabinets
     "B":    "Base Cabinet",
@@ -20,6 +24,10 @@ CABINET_TYPE_MAP = {
     "BC":   "Base Corner Cabinet",
     "BDC":  "Base Diagonal Corner Cabinet",
     "BFH":  "Base Full Height Cabinet",
+    "BLS":  "Base Lazy Susan",
+    "LS":   "Lazy Susan Cabinet",
+    "BAC":  "Base Asymmetric Corner Cabinet",
+    "LBC":  "Lazy Susan Base Corner",
 
     # Sink / Appliance Bases
     "SB":   "Sink Base",
@@ -31,6 +39,8 @@ CABINET_TYPE_MAP = {
     "V":    "Vanity Base",
     "VSB":  "Vanity Sink Base",
     "VDB":  "Vanity Double Base",
+    "VB":   "Vanity Base",
+    "V3S":  "Vanity 3-Stack Drawer",
 
     # Tall / Pantry / Oven / Utility
     "T":    "Tall Cabinet",
@@ -41,16 +51,24 @@ CABINET_TYPE_MAP = {
     "REF":  "Refrigerator Cabinet",
     "MICRO":"Microwave Cabinet",
 
-    # Specialty
+    # Specialty / Drawer Bases
     "S":    "Specialty Cabinet",
     "S3S":  "Specialty 3-Stack Cabinet",
     "SD":   "Specialty Double Cabinet",
+    "B3S":  "Base 3-Stack Drawer",
+    "B4S":  "Base 4-Stack Drawer",
+    "DWR":  "Drawer Base",
+    "DR":   "Drawer Base",
 
     # Fillers
     "UF":   "Universal Filler",
     "F":    "Filler",
+    "WF":   "Wall Filler",
+    "BF":   "Base Filler",
+    "TF":   "Tall Filler",
+    "VF":   "Vanity Filler",
 
-    # Molding & Trim  (not cabinets, but we classify for pricing)
+    # Molding & Trim
     "CM":   "Crown Molding",
     "OCM":  "Outside Corner Molding",
     "SCM":  "Scribe Molding",
@@ -70,6 +88,8 @@ CABINET_TYPE_MAP = {
     "SCRBE":"Scribe Bead",
     "SCRM": "Scribe Molding",
     "WTEP": "Wall Toe End Panel",
+    "TEP":  "End Panel",
+    "EP":   "End Panel",
 
     # Hardware / Accessories
     "HW":   "Hardware",
@@ -102,6 +122,14 @@ INTEGRITY_PREFIX_ALIASES = {
     "BACK": "FBP", # Drawing BACK -> Integrity FBP
     "BACKB":"FBP",
     "BACKF":"FBP",
+    "LS":  "BLS",  # Lazy Susan -> Base Lazy Susan
+    "WF":  "UF",   # Wall Filler -> Universal Filler
+    "BF":  "UF",   # Base Filler -> Universal Filler
+    "TF":  "UF",   # Tall Filler -> Universal Filler
+    "VF":  "UF",   # Vanity Filler -> Universal Filler
+    "B3S": "DB",   # Base 3-stack -> Drawer Base
+    "B4S": "DB",   # Base 4-stack -> Drawer Base
+    "V3S": "VDB",  # Vanity 3-stack -> Vanity Drawer Base
 }
 
 
@@ -146,22 +174,34 @@ CABINET_SECTIONS = {
     "Wall Cabinet with Blind":  "Wall",
     "Wall Corner Cabinet":      "Wall",
     "Wall Diagonal Corner Cabinet": "Wall",
+    "Wall Lazy Susan":          "Wall",
     "Wall Refrigerator Cabinet":"Wall",
     "Wall Oven Cabinet":        "Wall",
+    "Wall Asymmetric Corner Cabinet": "Wall",
+    "Wall Angle Cabinet":       "Wall",
+    "Wall Blind Corner Cabinet":"Wall",
 
     "Base Cabinet":             "Base",
     "Base Blind Corner Cabinet":"Base",
     "Base Corner Cabinet":      "Base",
     "Base Diagonal Corner Cabinet": "Base",
     "Base Full Height Cabinet": "Base",
+    "Base Lazy Susan":          "Base",
+    "Lazy Susan Cabinet":       "Base",
+    "Base Asymmetric Corner Cabinet": "Base",
+    "Lazy Susan Base Corner":   "Base",
     "Sink Base":                "Base",
-    "Dishwasher Base":          "Appliance",   # DW/DB are appliance returns, not standard base
+    "Dishwasher Base":          "Appliance",
     "Dishwasher Return":        "Appliance",
     "Range Base":               "Base",
+    "Base 3-Stack Drawer":      "Base",
+    "Base 4-Stack Drawer":      "Base",
+    "Drawer Base":              "Base",
 
     "Vanity Base":              "Vanity",
     "Vanity Sink Base":         "Vanity",
     "Vanity Double Base":       "Vanity",
+    "Vanity 3-Stack Drawer":    "Vanity",
 
     "Tall Cabinet":             "Tall",
     "Pantry Cabinet":           "Tall",
@@ -177,6 +217,10 @@ CABINET_SECTIONS = {
 
     "Universal Filler":         "Filler",
     "Filler":                   "Filler",
+    "Wall Filler":              "Filler",
+    "Base Filler":              "Filler",
+    "Tall Filler":              "Filler",
+    "Vanity Filler":            "Filler",
 
     "Crown Molding":            "Molding",
     "Outside Corner Molding":   "Molding",
@@ -194,6 +238,7 @@ CABINET_SECTIONS = {
     "Hardware Cleat / Nailer":  "Molding",
     "Scribe Bead":              "Molding",
     "Wall Toe End Panel":       "Molding",
+    "End Panel":                "Molding",
     "Hardware":                 "Hardware",
     "Cabinet Back":             "Hardware",
     "Finished Back Panel":      "Hardware",
@@ -214,6 +259,7 @@ NKBA_STANDARD_DIMS = {
         "heights": [84, 90, 96],
         "widths":  [18, 21, 24, 27, 30, 33, 36],
     },
+
 }
 
 
@@ -252,8 +298,6 @@ def normalize_collection_name(col: str) -> str:
     # Remove newlines
     s = s.split('\n')[0].strip()
     return s
-
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Cabinet-type classifier
 # ──────────────────────────────────────────────────────────────────────────────
@@ -321,8 +365,6 @@ def strip_drawing_suffix(sku: str) -> str:
     # Remove concatenated suffixes: "W3042BUTT" → find where digits end
     s = re.sub(r'^([A-Z]+)(\d+)(BUTT|BD|LH|RH|VENTBOX|VENT|BOX|DW|DWR)$', r'\1\2', s)
     return s.strip()
-
-
 def is_primary_cabinet(sku: str) -> bool:
     s = str(sku or "").upper().strip()
     if not s:
@@ -374,15 +416,15 @@ def detect_category(sku: str) -> str:
         return 'Molding & Trim'
 
     # 2. Universal Fillers
-    if s.startswith('UF') or s.startswith('F') or 'FILLER' in s:
+    if s.startswith(('UF', 'F', 'WF', 'BF', 'TF', 'VF')) or 'FILLER' in s:
         return 'Universal Fillers'
 
     # 3. Vanity Cabinets (Check before Base)
-    if s.startswith('V') or 'VANITY' in s:
+    if s.startswith(('V', 'VB', 'VSB', 'VDB', 'V3S')) or 'VANITY' in s:
         return 'Vanity Cabinets'
 
     # 4. Wall Cabinets
-    if s.startswith('W') or 'WALL' in s:
+    if s.startswith(('W', 'WC', 'WB', 'WDC', 'WR', 'WO', 'WLS', 'WAC', 'WANGL', 'WBC')) or 'WALL' in s:
         return 'Wall Cabinets'
 
     # 5. Sink Bases (Check before generic Base)
@@ -391,7 +433,7 @@ def detect_category(sku: str) -> str:
 
     # 6. Base Cabinets (Standard)
     # Using regex ^B\d to avoid matching BTK
-    if s.startswith('B') and (len(s) == 1 or s[1].isdigit()):
+    if s.startswith(('B', 'LS', 'BLS', 'LBC', 'BAC', 'BC', 'BBC', 'BDC', 'BFH', 'B3S', 'B4S', 'DB', 'DWR', 'DR')) and (len(s) <= 2 or s[1].isdigit() or s[2].isdigit() or s.startswith(('LS', 'BLS', 'LBC', 'BAC'))):
         return 'Base Cabinets'
 
     # 7. Tall Cabinets (Pantry, Oven, Utility, Refrigerator)
@@ -410,7 +452,6 @@ def parse_sku_dimensions(sku: str) -> dict:
     """Parse dimensions from a cabinet SKU string.
     Handles standard NKBA codes (W3042, B30) as well as
     dimension-encoded codes like HWC 2X4X96 or HWC 1X2X94.
-
     IMPORTANT: For Integrity catalog SKUs that have finish/door suffixes
     (BD, MDBD, BDFHD, etc.), we strip those first so dimensions parse correctly.
     e.g. W3042MDBD → parse as W3042 → width=30, height=42
@@ -427,7 +468,6 @@ def parse_sku_dimensions(sku: str) -> dict:
     # Use stripped for dimension parsing if it still has digits
     if s_stripped and re.search(r'\d', s_stripped):
         s = s_stripped
-
     # ── Pattern A: NxNxN format (HWC 2X4X96, HWC 1X2X94) ──
     m3 = re.search(r'(\d+)\s*[Xx]\s*(\d+)\s*[Xx]\s*(\d+)', s)
     if m3:
@@ -579,14 +619,20 @@ def find_nearest_cabinet_match(
                 effective_prefix = alias_to + target_prefix[len(alias_from):]
                 break
 
+
     # ─── Sub-type groupings for strict same-prefix matching ───────────────────
-    # Within the "Base" section, B-prefix (standard base) must NOT
-    # match SB-prefix (sink base) or DW-prefix (dishwasher return).
+    # We group similar types together so they can match each other during nearest-size search.
     BASE_CABINET_TYPES  = {"Base Cabinet", "Base Blind Corner Cabinet",
                            "Base Corner Cabinet", "Base Diagonal Corner Cabinet",
-                           "Base Full Height Cabinet"}
+                           "Base Full Height Cabinet", "Base 3-Stack Drawer", "Base 4-Stack Drawer", "Drawer Base"}
     SINK_BASE_TYPES     = {"Sink Base"}
-    VANITY_BASE_TYPES   = {"Vanity Base", "Vanity Sink Base", "Vanity Double Base"}
+    VANITY_BASE_TYPES   = {"Vanity Base", "Vanity Sink Base", "Vanity Double Base", "Vanity 3-Stack Drawer"}
+    CORNER_CABINET_TYPES = {"Base Corner Cabinet", "Base Blind Corner Cabinet", "Base Diagonal Corner Cabinet", 
+                            "Wall Corner Cabinet", "Wall Diagonal Corner Cabinet", "Wall Blind Corner Cabinet",
+                            "Wall Lazy Susan", "Base Lazy Susan", "Lazy Susan Cabinet", "Lazy Susan Base Corner",
+                            "Wall Asymmetric Corner Cabinet", "Base Asymmetric Corner Cabinet", "Wall Angle Cabinet"}
+    FILLER_TYPES        = {"Universal Filler", "Filler", "Wall Filler", "Base Filler", "Tall Filler", "Vanity Filler"}
+    TALL_TYPES          = {"Tall Cabinet", "Pantry Cabinet", "Oven Cabinet", "Oven Tall Cabinet", "Utility Cabinet", "Refrigerator Cabinet"}
 
     # 3. Find same-SECTION candidates in the catalog
     # Use pre-indexed section rows if 'lookup_maps' was provided (faster)
@@ -616,11 +662,17 @@ def find_nearest_cabinet_match(
         if ct is None:
             return False
 
-        # ── Strict Base sub-type: B prefix only matches B catalog types ──────
+        # ── Group-based matching ─────────────────────────────────────────────
+        if target_type in CORNER_CABINET_TYPES:
+            return ct in CORNER_CABINET_TYPES
+        if target_type in FILLER_TYPES:
+            return ct in FILLER_TYPES
+        if target_type in TALL_TYPES:
+            return ct in TALL_TYPES
         if target_type in BASE_CABINET_TYPES:
-            return ct in BASE_CABINET_TYPES   # B -> B only (not SB, DW, DB)
+            return ct in BASE_CABINET_TYPES
         if target_type in SINK_BASE_TYPES:
-            return ct in SINK_BASE_TYPES      # SB -> SB only (not B, DW)
+            return ct in SINK_BASE_TYPES
         if target_type in VANITY_BASE_TYPES:
             return ct in VANITY_BASE_TYPES
 
@@ -666,6 +718,7 @@ def find_nearest_cabinet_match(
                 candidates = col_candidates
             # If collection filter produced nothing, fall back to all same-section candidates
             # This is intentional — a price from the right type is better than no price.
+
 
     if not candidates:
         return None
@@ -764,4 +817,3 @@ def find_nearest_cabinet_match(
             best_row = global_best_row
 
     return best_row
-

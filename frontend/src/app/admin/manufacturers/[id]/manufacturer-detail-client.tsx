@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,47 +44,125 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatusMsg, setUploadStatusMsg] = useState('');
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Stop polling when dialog closes
+  useEffect(() => {
+    if (!isAddingFile.open && pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, [isAddingFile.open]);
 
 
   const handleFileUpload = async () => {
     if (!uploadFile || !isAddingFile.type) return;
 
     setIsUploading(true);
-    
+    setUploadProgress(0);
+    setUploadStatusMsg('');
+
+    const isSpecPdf = isAddingFile.type === 'spec' && uploadFile.name.toLowerCase().endsWith('.pdf');
+
+    // Spec PDFs go directly to Python backend (bypass Next.js to avoid double-buffering)
+    if (isSpecPdf) {
+      const BACKEND = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+
+      try {
+        setUploadProgress(2);
+        setUploadStatusMsg('Uploading to processing server…');
+
+        const res = await fetch(`${BACKEND}/api/upload-spec-book?manufacturer_id=${id}`, {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Upload failed');
+        }
+
+        const jobId: string = data.job_id;
+        setUploadProgress(5);
+        setUploadStatusMsg('Processing in background…');
+
+        // Poll for job completion
+        pollRef.current = setInterval(async () => {
+          try {
+            const statusRes = await fetch(`${BACKEND}/api/spec-job/${jobId}`);
+            const status = await statusRes.json();
+
+            if (status.success) {
+              setUploadProgress(status.progress ?? 0);
+              setUploadStatusMsg(status.message ?? '');
+
+              if (status.status === 'done') {
+                clearInterval(pollRef.current!);
+                pollRef.current = null;
+                toast({
+                  title: 'Success',
+                  description: `Extracted ${status.count} pricing records from ${data.fileName}`,
+                });
+                setIsAddingFile({ open: false, type: null });
+                setUploadFile(null);
+                setIsUploading(false);
+                router.refresh();
+              } else if (status.status === 'error') {
+                clearInterval(pollRef.current!);
+                pollRef.current = null;
+                throw new Error(status.error || 'Processing failed');
+              }
+            }
+          } catch (pollErr: any) {
+            clearInterval(pollRef.current!);
+            pollRef.current = null;
+            toast({ variant: 'destructive', title: 'Processing Error', description: pollErr.message });
+            setIsUploading(false);
+          }
+        }, 2000);
+
+      } catch (err: any) {
+        console.error('Spec PDF Upload Error:', err);
+        toast({ variant: 'destructive', title: 'Upload Failed', description: err.message });
+        setIsUploading(false);
+      }
+      return;
+    }
+
+    // All other uploads go through Next.js route handler as before
     const formData = new FormData();
     formData.append('file', uploadFile);
     formData.append('manufacturerId', id);
 
-    const isPrisingPdf = isAddingFile.type === 'spec' && uploadFile.name.toLowerCase().endsWith('.pdf');
-    
-    const apiRoute = (isAddingFile.type === 'pricing' || isPrisingPdf)
-      ? `/api/upload-pricing?manufacturer_id=${id}` 
+    const apiRoute = isAddingFile.type === 'pricing'
+      ? `/api/upload-pricing?manufacturer_id=${id}`
       : '/api/upload-spec';
 
     try {
-      const response = await fetch(apiRoute, {
-        method: 'POST',
-        body: formData,
-      });
-
+      setUploadStatusMsg('Uploading…');
+      const response = await fetch(apiRoute, { method: 'POST', body: formData });
       const result = await response.json();
 
       if (!response.ok || result.error) {
-        toast({ 
-          variant: 'destructive', 
-          title: 'Upload Failed', 
-          description: result.error || 'The server returned an error during upload.' 
+        toast({
+          variant: 'destructive',
+          title: 'Upload Failed',
+          description: result.error || 'The server returned an error during upload.',
         });
       } else {
-        toast({ 
-          title: 'Success', 
-          description: result.count 
-            ? `Extracted ${result.count} pricing points from ${result.fileName}` 
-            : `${result.fileName} uploaded successfully.` 
+        toast({
+          title: 'Success',
+          description: result.count
+            ? `Extracted ${result.count} pricing points from ${result.fileName}`
+            : `${result.fileName} uploaded successfully.`,
         });
         setIsAddingFile({ open: false, type: null });
         setUploadFile(null);
@@ -92,11 +170,7 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
       }
     } catch (err: any) {
       console.error('Upload Error:', err);
-      toast({ 
-        variant: 'destructive', 
-        title: 'Network Error', 
-        description: 'Could not connect to the upload service.' 
-      });
+      toast({ variant: 'destructive', title: 'Network Error', description: 'Could not connect to the upload service.' });
     } finally {
       setIsUploading(false);
     }
@@ -306,9 +380,23 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
                 )}
               </label>
             </div>
+            {isUploading && uploadProgress > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span>{uploadStatusMsg || 'Processing…'}</span>
+                  <span className="font-semibold text-sky-600">{uploadProgress}%</span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-sky-500 transition-all duration-500"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
             <Button onClick={handleFileUpload} className="w-full h-11 gradient-button" disabled={isUploading || !uploadFile}>
               {isUploading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <FileUp className="w-4 h-4 mr-2" />}
-              {isUploading ? 'Streaming Upload...' : 'Upload & Process'}
+              {isUploading ? (uploadStatusMsg || 'Processing…') : 'Upload & Process'}
             </Button>
           </div>
         </DialogContent>

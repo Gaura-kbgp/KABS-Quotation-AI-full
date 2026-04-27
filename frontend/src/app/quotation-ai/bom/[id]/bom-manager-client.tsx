@@ -93,6 +93,10 @@ interface BomItem {
   room: string;
   precision_level: string;
   is_billable?: boolean;
+  description?: string;
+  cabinet_type?: string;
+  match_explanation?: string;
+  match_confidence?: number;
 }
 
 interface BomManagerClientProps {
@@ -193,6 +197,15 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
   const [installationCharges, setInstallationCharges] = useState(project.bom_data?.installationCharges ?? 0);
   const [laborCharges, setLaborCharges] = useState(project.bom_data?.laborCharges ?? 0);
   const [customItemCharges, setCustomItemCharges] = useState<Record<string, {installation?: number, labor?: number}>>(project.bom_data?.customItemCharges || {});
+  const [installRate, setInstallRate] = useState<number>(project.bom_data?.installRate ?? 0);
+  const [installCostRate, setInstallCostRate] = useState<number>(project.bom_data?.installCostRate ?? 0);
+  const [includeInstall, setIncludeInstall] = useState<boolean>(project.bom_data?.includeInstall ?? false);
+  const [includeDelivery, setIncludeDelivery] = useState<boolean>(project.bom_data?.includeDelivery ?? false);
+  const [deliverySellRate, setDeliverySellRate] = useState<number>(project.bom_data?.deliverySellRate ?? 0);
+  const [deliveryCostRate, setDeliveryCostRate] = useState<number>(project.bom_data?.deliveryCostRate ?? 0);
+
+  // True for manufacturers whose install rules should drive per-line + total install charges
+  const isInstallManufacturer = /1951|wellborn/i.test(manufacturerName);
 
   const [quoteDate, setQuoteDate] = useState(
     project.bom_data?.quoteDate || new Date().toISOString().split('T')[0]
@@ -306,6 +319,8 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
     fetchConfig();
   }, [compareConfig.mfgBId]);
 
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
+
   const getEffectiveUnitPrice = (item: BomItem) => {
       return (Number(item.unit_price) || 0);
   };
@@ -322,6 +337,46 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
     if (p === 'MANUAL_PRICING_REQUIRED')
       return { label: 'Review Needed', cls: 'bg-red-50 text-red-700 border-red-200' };
     return { label: precision, cls: 'bg-slate-100 text-slate-500 border-slate-200' };
+  };
+
+  // Generates a human-readable match summary from pricing engine data (used as fallback when AI hasn't run)
+  const getMatchSummary = (item: BomItem): string => {
+    const p = (item.precision_level || '').toUpperCase();
+    const raw = item.matched_sku || '';
+
+    // Parse catalog SKU and collection from matched_sku string formats:
+    // "W3042BD", "Ref: W3042BD [CLASSIC SERIES]", "Catalog Ref: W3042BD [CLASSIC] (avg. of 3)"
+    const refMatch = raw.match(/^(?:Ref:|Catalog Ref:)?\s*([A-Z0-9][A-Z0-9\-\.]*?)(?:\s*\[|\s*\(|$)/i);
+    const catalogSku = refMatch ? refMatch[1].trim() : raw.replace(/\[.*\]|\(.*\)/g, '').trim();
+    const colMatch = raw.match(/\[([^\]]+)\]/);
+    const catalogCol = colMatch ? ` [${colMatch[1]}]` : '';
+    const price = item.unit_price > 0 ? ` — List $${item.unit_price.toLocaleString()}` : '';
+
+    if (p.startsWith('EXACT')) {
+      if (catalogSku && catalogSku !== item.sku)
+        return `Drawing code "${item.sku}" → Exact catalog match: ${catalogSku}${catalogCol}${price}`;
+      return `Drawing code "${item.sku}" matched exactly in the pricing catalog${catalogCol}${price}`;
+    }
+    if (p === 'SUFFIX_BRIDGE' || p === 'COMPRESSED' || p.startsWith('FUZZY')) {
+      const hint = item.sku.endsWith('BUTT') ? ' (BUTT = door hinge style, mapped to catalog BD suffix)' : '';
+      return `Drawing suffix translated to catalog format${hint}. Catalog ref: ${catalogSku}${catalogCol}${price}`;
+    }
+    if (p.startsWith('NEAREST_DIM')) {
+      return `No exact size for "${item.sku}" in catalog — priced at nearest available size: ${catalogSku}${catalogCol}${price}. Verify dimensions.`;
+    }
+    if (p === 'DIMENSION') {
+      return `Dimension-based match: "${item.sku}" mapped to ${catalogSku}${catalogCol} by cabinet dimensions${price}`;
+    }
+    if (p === 'CATEGORY_AVERAGE') {
+      const avgMatch = raw.match(/avg\.\s*of\s*(\d+)/i);
+      const n = avgMatch ? ` (avg. of ${avgMatch[1]} items)` : '';
+      return `No close match found for "${item.sku}" — price estimated from category average${n}${catalogCol}. Review manually.`;
+    }
+    if (p === 'MANUAL_PRICING_REQUIRED') {
+      return `"${item.sku}" could not be automatically priced. Please set price manually.`;
+    }
+    if (catalogSku) return `Catalog ref: ${catalogSku}${catalogCol}${price}`;
+    return `No catalog reference available — price set manually`;
   };
 
   const financials = useMemo(() => {
@@ -346,29 +401,85 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
     const discountAmt = netBeforeDiscount * (Number(globalDiscount) / 100);
     const netTotal = netBeforeDiscount - discountAmt;
     const taxes = netTotal * (Number(taxRate) / 100);
-    const grandTotal = netTotal + taxes;
+
+    // Install & Delivery value units (only for 1951 / Wellborn)
+    let totalInstallUnitsInline = 0;
+    let total3PLUnitsInline = 0;
+    if (isInstallManufacturer) {
+      activeItems.forEach(item => {
+        const skuKey = (item.sku || '').toUpperCase().trim();
+        const override = installOverrides.find(o => o.item_code.toUpperCase().trim() === skuKey);
+        const defRule  = installRules.find(r => r.item_code.toUpperCase().trim() === skuKey);
+        const rule = override ?? defRule ?? null;
+        let factor = 0;
+        let tplInclude = false;
+        if (rule) {
+          factor = Number(rule.install_factor);
+          tplInclude = rule.include_in_3pl;
+        } else {
+          const category = detectCategory(item.sku);
+          const isCabinetOrFiller = category.includes('Cabinets') || category === 'Universal Fillers';
+          factor = isCabinetOrFiller ? 1 : 0;
+          tplInclude = isCabinetOrFiller;
+        }
+        totalInstallUnitsInline += Number(item.qty) * factor;
+        if (tplInclude) total3PLUnitsInline += Number(item.qty);
+      });
+    }
+
+    // Installation: sell = units × sellRate, internal cost = units × costRate
+    const totalInstallSell = (isInstallManufacturer && includeInstall)
+      ? totalInstallUnitsInline * Number(installRate)
+      : 0;
+    const totalInstallInternalCost = (isInstallManufacturer && includeInstall)
+      ? totalInstallUnitsInline * Number(installCostRate)
+      : 0;
+    const installProfit = totalInstallSell - totalInstallInternalCost;
+
+    // Delivery (3PL): sell = 3PL units × sellRate, internal cost = 3PL units × costRate
+    const totalDeliverySell = (isInstallManufacturer && includeDelivery)
+      ? total3PLUnitsInline * Number(deliverySellRate)
+      : 0;
+    const totalDeliveryCost = (isInstallManufacturer && includeDelivery)
+      ? total3PLUnitsInline * Number(deliveryCostRate)
+      : 0;
+    const deliveryProfit = totalDeliverySell - totalDeliveryCost;
+
+    // Keep totalInstallCost alias for backwards compat with existing UI references
+    const totalInstallCost = totalInstallSell;
+
+    const grandTotal = netTotal + taxes + totalInstallSell + totalDeliverySell;
 
     // Financial Metrics for Manufacturer Oversight
     const estimatedMfgCost = dealerCost;
     const estimatedProfit = netTotal - dealerCost;
 
-    // Calculate scaling factor for individual items/rooms (Pre-Tax)
+    // Calculate scaling factor for individual items/rooms (Pre-Tax, excluding install)
     const scalingFactor = listSubtotal > 0 ? netTotal / listSubtotal : 0;
 
-    return { 
-      listSubtotal, 
-      dealerCost, 
-      marginSell, 
+    return {
+      listSubtotal,
+      dealerCost,
+      marginSell,
       additionalExpenses,
-      discountAmt, 
-      netTotal, 
-      taxes, 
+      discountAmt,
+      netTotal,
+      taxes,
+      totalInstallCost,
+      totalInstallSell,
+      totalInstallInternalCost,
+      installProfit,
+      totalInstallUnitsInline,
+      totalDeliverySell,
+      totalDeliveryCost,
+      deliveryProfit,
+      total3PLUnitsInline,
       grandTotal,
       scalingFactor,
       estimatedMfgCost,
       estimatedProfit
     };
-  }, [bom, selectedRooms, activePrintRoom, pricingFactor, targetMargin, globalDiscount, taxRate, freight, fuelSurcharge, miscCharges, installationCharges, laborCharges, roomDiscounts, customItemCharges]);
+  }, [bom, selectedRooms, activePrintRoom, pricingFactor, targetMargin, globalDiscount, taxRate, freight, fuelSurcharge, miscCharges, installationCharges, laborCharges, roomDiscounts, customItemCharges, installRate, installCostRate, includeInstall, includeDelivery, deliverySellRate, deliveryCostRate, installRules, installOverrides, isInstallManufacturer]);
 
   // ── Install / 3PL Calculations ─────────────────────────────────────────────
   // Lookup priority: client overrides → manufacturer defaults → missing
@@ -480,16 +591,49 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
     }
   };
 
+  const handleCatalogDiagnose = async () => {
+    try {
+      const res = await fetch(`/api/catalog-check?manufacturer_id=${project.manufacturer_id}`);
+      const data = await res.json();
+      if (!data.success) {
+        toast({ variant: 'destructive', title: 'Catalog Check Failed', description: data.error });
+        return;
+      }
+      if (data.total_rows === 0) {
+        const hint = data.manufacturers_with_pricing?.length
+          ? `IDs with data: ${data.manufacturers_with_pricing.slice(0, 3).join(', ')}…`
+          : 'No pricing data found in any manufacturer.';
+        toast({
+          variant: 'destructive',
+          title: `No Catalog Data for this Manufacturer ID`,
+          description: `${data.warning} ${hint}`,
+        });
+      } else {
+        const cols = (data.collections || []).slice(0, 5).join(', ');
+        toast({
+          title: `Catalog OK — ${data.total_rows.toLocaleString()} rows`,
+          description: `Collections: ${cols || 'N/A'} | Cache: ${data.cache_status}`,
+        });
+      }
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Diagnose Error', description: err.message });
+    }
+  };
+
   const handleSaveAll = async () => {
     setIsSaving(true);
     try {
-      await Promise.all(bom.map(item => 
-        updateBomItemAction(item.id, { 
+      await Promise.all(bom.map(item =>
+        updateBomItemAction(item.id, {
           sku: item.sku,
+          matched_sku: item.matched_sku || null,
           qty: item.qty,
-          unit_price: item.unit_price, 
+          unit_price: item.unit_price,
           line_total: item.unit_price * item.qty,
-          is_billable: item.is_billable
+          is_billable: item.is_billable,
+          description: item.description || null,
+          cabinet_type: item.cabinet_type || null,
+          match_explanation: item.match_explanation || null,
         })
       ));
       await updateProjectAction(id, {
@@ -503,6 +647,12 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
           miscCharges,
           installationCharges,
           laborCharges,
+          installRate,
+          installCostRate,
+          includeInstall,
+          includeDelivery,
+          deliverySellRate,
+          deliveryCostRate,
           customItemCharges,
           roomDiscounts,
           customerName: customer.name,
@@ -724,6 +874,10 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
               <Button variant="outline" className="rounded-xl h-11 px-4 border-slate-200" onClick={handleReprice} disabled={isPricing}>
                 {isPricing ? <Loader2 className="animate-spin w-4 h-4" /> : <RefreshCcw className="w-4 h-4 mr-2" />}
                 Match Catalog Prices
+              </Button>
+              <Button variant="outline" className="rounded-xl h-11 px-4 border-amber-200 text-amber-700 hover:bg-amber-50" onClick={handleCatalogDiagnose} title="Check if pricing catalog is loaded for this manufacturer">
+                <FlaskConical className="w-4 h-4 mr-2" />
+                Diagnose Catalog
               </Button>
               <Button variant="outline" className="rounded-xl h-11 px-4 border-violet-200 text-violet-700 hover:bg-violet-50" onClick={() => setStep('compare')}>
                 <Columns2 className="w-4 h-4 mr-2" />
@@ -1020,78 +1174,105 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                <TableRow className="border-b border-slate-100 bg-transparent hover:bg-transparent">
                                  <TableHead className="w-10"></TableHead>
                                  <TableHead className="text-[10px] uppercase font-bold text-slate-400">CAB Code</TableHead>
+                                 <TableHead className="text-[10px] uppercase font-bold text-slate-400">Description / Match Reason</TableHead>
                                  <TableHead className="text-center text-[10px] uppercase font-bold text-slate-400">QTY</TableHead>
                                  <TableHead className="text-right text-[10px] uppercase font-bold text-slate-400">UNIT PRICE (LIST)</TableHead>
                                  <TableHead className="text-right text-[10px] uppercase font-bold text-slate-400">TOTAL</TableHead>
+                                 {isInstallManufacturer && installRate > 0 && (
+                                   <TableHead className="text-right text-[10px] uppercase font-bold text-orange-500">INSTALL</TableHead>
+                                 )}
                                </TableRow>
                              </TableHeader>
                              <TableBody>
                                 {items.map(item => {
                                   const idx = bom.findIndex(b => b.id === item.id);
+                                  const badge = getPrecisionBadge(item.precision_level);
+                                  const rawRef = item.matched_sku || '';
+                                  const isEstimated = item.precision_level === 'CATEGORY_AVERAGE' || item.precision_level === 'MANUAL_PRICING_REQUIRED';
+                                  const isNearest = (item.precision_level || '').toUpperCase().startsWith('NEAREST_DIM');
+                                  const refMatch = rawRef.match(/^(?:Ref:|Catalog Ref:)\s*([A-Z0-9][A-Z0-9\-\.\s]*?)(?:\s*\[|\s*\(|$)/i);
+                                  const catalogSku = refMatch ? refMatch[1].trim() : rawRef.split('[')[0].trim();
+                                  const colMatch = rawRef.match(/\[([^\]]+)\]/);
+                                  const catalogCol = colMatch ? colMatch[1] : '';
+                                  const matchReason = item.match_explanation || getMatchSummary(item);
                                   return (
-                                    <TableRow key={item.id} className={cn("h-16 group hover:bg-white", !item.is_billable && "opacity-40")}>
-                                      <TableCell>
+                                    <TableRow key={item.id} className={cn("align-top hover:bg-white", !item.is_billable && "opacity-40")}>
+                                      <TableCell className="pt-4 w-8">
                                         <Checkbox checked={item.is_billable} onCheckedChange={v => handleUpdateItem(idx, { is_billable: !!v })} />
                                       </TableCell>
-                                      <TableCell>
-                                        <div className="font-bold text-slate-900 text-sm leading-tight">{item.sku}</div>
-                                        {(() => {
-                                          const badge = getPrecisionBadge(item.precision_level);
-                                          // matched_sku now carries the full reference string from the engine
-                                          const rawRef = item.matched_sku || '';
-                                          const isEstimated = item.precision_level === 'CATEGORY_AVERAGE' || item.precision_level === 'MANUAL_PRICING_REQUIRED';
-                                          const isNearest = (item.precision_level || '').toUpperCase().startsWith('NEAREST_DIM');
-                                          // Parse "Catalog Ref: SKU [COLLECTION] (avg...)" or "Ref: SKU [...]" formats
-                                          const refMatch = rawRef.match(/^(?:Ref:|Catalog Ref:)\s*([A-Z0-9][A-Z0-9\-\.\s]*?)(?:\s*\[|\s*\(|$)/i);
-                                          // For plain SKU codes (exact match), refMatch is null; use rawRef as-is
-                                          const catalogSku = refMatch ? refMatch[1].trim() : rawRef;
-                                          const colMatch = rawRef.match(/\[([^\]]+)\]/);
-                                          const catalogCol = colMatch ? colMatch[1] : '';
-                                          const avgNote = rawRef.match(/\(([^)]+)\)/);
-                                          const avgText = avgNote ? avgNote[1] : '';
-                                          return (
-                                            <div className="mt-1 space-y-1">
-                                              <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border ${badge.cls}`}>
-                                                {isEstimated ? '⚠ ' : isNearest ? '≈ ' : '✓ '}{badge.label}
-                                              </span>
-                                              {catalogSku && catalogSku !== item.sku && (
-                                                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                                                  <span className="text-[8px] font-black uppercase tracking-wider text-slate-400 whitespace-nowrap">Catalog Ref:</span>
-                                                  <span
-                                                    className={`text-[10px] font-black font-mono px-1.5 py-0.5 rounded ${
-                                                      isEstimated ? 'bg-orange-50 text-orange-700 border border-orange-200' :
-                                                      isNearest ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                                                      'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                                    }`}
-                                                    title={rawRef}
-                                                  >
-                                                    {catalogSku}
-                                                  </span>
-                                                  {catalogCol && <span className="text-[8px] text-slate-400 font-mono">[{catalogCol}]</span>}
-                                                </div>
-                                              )}
-                                              {avgText && (
-                                                <div className="text-[8px] text-slate-400 leading-tight">{avgText}</div>
-                                              )}
-                                            </div>
-                                          );
-                                        })()}
+                                      {/* CAB CODE column — both drawing code and catalog ref are editable */}
+                                      <TableCell className="pt-3 min-w-[140px]">
+                                        {/* Drawing SKU — editable */}
+                                        <input
+                                          className="w-full font-bold text-slate-900 text-sm font-mono bg-transparent border-none outline-none focus:bg-white focus:px-1.5 focus:rounded-md focus:border focus:border-sky-200 transition-all"
+                                          value={item.sku}
+                                          onChange={e => handleUpdateItem(idx, { sku: e.target.value.toUpperCase() })}
+                                          title="Drawing cabinet code — click to edit"
+                                        />
+                                        <div className="mt-1 space-y-1">
+                                          <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border ${badge.cls}`}>
+                                            {isEstimated ? '⚠ ' : isNearest ? '≈ ' : '✓ '}{badge.label}
+                                          </span>
+                                          {/* Catalog ref — editable */}
+                                          <div className="flex items-center gap-1 flex-wrap">
+                                            <span className="text-[8px] font-black uppercase tracking-wider text-slate-400 whitespace-nowrap">Catalog:</span>
+                                            <input
+                                              className={`text-[10px] font-black font-mono px-1.5 py-0.5 rounded border bg-transparent outline-none focus:ring-1 transition-all w-[90px] ${
+                                                isEstimated ? 'border-orange-200 text-orange-700 focus:ring-orange-300' :
+                                                isNearest   ? 'border-amber-200 text-amber-700 focus:ring-amber-300' :
+                                                              'border-emerald-200 text-emerald-700 focus:ring-emerald-300'
+                                              }`}
+                                              value={catalogSku}
+                                              onChange={e => handleUpdateItem(idx, { matched_sku: e.target.value.toUpperCase() })}
+                                              title="Catalog reference code — click to edit"
+                                            />
+                                            {catalogCol && <span className="text-[8px] text-slate-400 font-mono">[{catalogCol}]</span>}
+                                          </div>
+                                        </div>
                                       </TableCell>
-                                      <TableCell className="text-center">
+                                      <TableCell className="pt-3 min-w-[280px] max-w-[420px]">
+                                        <div className="flex flex-col gap-1">
+                                          {/* Editable description line */}
+                                          <div className="flex items-start gap-1.5 group/desc">
+                                            <Edit className="w-2.5 h-2.5 mt-0.5 text-slate-300 flex-shrink-0 group-focus-within/desc:text-sky-400 transition-colors" />
+                                            <textarea
+                                              className="flex-1 text-[11px] font-medium text-slate-700 bg-transparent border-none outline-none focus:bg-white focus:px-2 focus:py-1 focus:rounded-md focus:border focus:border-sky-200 transition-all placeholder:text-slate-300 placeholder:italic leading-snug resize-none overflow-y-auto max-h-24 scrollbar-thin scrollbar-thumb-slate-200"
+                                              rows={2}
+                                              value={item.description || ''}
+                                              placeholder="Click to add description…"
+                                              onChange={e => handleUpdateItem(idx, { description: e.target.value })}
+                                              title="Click to edit"
+                                            />
+                                          </div>
+                                          {/* Match reason — always shown, explains pricing method */}
+                                          <div className="max-h-20 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-100">
+                                            <p className={`text-[10px] leading-snug pl-4 ${isEstimated ? 'text-orange-600 font-semibold' : isNearest ? 'text-amber-600' : 'text-slate-400 italic'}`}>
+                                              {matchReason}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="pt-4 text-center">
                                         <Input type="number" value={item.qty} onChange={e => handleUpdateItem(idx, { qty: parseInt(e.target.value) || 0 })} className="w-16 mx-auto text-center h-9 font-bold bg-slate-50 border-none" />
                                       </TableCell>
-
-
-
-                                      <TableCell className="text-right">
+                                      <TableCell className="pt-4 text-right">
                                         <div className="flex items-center justify-end gap-1">
                                            <span className="text-slate-400 font-mono text-xs">$</span>
                                            <Input type="number" value={item.unit_price} onChange={e => handleUpdateItem(idx, { unit_price: parseFloat(e.target.value) || 0 })} className="w-24 text-right h-9 font-bold bg-slate-50 border-none font-mono" />
                                         </div>
                                       </TableCell>
-                                      <TableCell className="text-right font-black font-mono text-slate-900 text-sm">
+                                      <TableCell className="pt-4 text-right font-black font-mono text-slate-900 text-sm">
                                         ${(item.unit_price * item.qty).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                       </TableCell>
+                                      {isInstallManufacturer && installRate > 0 && (() => {
+                                        const calc = installCalculations.itemCalcs[item.id];
+                                        const installCost = calc ? calc.installUnits * installRate : 0;
+                                        return (
+                                          <TableCell className="pt-4 text-right font-mono text-xs text-orange-600 font-bold">
+                                            {installCost > 0 ? `$${installCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}
+                                          </TableCell>
+                                        );
+                                      })()}
                                     </TableRow>
                                   );
                                 })}
@@ -1109,14 +1290,49 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                           </AccordionTrigger>
                           <AccordionContent className="pt-4">
                             <Table>
+                              <TableHeader>
+                                <TableRow className="border-b border-slate-100">
+                                  <TableHead className="w-10" />
+                                  <TableHead className="text-[10px] uppercase font-bold text-slate-400">CAB Code / Description</TableHead>
+                                  <TableHead className="text-center text-[10px] uppercase font-bold text-slate-400">QTY</TableHead>
+                                  <TableHead className="text-right text-[10px] uppercase font-bold text-slate-400">UNIT PRICE</TableHead>
+                                  <TableHead className="text-right text-[10px] uppercase font-bold text-slate-400">TOTAL</TableHead>
+                                </TableRow>
+                              </TableHeader>
                                <TableBody>
                                   {roomItems.filter(i => !categories.includes(detectCategory(i.sku))).map(item => {
                                     const idx = bom.findIndex(b => b.id === item.id);
                                     return (
-                                      <TableRow key={item.id} className="h-10 border-b border-slate-100">
-                                        <TableCell className="w-10"><Checkbox checked={item.is_billable} onCheckedChange={v => handleUpdateItem(idx, { is_billable: !!v })} /></TableCell>
-                                        <TableCell className="text-xs font-bold">{item.sku}</TableCell>
-                                        <TableCell className="text-right font-mono text-xs">${(getEffectiveUnitPrice(item) * item.qty).toFixed(2)}</TableCell>
+                                      <TableRow key={item.id} className="border-b border-slate-100 align-top hover:bg-white">
+                                        <TableCell className="w-10 pt-3"><Checkbox checked={item.is_billable} onCheckedChange={v => handleUpdateItem(idx, { is_billable: !!v })} /></TableCell>
+                                        <TableCell className="pt-2">
+                                          <input
+                                            className="font-bold text-xs font-mono text-slate-900 bg-transparent border-none outline-none focus:bg-white focus:px-1.5 focus:rounded-md focus:border focus:border-sky-200 transition-all w-full"
+                                            value={item.sku}
+                                            onChange={e => handleUpdateItem(idx, { sku: e.target.value.toUpperCase() })}
+                                          />
+                                          {item.description && (
+                                            <textarea
+                                              className="mt-0.5 text-[10px] text-slate-500 bg-transparent border-none outline-none focus:bg-white focus:px-1 focus:rounded focus:border focus:border-sky-200 transition-all w-full italic resize-none overflow-y-auto max-h-20 scrollbar-thin scrollbar-thumb-slate-200"
+                                              rows={2}
+                                              value={item.description}
+                                              onChange={e => handleUpdateItem(idx, { description: e.target.value })}
+                                              placeholder="Description…"
+                                            />
+                                          )}
+                                        </TableCell>
+                                        <TableCell className="pt-2 text-center">
+                                          <Input type="number" value={item.qty} onChange={e => handleUpdateItem(idx, { qty: parseInt(e.target.value) || 0 })} className="w-14 mx-auto text-center h-8 text-xs font-bold bg-slate-50 border-none" />
+                                        </TableCell>
+                                        <TableCell className="pt-2 text-right">
+                                          <div className="flex items-center justify-end gap-1">
+                                            <span className="text-slate-400 font-mono text-xs">$</span>
+                                            <Input type="number" value={item.unit_price} onChange={e => handleUpdateItem(idx, { unit_price: parseFloat(e.target.value) || 0 })} className="w-20 text-right h-8 text-xs font-bold bg-slate-50 border-none font-mono" />
+                                          </div>
+                                        </TableCell>
+                                        <TableCell className="pt-3 text-right font-mono text-xs font-bold text-slate-900">
+                                          ${(getEffectiveUnitPrice(item) * item.qty).toFixed(2)}
+                                        </TableCell>
                                       </TableRow>
                                     );
                                   })}
@@ -1566,6 +1782,18 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                <div className="text-xs font-semibold text-[#002060]">$0</div>
                              </div>
                            </div>
+                           {isInstallManufacturer && includeInstall && financials.totalInstallSell > 0 && (
+                             <div className="flex items-center px-16 py-2 bg-orange-50/60 border-t border-orange-100 relative">
+                               <div className="flex-grow text-center text-xs font-bold text-orange-700 uppercase">INSTALLATION CHARGES</div>
+                               <div className="text-xs font-bold text-orange-700">${financials.totalInstallSell.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                             </div>
+                           )}
+                           {isInstallManufacturer && includeDelivery && financials.totalDeliverySell > 0 && (
+                             <div className="flex items-center px-16 py-2 bg-blue-50/60 border-t border-blue-100 relative">
+                               <div className="flex-grow text-center text-xs font-bold text-blue-700 uppercase">DELIVERY / 3PL</div>
+                               <div className="text-xs font-bold text-blue-700">${financials.totalDeliverySell.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                             </div>
+                           )}
                            <div className="h-3 bg-[#000040] w-full"></div>
                            <div className="flex items-center px-16 py-2 bg-slate-50 relative">
                              <div className="flex-grow text-center text-xs font-bold text-[#002060] uppercase">TOTAL</div>
@@ -1733,6 +1961,27 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                               <span className="text-[11px] font-black font-mono text-[#002060]">${financials.netTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                            </div>
 
+                           {isInstallManufacturer && includeInstall && financials.totalInstallSell > 0 && (
+                             <div className="bg-orange-50/60 flex justify-between items-center px-6 py-2 border-b border-orange-100">
+                               <span className="text-[10px] font-black text-orange-700 uppercase italic">
+                                 Installation ({installCalculations.totalInstallUnits.toFixed(1)} units × ${installRate})
+                               </span>
+                               <span className="text-[11px] font-black font-mono text-orange-700">
+                                 +${financials.totalInstallSell.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                               </span>
+                             </div>
+                           )}
+                           {isInstallManufacturer && includeDelivery && financials.totalDeliverySell > 0 && (
+                             <div className="bg-blue-50/60 flex justify-between items-center px-6 py-2 border-b border-blue-100">
+                               <span className="text-[10px] font-black text-blue-700 uppercase italic">
+                                 Delivery / 3PL ({installCalculations.total3PLUnits} items × ${deliverySellRate})
+                               </span>
+                               <span className="text-[11px] font-black font-mono text-blue-700">
+                                 +${financials.totalDeliverySell.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                               </span>
+                             </div>
+                           )}
+
                            <div className="bg-white flex justify-between items-center px-6 py-2 border-b border-slate-200">
                               <span className="text-[10px] font-black text-red-700 uppercase italic">Estimated Sales Tax ({taxRate}%)</span>
                               <span className="text-[11px] font-black font-mono text-red-700">${financials.taxes.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
@@ -1881,6 +2130,126 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                   </div>
                 </div>
 
+                {isInstallManufacturer && (
+                  <div className="pt-4 border-t border-orange-100 space-y-3">
+                    {/* ── Installation ── */}
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <Wrench className="w-3.5 h-3.5 text-orange-500" />
+                        <p className="text-[10px] font-black uppercase text-orange-600 tracking-widest">Installation Charges</p>
+                      </div>
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={includeInstall}
+                          onChange={e => setIncludeInstall(e.target.checked)}
+                          className="w-3.5 h-3.5 accent-orange-500"
+                        />
+                        <span className="text-[9px] font-black uppercase text-orange-600">Include</span>
+                      </label>
+                    </div>
+                    {includeInstall && (
+                      <div className="p-3 bg-orange-50/60 rounded-xl border border-orange-100 space-y-3">
+                        <p className="text-[9px] text-slate-400 font-semibold">
+                          Total value: {installCalculations.totalInstallUnits.toFixed(1)} units
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-bold text-emerald-700 uppercase">Sell Rate ($/unit)</Label>
+                            <Input
+                              type="number" step="0.01" value={installRate}
+                              onChange={e => setInstallRate(parseFloat(e.target.value) || 0)}
+                              className="h-9 bg-white border-emerald-200 rounded-lg text-sm font-bold"
+                              placeholder="0.00"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-bold text-sky-700 uppercase">Cost Rate ($/unit)</Label>
+                            <Input
+                              type="number" step="0.01" value={installCostRate}
+                              onChange={e => setInstallCostRate(parseFloat(e.target.value) || 0)}
+                              className="h-9 bg-white border-sky-200 rounded-lg text-sm font-bold"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+                        <div className="pt-2 border-t border-orange-100 space-y-1.5">
+                          <div className="flex justify-between text-[10px] font-bold text-emerald-700 uppercase">
+                            <span>Client Charge</span>
+                            <span className="font-mono">${financials.totalInstallSell.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                          <div className="flex justify-between text-[10px] font-bold text-sky-700 uppercase">
+                            <span>Internal Cost</span>
+                            <span className="font-mono">${financials.totalInstallInternalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                          <div className="flex justify-between text-[10px] font-black text-purple-700 uppercase border-t border-orange-100 pt-1">
+                            <span>Install Profit</span>
+                            <span className="font-mono">+${financials.installProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── Delivery (3PL) ── */}
+                    <div className="flex items-center justify-between mt-3 mb-1">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 16l4-4m0 0l4 4m-4-4v9M9 3h6a2 2 0 012 2v7M3 16h18" /></svg>
+                        <p className="text-[10px] font-black uppercase text-blue-600 tracking-widest">Delivery (3PL) Charges</p>
+                      </div>
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={includeDelivery}
+                          onChange={e => setIncludeDelivery(e.target.checked)}
+                          className="w-3.5 h-3.5 accent-blue-500"
+                        />
+                        <span className="text-[9px] font-black uppercase text-blue-600">Include</span>
+                      </label>
+                    </div>
+                    {includeDelivery && (
+                      <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100 space-y-3">
+                        <p className="text-[9px] text-slate-400 font-semibold">
+                          3PL units: {installCalculations.total3PLUnits.toFixed(0)} items
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-bold text-emerald-700 uppercase">Sell Rate ($/unit)</Label>
+                            <Input
+                              type="number" step="0.01" value={deliverySellRate}
+                              onChange={e => setDeliverySellRate(parseFloat(e.target.value) || 0)}
+                              className="h-9 bg-white border-emerald-200 rounded-lg text-sm font-bold"
+                              placeholder="0.00"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-bold text-sky-700 uppercase">Cost Rate ($/unit)</Label>
+                            <Input
+                              type="number" step="0.01" value={deliveryCostRate}
+                              onChange={e => setDeliveryCostRate(parseFloat(e.target.value) || 0)}
+                              className="h-9 bg-white border-sky-200 rounded-lg text-sm font-bold"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+                        <div className="pt-2 border-t border-blue-100 space-y-1.5">
+                          <div className="flex justify-between text-[10px] font-bold text-emerald-700 uppercase">
+                            <span>Client Charge</span>
+                            <span className="font-mono">${financials.totalDeliverySell.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                          <div className="flex justify-between text-[10px] font-bold text-sky-700 uppercase">
+                            <span>Internal Cost</span>
+                            <span className="font-mono">${financials.totalDeliveryCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                          <div className="flex justify-between text-[10px] font-black text-purple-700 uppercase border-t border-blue-100 pt-1">
+                            <span>Delivery Profit</span>
+                            <span className="font-mono">+${financials.deliveryProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="pt-6 border-t border-slate-100 space-y-4">
                    <div className="space-y-2">
                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Room Sale Summary</p>
@@ -1933,9 +2302,43 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                   <span className="font-mono">${financials.estimatedMfgCost.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs font-bold text-emerald-600 uppercase">
-                  <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Est. Profit</span>
+                  <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Cabinet Profit</span>
                   <span className="font-mono">+${financials.estimatedProfit.toFixed(2)}</span>
                 </div>
+                {isInstallManufacturer && includeInstall && financials.totalInstallSell > 0 && (
+                  <div className="border-t border-slate-50 pt-2 space-y-1">
+                    <p className="text-[9px] font-black text-orange-500 uppercase tracking-widest">Installation</p>
+                    <div className="flex justify-between text-[10px] font-bold text-orange-600 uppercase">
+                      <span>Sell ({installCalculations.totalInstallUnits.toFixed(1)} × ${installRate})</span>
+                      <span className="font-mono">+${financials.totalInstallSell.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] font-bold text-sky-600 uppercase">
+                      <span>Cost ({installCalculations.totalInstallUnits.toFixed(1)} × ${installCostRate})</span>
+                      <span className="font-mono">-${financials.totalInstallInternalCost.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] font-black text-purple-700 uppercase">
+                      <span>Install Profit</span>
+                      <span className="font-mono">+${financials.installProfit.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+                {isInstallManufacturer && includeDelivery && financials.totalDeliverySell > 0 && (
+                  <div className="border-t border-slate-50 pt-2 space-y-1">
+                    <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Delivery (3PL)</p>
+                    <div className="flex justify-between text-[10px] font-bold text-blue-600 uppercase">
+                      <span>Sell ({installCalculations.total3PLUnits} units × ${deliverySellRate})</span>
+                      <span className="font-mono">+${financials.totalDeliverySell.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] font-bold text-sky-600 uppercase">
+                      <span>Cost ({installCalculations.total3PLUnits} units × ${deliveryCostRate})</span>
+                      <span className="font-mono">-${financials.totalDeliveryCost.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] font-black text-purple-700 uppercase">
+                      <span>Delivery Profit</span>
+                      <span className="font-mono">+${financials.deliveryProfit.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
                 <div className="border-t border-slate-50 pt-3 space-y-2">
                   <div className="flex justify-between text-xs font-bold text-slate-400 uppercase">
                     <span>Add'l Charges</span>

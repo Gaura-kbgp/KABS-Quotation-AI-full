@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { 
-  LayoutDashboard, 
-  Factory, 
-  BookOpen, 
+import {
+  LayoutDashboard,
+  Factory,
+  BookOpen,
   ChevronRight,
-  LogOut
+  LogOut,
+  Brain,
 } from 'lucide-react';
 import { logout } from '@/app/admin/actions';
 
@@ -18,6 +19,7 @@ const menuItems = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
   { name: 'Manufacturers', icon: Factory, href: '/admin/manufacturers' },
   { name: 'NKBA Rules', icon: BookOpen, href: '/admin/nkba' },
+  { name: 'AI Training', icon: Brain, href: '/admin/training' },
 ];
 
 export function AdminSidebar() {

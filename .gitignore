@@ -13,6 +13,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.tsbuildinfo
 
 # Python
 __pycache__/
@@ -35,6 +36,8 @@ instance/
 # IDEs & OS
 .vscode/
 .idea/
+.claude/
+backend/scratch/
 *.swp
 *.swo
 .DS_Store

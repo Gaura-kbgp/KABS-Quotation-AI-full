@@ -5,22 +5,27 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Box, 
-  AlertTriangle, 
-  Calculator, 
-  Settings, 
+import {
+  Box,
+  Calculator,
   Factory,
   ChevronRight,
   Loader2,
   Layers,
   Layout,
   Package,
+  Cpu,
+  Sparkles,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { generateBOMAction } from '../../actions';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { MANUFACTURER_CONFIG } from '@/lib/manufacturer-config';
+// INTEGRITY_SERIES removed — series derived dynamically from DB mapping
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
 
 interface ReviewClientProps {
   project: any;
@@ -31,52 +36,127 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [selectedManId, setSelectedManId] = useState<string>('');
-  const [config, setConfig] = useState<any>({ 
-    collection: '', 
+  const [config, setConfig] = useState<any>({
+    collection: '',
     doorStyle: '',
     box_construction: '',
     finish: '',
     wood_species: '',
     drawer_box: ''
   });
+  // Full mapping from API: { collectionName: [doorStyle, ...] }
+  const [availableMapping, setAvailableMapping] = useState<Record<string, string[]>>({});
   const [availableCollections, setAvailableCollections] = useState<string[]>([]);
   const [availableStyles, setAvailableStyles] = useState<string[]>([]);
+  // Integrity-specific: series list derived from DB + selected series
+  const [availableSeries, setAvailableSeries] = useState<string[]>([]);
+  const [selectedSeries, setSelectedSeries] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isFetchingConfig, setIsFetchingConfig] = useState(false);
+  const [generatingDescriptions, setGeneratingDescriptions] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState('');
 
   const rooms = project.extracted_data?.rooms || [];
 
   const fetchManufacturerConfig = async (manId: string) => {
     setSelectedManId(manId);
+    setSelectedSeries('');
     setIsFetchingConfig(true);
     try {
       const res = await fetch(`/api/manufacturer-config?id=${manId}`);
       const data = await res.json();
-      setAvailableCollections(data.collections || []);
-      setAvailableStyles(data.styles || []);
-      setConfig({ 
-        collection: '', 
+      const mapping: Record<string, string[]> = data.mapping || {};
+
+      // Merge static config as fallback for manufacturers with missing door styles in DB
+      const manName = manufacturers.find(m => m.id === manId)?.name || '';
+      const staticCfg = MANUFACTURER_CONFIG[manName];
+      if (staticCfg) {
+        staticCfg.collections.forEach(col => {
+          if (!mapping[col.name] || mapping[col.name].length === 0) {
+            mapping[col.name] = col.styles;
+          }
+        });
+      }
+
+      setAvailableMapping(mapping);
+      setAvailableCollections(Object.keys(mapping).sort());
+      setAvailableStyles([]);
+      // Derive series from whatever is in the DB: "SERIES - COLLECTION" → take part before " - "
+      const seriesSet = new Set<string>();
+      Object.keys(mapping).forEach(col => {
+        const dashIdx = col.indexOf(' - ');
+        if (dashIdx > 0) seriesSet.add(col.substring(0, dashIdx));
+      });
+      setAvailableSeries(Array.from(seriesSet).sort());
+      setConfig({
+        collection: '',
         doorStyle: '',
         box_construction: '',
         finish: '',
         wood_species: '',
         drawer_box: ''
       });
-    } catch (err) {
+    } catch {
       toast({ variant: 'destructive', title: 'Error fetching config' });
     } finally {
       setIsFetchingConfig(false);
     }
   };
 
+  const handleCollectionChange = (value: string) => {
+    setConfig((prev: any) => ({ ...prev, collection: value, doorStyle: '' }));
+    setAvailableStyles(availableMapping[value] || []);
+  };
+
+  const isIntegrity = manufacturers.find(m => m.id === selectedManId)?.name === 'Integrity Cabinets';
+
+  const handleSeriesChange = (seriesName: string) => {
+    setSelectedSeries(seriesName);
+    setConfig((prev: any) => ({ ...prev, collection: '', doorStyle: '' }));
+    setAvailableStyles([]);
+    // Filter collections: must start with "SERIES NAME - " (the DB format)
+    const prefix = seriesName.toUpperCase() + ' - ';
+    const filtered = Object.keys(availableMapping)
+      .filter(c => c.toUpperCase().startsWith(prefix))
+      .sort();
+    setAvailableCollections(filtered);
+  };
+
   const handleGenerateBOM = async () => {
     if (!selectedManId || !config.collection || !config.doorStyle) return;
-    
+
     setIsGenerating(true);
+    setGenerationStatus('Generating BOM...');
     try {
       const result = await generateBOMAction(project.id, selectedManId, config.collection, config.doorStyle, config);
       if (result.success) {
         toast({ title: 'BOM Generated Successfully' });
+
+        // Trigger AI description generation in the background
+        setGeneratingDescriptions(true);
+        setGenerationStatus('AI enriching BOM descriptions...');
+        try {
+          const mfgName = manufacturers.find(m => m.id === selectedManId)?.name || '';
+          // Fetch the BOM items we just created
+          const bomRes = await fetch(`/api/get-bom-items?project_id=${project.id}`);
+          const bomData = await bomRes.json();
+          if (bomData.items?.length > 0) {
+            await fetch(`${BACKEND_URL}/api/agent/generate-bom-descriptions`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                project_id: project.id,
+                manufacturer_name: mfgName,
+                bom_items: bomData.items,
+              }),
+            });
+          }
+        } catch (descErr) {
+          console.warn('Description generation failed (non-fatal):', descErr);
+        } finally {
+          setGeneratingDescriptions(false);
+        }
+
         router.push(`/quotation-ai/bom/${project.id}`);
       } else {
         throw new Error(result.error || 'Failed to generate BOM');
@@ -84,6 +164,7 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'BOM Error', description: err.message });
       setIsGenerating(false);
+      setGenerationStatus('');
     }
   };
 
@@ -165,6 +246,29 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
       </div>
 
       <div className="space-y-6">
+        {/* Detect Manufacturer Card */}
+        <Card className="bg-gradient-to-br from-sky-50 to-white border-sky-200 rounded-3xl shadow-md">
+          <CardContent className="p-5">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-sky-500 flex items-center justify-center shrink-0">
+                <Cpu className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="font-bold text-slate-900 text-sm">AI Manufacturer Detection</p>
+                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                  Let AI analyze your drawing codes to identify which manufacturer they belong to.
+                </p>
+                <Link href={`/quotation-ai/detect-manufacturer/${project.id}`}>
+                  <Button variant="outline" size="sm" className="mt-3 rounded-xl border-sky-300 text-sky-700 hover:bg-sky-100 text-xs font-bold h-8">
+                    <Sparkles className="w-3 h-3 mr-1.5" />
+                    Detect Manufacturer
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="bg-white border-slate-200 sticky top-8 shadow-xl rounded-3xl overflow-hidden">
           <CardHeader className="border-b border-slate-100 bg-slate-50/50 p-6">
             <CardTitle className="text-lg flex items-center gap-2 text-slate-900">
@@ -190,21 +294,55 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
 
               {selectedManId && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+
+                  {/* ── Integrity: Series dropdown (first step) ── */}
+                  {isIntegrity && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-1">Series</label>
+                      <Select
+                        disabled={isFetchingConfig}
+                        value={selectedSeries}
+                        onValueChange={handleSeriesChange}
+                      >
+                        <SelectTrigger className="bg-slate-50 border-none h-14 text-slate-900 rounded-2xl shadow-inner">
+                          <SelectValue placeholder={isFetchingConfig ? "Syncing..." : "Choose Series"} />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border-slate-200 text-slate-900">
+                          {availableSeries.map(s => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-1">
                        {manufacturers.find(m => m.id === selectedManId)?.name === "Aristocraft" ? "Door Style" : "Collection"}
                     </label>
-                    <Select 
-                      disabled={isFetchingConfig} 
-                      onValueChange={(v) => setConfig((prev: any) => ({ ...prev, collection: v }))}
+                    <Select
+                      disabled={isFetchingConfig || (isIntegrity && !selectedSeries)}
+                      value={config.collection}
+                      onValueChange={handleCollectionChange}
                     >
                       <SelectTrigger className="bg-slate-50 border-none h-14 text-slate-900 rounded-2xl shadow-inner">
-                        <SelectValue placeholder={isFetchingConfig ? "Syncing..." : (manufacturers.find(m => m.id === selectedManId)?.name === "Aristocraft" ? "Choose Style" : "Choose Collection")} />
+                        <SelectValue placeholder={
+                          isFetchingConfig ? "Syncing..."
+                          : (isIntegrity && !selectedSeries) ? "Select a series first"
+                          : manufacturers.find(m => m.id === selectedManId)?.name === "Aristocraft" ? "Choose Style"
+                          : "Choose Collection"
+                        } />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-slate-200 text-slate-900">
-                        {availableCollections.map(c => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
-                        ))}
+                        {availableCollections.map(c => {
+                          const separator = isIntegrity && selectedSeries
+                            ? selectedSeries.toUpperCase() + ' - '
+                            : '';
+                          const label = (separator && c.toUpperCase().startsWith(separator))
+                            ? c.slice(separator.length)
+                            : c;
+                          return <SelectItem key={c} value={c}>{label}</SelectItem>;
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -213,8 +351,9 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-1">
                        {manufacturers.find(m => m.id === selectedManId)?.name === "Aristocraft" ? "Price Point" : "Door Style"}
                     </label>
-                    <Select 
-                      disabled={isFetchingConfig || !config.collection} 
+                    <Select
+                      disabled={isFetchingConfig || !config.collection}
+                      value={config.doorStyle}
                       onValueChange={(v) => setConfig((prev: any) => ({ ...prev, doorStyle: v }))}
                     >
                       <SelectTrigger className="bg-slate-50 border-none h-14 text-slate-900 rounded-2xl shadow-inner">
@@ -228,7 +367,7 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
                     </Select>
                   </div>
 
-                  {manufacturers.find(m => m.id === selectedManId)?.name === "Integrity Cabinets" && (
+                  {isIntegrity && (
                     <div className="pt-4 space-y-4 border-t border-slate-100 mt-4 animate-in zoom-in-95">
                        <p className="text-[10px] font-black text-sky-600 uppercase tracking-widest flex items-center gap-2">
                           <Factory className="w-3 h-3" />
@@ -305,16 +444,21 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
               )}
             </div>
 
-            <Button 
+            <Button
               className="w-full h-16 gradient-button mt-4 shadow-2xl shadow-sky-500/20 rounded-2xl text-lg font-bold"
               disabled={!config.doorStyle || isGenerating}
               onClick={handleGenerateBOM}
             >
               {isGenerating ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-3 animate-spin" />
-                  Generating BOM...
-                </>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    {generatingDescriptions ? 'AI Enriching...' : 'Building BOM...'}
+                  </div>
+                  {generationStatus && (
+                    <span className="text-xs opacity-75">{generationStatus}</span>
+                  )}
+                </div>
               ) : (
                 <>
                   Build Final Quote

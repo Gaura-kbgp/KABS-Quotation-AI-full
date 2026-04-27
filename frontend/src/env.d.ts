@@ -3,6 +3,7 @@ declare namespace NodeJS {
     // === Genkit & AI ===
     GEMINI_API_KEY: string;
     GOOGLE_GENAI_API_KEY: string;
+    NVIDIA_API_KEY: string;
 
     // === Supabase ===
     SUPABASE_URL: string;

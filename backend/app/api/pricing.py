@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, BackgroundTasks
 from app.core.supabase_client import get_supabase
 from app.utils.cabinet_utils import (
     compress_sku, detect_category, parse_sku_dimensions,
@@ -23,7 +23,54 @@ _MFG_DB_CACHE = {'sku': {}, 'col': {}}
 # key: manufacturer_id, value: { 'maps': lookup_maps, 'timestamp': time.time() }
 GLOBAL_LOOKUP_CACHE = {}
 
-def get_manufacturer_pricing_maps(supabase, manufacturer_id: str, manufacturer_hint: str = ""):
+# In-memory job tracker for async spec-book uploads
+# key: job_id, value: { status, progress, message, count, fileName, error }
+SPEC_UPLOAD_JOBS: dict = {}
+
+def _fetch_pricing_data_internal(supabase, manufacturer_id: str, project_skus: set) -> list:
+    """Consolidated fetcher that handles both full load and targeted SKU fetch."""
+    page_size = 1000
+    pricing_data = []
+    seen_ids: set = set()
+
+    # 1. Total count
+    count_res = supabase.table("manufacturer_pricing").select("id", count="exact").eq("manufacturer_id", manufacturer_id).execute()
+    total = count_res.count or 0
+    print(f"DEBUG: Catalog total items: {total}")
+
+    if total < 50000:
+        # Full load for small/medium catalogs
+        off = 0
+        while off < total:
+            res = supabase.table("manufacturer_pricing").select("id,sku,price,collection_name,door_style") \
+                .eq("manufacturer_id", manufacturer_id).range(off, off + page_size - 1).execute()
+            batch = res.data or []
+            for row in batch:
+                rid = row.get('id')
+                if rid and rid not in seen_ids:
+                    seen_ids.add(rid)
+                    pricing_data.append(row)
+            if len(batch) < page_size: break
+            off += page_size
+    else:
+        # Targeted SKU fetch for extremely large catalogs (>50k rows)
+        # This prevents OOM and network timeouts
+        print(f"DEBUG: Using targeted fetch for {len(project_skus)} SKUs")
+        sku_list = list(project_skus)
+        for i in range(0, len(sku_list), 200):
+            chunk = sku_list[i : i + 200]
+            res = supabase.table("manufacturer_pricing").select("id,sku,price,collection_name,door_style") \
+                .eq("manufacturer_id", manufacturer_id).in_("sku", chunk).execute()
+            batch = res.data or []
+            for row in batch:
+                rid = row.get('id')
+                if rid and rid not in seen_ids:
+                    seen_ids.add(rid)
+                    pricing_data.append(row)
+    
+    return pricing_data
+
+def get_manufacturer_pricing_maps(supabase, manufacturer_id: str, _manufacturer_hint: str = ""):
     """
     Returns built lookup maps for a manufacturer, using a global memory cache if available.
     """
@@ -35,34 +82,22 @@ def get_manufacturer_pricing_maps(supabase, manufacturer_id: str, manufacturer_h
             print(f"DEBUG: Using CACHED lookup maps for {manufacturer_id}")
             return entry['maps']
 
-    print(f"DEBUG: FAILING through to Supabase fetch for {manufacturer_id}")
-    pricing_data = []
-    page_size = 1000
-    
-    # 1. Total count
-    count_res = supabase.table("manufacturer_pricing").select("id", count="exact").eq("manufacturer_id", manufacturer_id).execute()
-    total_mfg_items = count_res.count or 0
-    print(f"DEBUG: Loading catalog ({total_mfg_items} items)...")
-
-    # 2. Fetch all rows in 1000-row pages
-    off = 0
-    while off < total_mfg_items:
-        res = supabase.table("manufacturer_pricing").select("id,sku,price,collection_name,door_style") \
-            .eq("manufacturer_id", manufacturer_id) \
-            .range(off, off + page_size - 1).execute()
-        batch = res.data or []
-        pricing_data.extend(batch)
-        if len(batch) < page_size: break
-        off += page_size
+    # 2. Fetch all rows using consolidated fetcher
+    # We pass an empty set of skus because we want the full catalog (handled by total < 50k logic)
+    pricing_data = _fetch_pricing_data_internal(supabase, manufacturer_id, set())
 
     # 3. Build maps
     lookup_maps = _build_lookup_maps(pricing_data)
-    
-    # 4. Cache and return
-    GLOBAL_LOOKUP_CACHE[manufacturer_id] = {
-        'maps': lookup_maps,
-        'timestamp': now
-    }
+
+    # 4. Cache only if we have data — never cache an empty result so a missing
+    #    catalog doesn't block pricing for 15 minutes after an upload.
+    if lookup_maps.get('all_catalog_rows'):
+        GLOBAL_LOOKUP_CACHE[manufacturer_id] = {
+            'maps': lookup_maps,
+            'timestamp': now
+        }
+    else:
+        print(f"DEBUG: Catalog empty for {manufacturer_id} — skipping cache")
     return lookup_maps
 
 def _build_lookup_maps(pricing_data: list):
@@ -74,7 +109,7 @@ def _build_lookup_maps(pricing_data: list):
     
     lookup_maps = {
         'local': {}, 'global': {}, 'compressed': {}, 'dim': {},
-        'col_skus': {}, 'category_skus': {}, 'category_sums': {},
+        'col_skus': {}, 'category_items': {}, 'category_sums': {},
         'all_catalog_rows': [],
         # NEW: SECTION-INDEXED rows for 10x faster dimension matching
         'section_rows': {} 
@@ -153,8 +188,8 @@ def _build_lookup_maps(pricing_data: list):
             if stripped not in lookup_maps['global']:
                 lookup_maps['global'][stripped] = item
 
-        if cat not in lookup_maps['category_skus']: lookup_maps['category_skus'][cat] = []
-        lookup_maps['category_skus'][cat].append(sku)
+        if cat not in lookup_maps['category_items']: lookup_maps['category_items'][cat] = []
+        lookup_maps['category_items'][cat].append(item)
         if cat not in lookup_maps['category_sums']: lookup_maps['category_sums'][cat] = [0.0, 0]
         lookup_maps['category_sums'][cat][0] += price
         lookup_maps['category_sums'][cat][1] += 1
@@ -186,7 +221,6 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
     global_map = lookup_maps.get('global', {})
     compressed_map = lookup_maps.get('compressed', {})
 
-    log_path = os.path.join(os.path.dirname(__file__), "..", "..", "pricing_match_debug.log")
 
     def log_match(message):
         # Disabled file I/O for 10x speed improvement
@@ -261,7 +295,6 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
             if result:
                 log_match(f"TIER 2.6 HIT: {probe}")
                 return result
-
     # TIER 3: REMOVE NKBA SUFFIXES
     no_suffix_target = re.sub(r'\s*(BUTT|H|L|R|FL|S|D)$', '', clean_target).strip()
     if no_suffix_target != clean_target:
@@ -284,7 +317,6 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
         if mfg_no_sfx != mfg_stripped:
             result = try_match(mfg_no_sfx, "MFG_STRIPPED_CLEAN")
             if result: return result
-
     # TIER 4: COMPRESSED (NEW)
     comp_target = compress_sku(clean_target)
     if comp_target in compressed_map:
@@ -352,25 +384,28 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
     # ─────────────────────────────────────────────────────────────────────
     # When no exact / fuzzy match is found, classify the cabinet type from
     # the drawing code (Wall, Base, Sink Base, Vanity, Tall, Molding, etc.)
-    # and find the geometrically closest same-TYPE+SECTION cabinet in catalog.
-    # Collection filter is normalized inside find_nearest_cabinet_match.
+    # and find the geometrically closest same-type cabinet in the catalog.
+    # This gives a REAL price (not a category average) and is especially
+    # critical for Integrity Cabinets where the catalog uses different SKU
+    # conventions but contains the corresponding size cabinet.
     # ─────────────────────────────────────────────────────────────────────
-    # Pass ORIGINAL target (with drawing suffixes) so the smart matcher
-    # can strip them itself and classify correctly
-    cabinet_type = classify_cabinet_type(clean_target) or classify_cabinet_type(target)
+    cabinet_type = classify_cabinet_type(clean_target)
     catalog_rows = lookup_maps.get('all_catalog_rows', [])
     if cabinet_type and catalog_rows:
+        # Pass lookup_maps instead of just catalog_rows to enable FAST PATH (section-indexed search)
         nearest = find_nearest_cabinet_match(
-            target_sku=target,                   # pass original, smart matcher strips suffixes
-            catalog_skus=catalog_rows,
-            collection_filter=col or None,       # raw col; normalization done inside
+            target_sku=clean_target,
+            catalog_skus=lookup_maps, 
+            collection_filter=col or None,
             manufacturer_hint=manufacturer_hint,
         )
         if nearest:
+            delta_w = ""
             # Try to log what size we landed on
-            t_dims = parse_sku_dimensions(strip_drawing_suffix(clean_target))
-            cat_sku_clean = strip_catalog_suffix(str(nearest.get('sku', '')))
-            n_dims = parse_sku_dimensions(cat_sku_clean)
+            from app.utils.cabinet_utils import parse_sku_dimensions as _psd
+            t_dims = _psd(clean_target)
+            n_dims = _psd(str(nearest.get('sku', '')))
+
             tw = t_dims.get('width') or 0
             nw = n_dims.get('width') or 0
             th = t_dims.get('height') or 0
@@ -416,15 +451,13 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
         if count > 0:
             avg_price = total_price / count
 
-            # Find closest real catalog SKU inside this category
-            all_rows = lookup_maps.get('all_catalog_rows', [])
-            cat_items = [r for r in all_rows if detect_category(r.get('sku', '')) == category]
+            cat_items = lookup_maps.get('category_items', {}).get(category, [])
             nearest_ref_sku = None
             nearest_ref_col = None
             if cat_items:
                 _nearest = find_nearest_cabinet_match(
                     target_sku=clean_target,
-                    catalog_skus=cat_items,
+                    catalog_skus=cat_items, # This is a filtered list, but small enough for fallback
                     collection_filter=col or None,
                     manufacturer_hint=manufacturer_hint,
                 )
@@ -496,6 +529,7 @@ async def generate_bom(project_id: str, manufacturer_id: str):
         
         print(f"DEBUG: Project SKUs (Targeted): {len(project_skus)}")
 
+
         # Determine manufacturer hint (for Integrity-specific logic)
         project_mfg_name = str(project.get('metadata', {}).get('mfg_name', '')).lower()
         is_integrity = (
@@ -508,67 +542,9 @@ async def generate_bom(project_id: str, manufacturer_id: str):
         start_t = datetime.datetime.now()
         lookup_maps = get_manufacturer_pricing_maps(supabase, manufacturer_id, mfg_hint)
         print(f"DEBUG: Lookup maps ready in {(datetime.datetime.now() - start_t).total_seconds():.2f}s")
-
-        print(f"DEBUG: CATEGORIES DISCOVERED in catalog: {list(lookup_maps['category_sums'].keys())}")
-        print(f"DEBUG: Category sums: {lookup_maps['category_sums']}")
         
-        bom_items = []
-        # Filter categories to only essential items requested by user
-        categories_to_flatten = ['cabinets', 'perimeter', 'island', 'hardware', 'island_hardware', 'bump', 'island_bump', 'opt_crown', 'opt_light_rail', 'vent_chase_material']
-        for room in rooms:
-            flat_items = []
-            
-            # For specific manufacturers like Integrity, we need to map the 'Series' and 'Wood Species' 
-            # to the 'Collection Name' format used in the PDF/DB (e.g. "Elite Series - Maple")
-            room_col = room.get('collection', '')
-            wood = room.get('wood_species', '')
-            
-            effective_col = room_col
-            if manufacturer_id == "4c5206ec-fd02-46cb-81bf-f4663a7333d0" or "integrity" in str(project.get('metadata', {}).get('mfg_name', '')).lower():
-                if wood and room_col and " - " not in room_col:
-                    effective_col = f"{room_col} - {wood}"
-            
-            print(f"DEBUG: Processing room: {room.get('room_name')} (Eff Col: {effective_col})")
-            for cat in categories_to_flatten: 
-                items = room.get(cat, [])
-                if items:
-                    print(f"  DEBUG: Found {len(items)} items in {cat}")
-                flat_items.extend(items)
-                
-            print(f"DEBUG: Total flat items for room: {len(flat_items)}")
-            for item in flat_items:
-                match, match_type = find_best_match(item['code'], effective_col, room.get('door_style', ''), lookup_maps, manufacturer_hint=mfg_hint)
-                if match:
-                    qty = int(float(item.get('quantity', item.get('qty', 1))))
-                    price = float(match['price'])
-                    if str(price) == 'nan': price = 0.0
-                    
-                    # Round price as requested by user
-                    price = round(price)
-                    
-                    total = price * qty
-                    if str(total) == 'nan': total = 0.0
-                    total = round(total)
-                    
-                    bom_items.append({
-                        "project_id": project_id,
-                        "sku": item['code'],
-                        # Store full reference string in matched_sku so designer can
-                        # always trace which catalog SKU was used for the price.
-                        # Format:  "REF_SKU" or "Catalog Ref: REF_SKU [COLLECTION] (note)"
-                        "matched_sku": match.get('price_ref') or match['sku'],
-                        "qty": qty,
-                        "unit_price": price,
-                        "line_total": total,
-                        "room": room['room_name'],
-                        "collection": room.get('collection') or match.get('collection_name'),
-                        "door_style": room.get('door_style') or 'UNIVERSAL',
-                        "price_source": f"Python Engine ({match_type})",
-                        "precision_level": match_type,
-                        # NOTE: 'price_reference' column does NOT exist in quotation_boms.
-                        # Reference info is encoded in matched_sku above.
-                        "created_at": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-                    })
+        # 4. Generate BOM Items using optimized helper
+        bom_items = _price_rooms(rooms, lookup_maps, manufacturer_id, mfg_hint, project_id)
         
         print(f"DEBUG: BOM matching finished: {len(bom_items)} items")
         import json
@@ -594,9 +570,6 @@ async def generate_bom(project_id: str, manufacturer_id: str):
                         print(f"DEBUG: FAILED ITEM: {item}")
                         raise ie
             
-        # supabase.table("quotation_projects").update({"status": "Priced"}).eq("id", project_id).execute()
-        # print("DEBUG: Project status updated")
-
         return {"success": True, "count": len(bom_items)}
     except Exception as e:
         import traceback
@@ -605,128 +578,256 @@ async def generate_bom(project_id: str, manufacturer_id: str):
         return {"success": False, "error": str(e)}
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# SHARED HELPERS used by both generate_bom and compare_bom
-# ──────────────────────────────────────────────────────────────────────────────
-
-async def _fetch_pricing_data(supabase, manufacturer_id: str, project_skus: set) -> list:
-    """Fetch all pricing rows for a manufacturer (full load or targeted SKU fetch)."""
-    page_size = 1000
-    pricing_data = []
-    seen_ids: set = set()
-
-    count_res = supabase.table("manufacturer_pricing").select("id", count="exact").eq("manufacturer_id", manufacturer_id).execute()
-    total = count_res.count or 0
-
-    if total < 50000:
-        off = 0
-        while off < total:
-            res = supabase.table("manufacturer_pricing").select("id,sku,price,collection_name,door_style") \
-                .eq("manufacturer_id", manufacturer_id).range(off, off + page_size - 1).execute()
-            batch = res.data or []
-            for row in batch:
-                rid = row.get('id')
-                if rid and rid not in seen_ids:
-                    seen_ids.add(rid)
-                    pricing_data.append(row)
-            if len(batch) < page_size:
-                break
-            off += page_size
-    else:
-        # Targeted SKU fetch for large catalogs
-        for i in range(0, len(project_skus), 200):
-            chunk = list(project_skus)[i:i + 200]
-            off = 0
-            while True:
-                res = supabase.table("manufacturer_pricing").select("id,sku,price,collection_name,door_style") \
-                    .eq("manufacturer_id", manufacturer_id).in_("sku", chunk).range(off, off + page_size - 1).execute()
-                batch = res.data or []
-                for row in batch:
-                    rid = row.get('id')
-                    if rid and rid not in seen_ids:
-                        seen_ids.add(rid)
-                        pricing_data.append(row)
-                if len(batch) < page_size:
-                    break
-                off += page_size
-
-    return pricing_data
 
 
-def _build_lookup_maps(pricing_data: list) -> dict:
-    """Build all lookup maps from a flat list of pricing rows.
-    Enhanced with catalog suffix stripping and normalized collection indexing.
-    """
-    maps = {
-        'local': {}, 'global': {}, 'compressed': {}, 'dim': {},
-        'col_skus': {}, 'category_sums': {}, 'all_catalog_rows': []
-    }
-    for p in pricing_data:
-        sku   = str(p['sku']).strip().upper()
-        price = float(p.get('price') or 0)
-        col   = str(p.get('collection_name', '')).strip().upper()
-        style = str(p.get('door_style', '')).strip().upper()
-        cat   = detect_category(sku)
-        item  = {"sku": sku, "price": price, "collection_name": col, "door_style": style}
-
-        maps['all_catalog_rows'].append(item)
-
-        # Stripped base code (W3042BD → W3042) for dimension matching
-        sku_base = strip_catalog_suffix(sku)
-        sku_comp_base = compress_sku(sku_base)
-        norm_col = normalize_collection_name(col)
-
-        if col and style: maps['local'][f"{sku}|{col}|{style}"] = item
-        if col:           maps['local'][f"{sku}|{col}"] = item
-        if style:         maps['local'][f"{sku}|{style}"] = item
-        if col:
-            maps['col_skus'].setdefault(col, []).append(sku)
-
-        # Normalized collection name indexing (handles encoding artifacts like \ufffd for ")
-        if norm_col and norm_col != col:
-            maps['col_skus'].setdefault(norm_col, []).append(sku)
-            if col and style: maps['local'][f"{sku}|{norm_col}|{style}"] = item
-            if col: maps['local'][f"{sku}|{norm_col}"] = item
-
-        if sku not in maps['global'] or price > maps['global'][sku]['price']:
-            maps['global'][sku] = item
-
-        comp = compress_sku(sku)
-        if comp not in maps['compressed']:
-            maps['compressed'][comp] = item
-
-        # Integrity suffix-stripped base code indexing (W3042BD → also index as W3042)
-        if sku_base and sku_base != sku:
-            maps['local'].setdefault(f"{sku_base}|{col}|{style}", item)
-            maps['local'].setdefault(f"{sku_base}|{col}", item)
-            maps['local'].setdefault(f"{sku_base}|{style}", item)
-            maps['global'].setdefault(sku_base, item)
-            if sku_comp_base not in maps['compressed']:
-                maps['compressed'][sku_comp_base] = item
-            if norm_col and norm_col != col:
-                maps['local'].setdefault(f"{sku_base}|{norm_col}", item)
-
-        # Index stripped-suffix version from the catalog side too
-        stripped = re.sub(r'[\s-]*(BUTT|H|L|R|FL|S|D)$', '', sku).strip()
-        if stripped != sku:
-            maps['local'].setdefault(f"{stripped}|{col}|{style}", item)
-            maps['local'].setdefault(f"{stripped}|{col}", item)
-            maps['local'].setdefault(f"{stripped}|{style}", item)
-            maps['global'].setdefault(stripped, item)
-
-        maps['category_sums'].setdefault(cat, [0.0, 0])
-        maps['category_sums'][cat][0] += price
-        maps['category_sums'][cat][1] += 1
-
-        dims = parse_sku_dimensions(sku_base if sku_base else sku)
-        if dims.get('prefix') and dims.get('width'):
-            dk = f"{dims['prefix']}|{dims['width']}|{dims.get('height') or ''}"
-            maps['dim'].setdefault(f"{dk}|{col}", item)
-            maps['dim'].setdefault(dk, item)
-
-    return maps
 
 
+
+
+def _quick_cabinet_type(sku: str) -> str:
+    from app.utils.cabinet_utils import classify_cabinet_type
+    ct = classify_cabinet_type(sku)
+    if ct: return ct
+    
+    s = sku.upper().strip()
+    if re.match(r'^W[BC]', s) or re.match(r'^WAC', s): return "Wall Corner Cabinet"
+    if re.match(r'^W\d', s): return "Wall Cabinet"
+    if s.startswith(("VSB", "VB", "V3S")): return "Vanity Cabinet"
+    if s.startswith("SB"): return "Sink Base Cabinet"
+    if re.match(r'^BB', s) or re.match(r'^LBC', s) or s.startswith("LS"): return "Base Corner Cabinet"
+    if re.match(r'^B\d', s): return "Base Cabinet"
+    if s.startswith(("OVD", "OV")): return "Oven Cabinet"
+    if re.match(r'^(UT|UTC|T|P)\d', s): return "Tall Cabinet"
+    if s.startswith(("UF", "WF", "BF", "TF", "VF")): return "Filler"
+    if s.startswith(("BTK", "TK")): return "Toe Kick"
+    if s.startswith("OCM"): return "Outside Corner Molding"
+    if s.startswith("ICM"): return "Inside Corner Molding"
+    if s.startswith(("SCM", "SHM", "SM")): return "Scribe Molding"
+    if s.startswith("QM"): return "Quarter Round Molding"
+    if s.startswith("LR") or "LIGHTRAIL" in s or "LIGHT RAIL" in s: return "Light Rail"
+    if "CROWN" in s or s.startswith("CM"): return "Crown Molding"
+    if s.startswith("HWC"): return "Hardwood Cleat"
+    if s.startswith(("WTEP", "TEP", "EP")): return "End Panel"
+    if s.startswith(("BACKB", "BACK-B", "BACKF", "FBP")): return "Back Panel"
+    if s.startswith("SHELF"): return "Adjustable Shelf"
+    if s in ("DOORS", "DOOR"): return "Door Count"
+    if s in ("DRAWERS", "DRAWER", "DWR"): return "Drawer Count"
+    if s.startswith("REF"): return "Refrigerator Cabinet"
+    if "RANGE" in s or "HOOD" in s: return "Appliance Cabinet"
+    if s.startswith("TOUCH"): return "Touch-Up Kit"
+    if s.startswith("FL"): return "Filler Light Rail"
+    return "Cabinet Accessory"
+
+
+# Full cabinet intelligence: what it is, why it's there, what it does
+def _classify_cabinet_full(sku: str) -> dict:
+    from app.utils.cabinet_utils import classify_cabinet_type, parse_sku_dimensions
+    
+    s = sku.upper().strip()
+    ct = classify_cabinet_type(s)
+    dims = parse_sku_dimensions(s)
+    
+    prefix = dims.get('prefix')
+    width = dims.get('width')
+    height = dims.get('height')
+    
+    # Suffix meaning
+    suffix_note = ''
+    if 'BUTT' in s:
+        suffix_note = 'Butt door style — doors meet flush at centerline with no overlay gap'
+    elif re.search(r'MDBD', s):
+        suffix_note = 'Modified door/blind door configuration'
+    elif re.search(r'BLD$', s):
+        suffix_note = 'Blind door configuration'
+    elif re.search(r'AS(BUTT)?$', s):
+        suffix_note = 'Angled / asymmetric configuration'
+    elif re.search(r'FHD', s):
+        suffix_note = 'Full Height Door (no drawer)'
+
+    p = prefix or ''
+    cat = ct or _quick_cabinet_type(s)
+    
+    # Base ctx logic
+    ctx = ""
+    if p.startswith('W'):
+        h_ctx = (', ' + str(height) + '" tall') if height else ''
+        if height and height >= 48:
+            ctx = f'Extended-height wall cabinet ({height}") — used above refrigerator or runs to ceiling'
+        elif height == 42:
+            ctx = '42" tall wall cabinet — full-height unit, commonly used to ceiling'
+        elif height == 30:
+            ctx = '30" standard wall cabinet — typical upper installation'
+        else:
+            ctx = f'Wall cabinet{h_ctx} — mounted above countertop'
+    
+    elif p in ('SB', 'VSB', 'VB'):
+        ctx = f'Sink base cabinet — open interior for plumbing access'
+        if p.startswith('V'): ctx = 'Bathroom vanity sink base'
+        
+    elif p in ('B', 'DB', 'B3S', 'B4S'):
+        b_w = (f' ({width}" wide)') if width else ''
+        if '3S' in p or '4S' in p or p == 'DB':
+            ctx = f'Drawer base cabinet{b_w} — features multiple storage drawers'
+        else:
+            ctx = f'Floor-mounted base cabinet{b_w} — supports countertop, standard 34.5" height'
+            
+    elif 'LS' in p or p in ('BC', 'BBC', 'LBC', 'WLS'):
+        ctx = 'Corner unit — designed to maximize storage in 90-degree corner transitions'
+        
+    elif 'F' in p or p == 'UF':
+        w_s = f"{width}\" " if width else ""
+        ctx = f"{w_s}filler strip — closes gap between cabinet and wall or appliance"
+        
+    elif p in ('CM', 'LR', 'OCM', 'SCM', 'TK', 'BTK'):
+        ctx = f'Decorative trim/molding — used for finishing and closing gaps'
+        
+    elif p in ('T', 'P', 'UTIL', 'OVD'):
+        ctx = 'Tall pantry/utility cabinet — full floor-to-ceiling storage column'
+
+    return {'cat': cat, 'ctx': ctx, 'suffix': suffix_note}
+
+
+def _quick_description(sku: str, room: str, _match_type: str, _matched_ref: str = '', _price: float = 0) -> str:
+    """Generate a human-readable description: what the item is, its purpose, and where it's used."""
+    info = _classify_cabinet_full(sku)
+    cat  = info['cat']
+    ctx  = info['ctx']
+    sfx  = info['suffix']
+
+    parts = [cat]
+    if ctx:
+        parts.append(ctx)
+    if sfx:
+        parts.append(sfx)
+    if room:
+        parts.append(f"Location: {room}")
+
+    return ' — '.join(parts)
+
+
+def _quick_match_explanation(drawing_sku: str, catalog_ref: str, match_type: str, price: float = 0) -> str:
+    """Generate a clear, actionable explanation of HOW this item was priced."""
+    mt = match_type.upper()
+
+    # Parse catalog ref string formats
+    clean    = re.sub(r'^(?:Ref:|Catalog Ref:)\s*', '', catalog_ref).strip()
+    cat_sku  = clean.split('[')[0].split('(')[0].strip()
+    col_m    = re.search(r'\[([^\]]+)\]', clean)
+    col_name = col_m.group(1).strip() if col_m else ''
+    avg_m    = re.search(r'avg\.\s*of\s*(\d+)', clean, re.I)
+    avg_n    = avg_m.group(1) if avg_m else None
+
+    p_str  = (' — List $' + '{:,.0f}'.format(price)) if price > 0 else ''
+    col_str = (' [' + col_name + ']') if col_name else ''
+
+    # Pre-compute quoted identifiers (backslash in f-strings unsupported in Python <3.12)
+    dsku = '"' + drawing_sku + '"'
+    csku = '"' + cat_sku + '"'
+
+    if 'EXACT_SPEC_ORIGINAL' in mt or ('EXACT' in mt and 'ORIGINAL' in mt):
+        return (
+            f'EXACT MATCH: Drawing code {dsku} found directly in manufacturer catalog as {csku}{col_str}{p_str}. '
+            f'Price is fully confirmed — no estimation.'
+        )
+
+    if 'BRIDGED' in mt or 'DRAW_SFX' in mt or 'SUFFIX_BRIDGE' in mt:
+        if 'BUTT' in drawing_sku.upper():
+            draw_sfx = (
+                'Drawing annotates "BUTT" to indicate door style (doors flush at centerline). '
+                'This is a floor plan annotation — not part of the base cabinet code. '
+                'Manufacturer catalog uses their own door-style suffix (e.g., "BD") for the same item.'
+            )
+        elif re.search(r'MDBD|BLD', drawing_sku.upper()):
+            draw_sfx = 'Drawing door-style suffix translated to manufacturer catalog format.'
+        else:
+            draw_sfx = 'Drawing code suffix translated to manufacturer catalog format.'
+        return (
+            f'SUFFIX TRANSLATION -> EXACT MATCH: {draw_sfx} '
+            f'Matched as {csku}{col_str}{p_str}. Price is accurate.'
+        )
+
+    if 'EXACT' in mt or 'COMPRESSED' in mt:
+        note = ' (after normalizing code format)' if 'COMPRESSED' in mt else ''
+        return (
+            f'EXACT MATCH{note}: {dsku} matched to manufacturer catalog as {csku}{col_str}{p_str}. '
+            f'Price is confirmed — no estimation.'
+        )
+
+    if 'MFG_STRIPPED' in mt:
+        return (
+            f'CODE NORMALIZATION -> EXACT MATCH: Manufacturer suffix stripped from {dsku} '
+            f'to find base code {csku}{col_str}{p_str}. Price is accurate.'
+        )
+
+    if 'FUZZY' in mt:
+        score_m = re.search(r'(\d+)', mt)
+        score   = int(score_m.group(1)) if score_m else 80
+        quality = 'high-confidence' if score >= 90 else 'moderate'
+        action  = '' if score >= 90 else ' Verify catalog code is correct before finalizing.'
+        return (
+            f'CLOSE MATCH ({score}% similarity): {dsku} matched to catalog SKU {csku}{col_str}{p_str}. '
+            f'This is a {quality} approximate match based on code similarity.{action}'
+        )
+
+    if 'ALIAS' in mt:
+        return (
+            f'MOLDING/ALIAS MATCH: Drawing code {dsku} recognized as an alternate prefix for '
+            f'catalog item {csku}{col_str}{p_str}. Different manufacturers use different prefix conventions for the same molding type.'
+        )
+
+    if 'NEAREST_DIM' in mt:
+        return (
+            f'NEAREST SIZE MATCH: No catalog entry found for {dsku} at this exact size. '
+            f'Priced using closest available size in catalog: {csku}{col_str}{p_str}. '
+            f'ACTION: Verify with manufacturer whether this exact cabinet size is available, '
+            f'or confirm that the nearest size is an acceptable substitution.'
+        )
+
+    if 'DIMENSION' in mt:
+        return (
+            f'DIMENSION MATCH: {dsku} matched to {csku}{col_str} by cabinet dimensions{p_str}. '
+            f'Cabinet type and size are consistent — price should be accurate.'
+        )
+
+    if 'CATEGORY_AVERAGE' in mt or 'CATEGORY' in mt:
+        n_s = (avg_n + ' similar catalog items') if avg_n else 'multiple similar catalog items'
+        return (
+            f'ESTIMATED PRICE — ACTION REQUIRED: No catalog match found for {dsku}. '
+            f'Price estimated from average of {n_s}{col_str}. '
+            f'This price is NOT confirmed. Request exact pricing from manufacturer before using in a proposal.'
+        )
+
+    if 'MANUAL' in mt:
+        return (
+            f'MANUAL PRICING REQUIRED: {dsku} was not found in the catalog. '
+            f'Set price manually after contacting manufacturer for current list pricing.'
+        )
+
+    return f'Matched {dsku} to catalog reference {csku}{col_str}{p_str}.'
+
+
+def _match_type_confidence(match_type: str) -> float:
+    mt = match_type.upper()
+    if "EXACT_SPEC_ORIGINAL" in mt:
+        return 1.0
+    if "EXACT_SPEC_CLEANED" in mt:
+        return 0.97
+    if "EXACT_SPEC_BRIDGED" in mt or "SUFFIX_BRIDGE" in mt:
+        return 0.93
+    if "EXACT_STYLE_MFG" in mt:
+        return 0.90
+    if "COMPRESSED" in mt:
+        return 0.85
+    if "FUZZY" in mt:
+        score = re.search(r'(\d+)', mt)
+        return round(float(score.group(1)) / 100, 2) if score else 0.80
+    if "NEAREST_DIM" in mt:
+        return 0.70
+    if "DIMENSION" in mt:
+        return 0.65
+    if "CATEGORY" in mt or "AVG" in mt:
+        return 0.30
+    return 0.50
 
 
 def _price_rooms(rooms: list, lookup_maps: dict, manufacturer_id: str, mfg_hint: str, project_id: str) -> list:
@@ -757,19 +858,24 @@ def _price_rooms(rooms: list, lookup_maps: dict, manufacturer_id: str, mfg_hint:
             if match:
                 qty   = int(float(item.get('quantity', item.get('qty', 1))))
                 price = round(float(match['price']))
+                raw_code = item['code']
                 bom_items.append({
-                    "project_id":     project_id,
-                    "sku":            item['code'],
-                    "matched_sku":    match.get('price_ref') or match['sku'],
-                    "qty":            qty,
-                    "unit_price":     price,
-                    "line_total":     round(price * qty),
-                    "room":           room['room_name'],
-                    "collection":     room.get('collection') or match.get('collection_name'),
-                    "door_style":     room.get('door_style') or 'UNIVERSAL',
-                    "price_source":   f"Python Engine ({match_type})",
+                    "project_id":      project_id,
+                    "sku":             raw_code,
+                    "matched_sku":     match.get('price_ref') or match['sku'],
+                    "qty":             qty,
+                    "unit_price":      price,
+                    "line_total":      round(price * qty),
+                    "room":            room['room_name'],
+                    "collection":      room.get('collection') or match.get('collection_name'),
+                    "door_style":      room.get('door_style') or 'UNIVERSAL',
+                    "price_source":    f"Python Engine ({match_type})",
                     "precision_level": match_type,
-                    "created_at":     datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+                    "description":     _quick_description(raw_code, room['room_name'], match_type),
+                    "cabinet_type":    _quick_cabinet_type(raw_code),
+                    "match_explanation": _quick_match_explanation(raw_code, match.get('price_ref') or match['sku'], match_type),
+                    "match_confidence": _match_type_confidence(match_type),
+                    "created_at":      datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
                 })
     return bom_items
 
@@ -824,8 +930,8 @@ async def compare_bom(body: dict):
 
         # Fetch pricing for both manufacturers in parallel
         pricing_a, pricing_b = await asyncio.gather(
-            _fetch_pricing_data(supabase, mfr_a["id"], project_skus),
-            _fetch_pricing_data(supabase, mfr_b["id"], project_skus),
+            asyncio.to_thread(_fetch_pricing_data_internal, supabase, mfr_a["id"], project_skus),
+            asyncio.to_thread(_fetch_pricing_data_internal, supabase, mfr_b["id"], project_skus),
         )
 
         maps_a = _build_lookup_maps(pricing_a)
@@ -890,7 +996,6 @@ async def compare_bom(body: dict):
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
-
 @router.post("/upload-pricing")
 async def upload_pricing(manufacturer_id: str, file: UploadFile = File(...)):
     """
@@ -942,8 +1047,9 @@ async def upload_pricing(manufacturer_id: str, file: UploadFile = File(...)):
                     print(f"DEBUG: Inserted {i + len(chunk)} / {len(pricing)} records...")
             
             # Clear any existing local cache for this manufacturer so it rebuilds on next fetch
-            global _CONFIG_CACHE, _MFG_DB_CACHE
+            global _CONFIG_CACHE, _MFG_DB_CACHE, GLOBAL_LOOKUP_CACHE
             _CONFIG_CACHE.pop(manufacturer_id, None)
+            GLOBAL_LOOKUP_CACHE.pop(manufacturer_id, None)
             
             # Wipe item match cache to ensure new prices are used
             to_delete_sku = [k for k in _MFG_DB_CACHE['sku'] if k.startswith(f"{manufacturer_id}:")]
@@ -967,6 +1073,112 @@ async def upload_pricing(manufacturer_id: str, file: UploadFile = File(...)):
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
+
+def _process_spec_book_bg(job_id: str, file_bytes: bytes, manufacturer_id: str,
+                           file_id: str):
+    """Background worker: parses spec PDF and inserts records, updating job status."""
+    from app.utils.pdf_processor import parse_pricing_pdf_sync
+    try:
+        SPEC_UPLOAD_JOBS[job_id]['status'] = 'processing'
+        SPEC_UPLOAD_JOBS[job_id]['message'] = 'Parsing PDF pages…'
+        SPEC_UPLOAD_JOBS[job_id]['progress'] = 5
+
+        pricing = parse_pricing_pdf_sync(file_bytes, manufacturer_id, file_id)
+        count = len(pricing)
+        SPEC_UPLOAD_JOBS[job_id]['progress'] = 70
+        SPEC_UPLOAD_JOBS[job_id]['message'] = f'Inserting {count} pricing records…'
+
+        if count > 0:
+            supabase = get_supabase()
+            chunk_size = 1000
+            for i in range(0, count, chunk_size):
+                chunk = pricing[i: i + chunk_size]
+                supabase.table("manufacturer_pricing").insert(chunk).execute()
+                pct = 70 + int((i + len(chunk)) / count * 25)
+                SPEC_UPLOAD_JOBS[job_id]['progress'] = pct
+
+            # Bust caches
+            global _CONFIG_CACHE, _MFG_DB_CACHE, GLOBAL_LOOKUP_CACHE
+            _CONFIG_CACHE.pop(manufacturer_id, None)
+            GLOBAL_LOOKUP_CACHE.pop(manufacturer_id, None)
+            for k in [k for k in _MFG_DB_CACHE['sku'] if k.startswith(f"{manufacturer_id}:")]:
+                del _MFG_DB_CACHE['sku'][k]
+            for k in [k for k in _MFG_DB_CACHE['col'] if k.startswith(f"{manufacturer_id}:")]:
+                del _MFG_DB_CACHE['col'][k]
+            cpath = get_cache_path(manufacturer_id)
+            if os.path.exists(cpath):
+                try:
+                    os.remove(cpath)
+                except Exception:
+                    pass
+
+        SPEC_UPLOAD_JOBS[job_id].update({
+            'status': 'done', 'progress': 100,
+            'message': f'Done — {count} pricing records extracted.',
+            'count': count,
+        })
+    except Exception as e:
+        SPEC_UPLOAD_JOBS[job_id].update({
+            'status': 'error', 'progress': 0,
+            'message': str(e), 'error': str(e),
+        })
+        print(f"[spec-book bg] Error for job {job_id}: {e}")
+
+
+@router.post("/upload-spec-book")
+async def upload_spec_book(
+    manufacturer_id: str,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...)
+):
+    """
+    Async spec-book PDF upload.  Returns a job_id immediately; caller polls
+    /api/spec-job/{job_id} for progress.  File is read once here (not buffered
+    through Next.js) and processed in a background thread.
+    """
+    file_id = str(uuid.uuid4())
+    job_id = str(uuid.uuid4())
+
+    # Read file once into memory — on Render this stays in process RAM, not
+    # double-buffered through the Next.js route handler.
+    file_bytes = await file.read()
+
+    try:
+        supabase = get_supabase()
+        supabase.table("manufacturer_files").insert({
+            "id": file_id,
+            "manufacturer_id": manufacturer_id,
+            "file_type": "spec",
+            "file_name": file.filename,
+            "file_url": "#",
+            "file_format": file.filename.split('.')[-1] if '.' in file.filename else None
+        }).execute()
+    except Exception as e:
+        print(f"[upload-spec-book] DB insert error: {e}")
+        return {"success": False, "error": str(e)}
+
+    SPEC_UPLOAD_JOBS[job_id] = {
+        'status': 'queued', 'progress': 2,
+        'message': 'Upload received, queued for processing…',
+        'count': 0, 'fileName': file.filename, 'error': None,
+        'file_id': file_id,
+    }
+
+    background_tasks.add_task(
+        _process_spec_book_bg, job_id, file_bytes, manufacturer_id, file_id
+    )
+
+    return {"success": True, "job_id": job_id, "fileName": file.filename, "status": "queued"}
+
+
+@router.get("/spec-job/{job_id}")
+async def get_spec_job_status(job_id: str):
+    """Returns current status/progress for an async spec-book upload job."""
+    job = SPEC_UPLOAD_JOBS.get(job_id)
+    if not job:
+        return {"success": False, "error": "Job not found"}
+    return {"success": True, **job}
+
 
 @router.get("/manufacturer-config")
 async def get_manufacturer_config(id: str):
@@ -1003,19 +1215,24 @@ async def get_manufacturer_config(id: str):
         mapping = {}
         
         # FAST PATH: Fetch only unique collection_name, door_style pairs
-        # Supabase API max limit is 1000 rows by default
-        page_size = 1000
+        # Supabase API max limit is 1000 rows by default (PostgREST), but we can page
+        page_size = 2000
         off = 0
         seen_combos = set()
-        max_scan = 200000
+        max_scan = 100000 # Realistic cap for most catalogs
         
         import time
         start = time.time()
         
+        consecutive_seen = 0
         while off < max_scan:
+            # We select ONLY the two columns we need to minimize data transfer
+            # We order by collection_name so that duplicates appear together, 
+            # allowing the 'consecutive_seen' bailout to trigger much faster.
             res = supabase.table("manufacturer_pricing") \
                 .select("collection_name, door_style") \
                 .eq("manufacturer_id", id) \
+                .order("collection_name, door_style") \
                 .range(off, off + page_size - 1).execute()
             
             batch = res.data or []
@@ -1028,9 +1245,11 @@ async def get_manufacturer_config(id: str):
                 if c_raw and st_raw:
                     combo = f"{c_raw}|{st_raw}"
                     if combo in seen_combos:
+                        consecutive_seen += 1
                         continue
+                    
+                    consecutive_seen = 0 # Reset when we find a new one
                     seen_combos.add(combo)
-                    # print(f"DEBUG COMBO: collection_name='{c_raw}', door_style='{st_raw}'")
                     
                     cols = [s.strip() for s in c_raw.split(',') if s.strip()]
                     styles = [s.strip() for s in st_raw.split(',') if s.strip()]
@@ -1041,6 +1260,11 @@ async def get_manufacturer_config(id: str):
                             mapping[c].add(s)
             
             if len(batch) < page_size: break
+            # If we've seen 1000 items in a row that we've already processed, 
+            # and since we are ordered by collection, we likely have all door styles for this block.
+            if consecutive_seen > 1000: 
+                print(f"DEBUG: Bailing early at {off} rows (found {len(seen_combos)} combos)")
+                break
             off += page_size
 
         elapsed = time.time() - start
@@ -1098,6 +1322,88 @@ async def db_check():
         }
     except Exception as e:
         return {"success": False, "error": str(e), "trace": traceback.format_exc()}
+
+
+@router.get("/catalog-check")
+async def catalog_check(manufacturer_id: str):
+    """
+    Diagnostic: returns catalog row count, sample SKUs, and collection names
+    for a given manufacturer_id. Use this to verify pricing data is uploaded
+    under the correct manufacturer ID.
+    """
+    try:
+        supabase = get_supabase()
+
+        # Total count
+        count_res = supabase.table("manufacturer_pricing") \
+            .select("id", count="exact") \
+            .eq("manufacturer_id", manufacturer_id) \
+            .execute()
+        total = count_res.count or 0
+
+        if total == 0:
+            # Also list all manufacturers that DO have pricing data
+            all_mfgs_res = supabase.table("manufacturer_pricing") \
+                .select("manufacturer_id") \
+                .limit(500) \
+                .execute()
+            all_ids = list({r["manufacturer_id"] for r in (all_mfgs_res.data or [])})
+            return {
+                "success": True,
+                "manufacturer_id": manufacturer_id,
+                "total_rows": 0,
+                "warning": "No pricing data found for this manufacturer_id.",
+                "hint": "Pricing may have been uploaded under a different ID.",
+                "manufacturers_with_pricing": all_ids,
+            }
+
+        # Sample SKUs and collection names
+        sample_res = supabase.table("manufacturer_pricing") \
+            .select("sku,price,collection_name,door_style") \
+            .eq("manufacturer_id", manufacturer_id) \
+            .limit(20) \
+            .execute()
+
+        collections_res = supabase.table("manufacturer_pricing") \
+            .select("collection_name") \
+            .eq("manufacturer_id", manufacturer_id) \
+            .limit(500) \
+            .execute()
+        unique_collections = list({r["collection_name"] for r in (collections_res.data or [])})
+
+        # Cache status
+        cached = manufacturer_id in GLOBAL_LOOKUP_CACHE
+        cache_age = None
+        if cached:
+            import datetime as _dt
+            age = _dt.datetime.now().timestamp() - GLOBAL_LOOKUP_CACHE[manufacturer_id]["timestamp"]
+            cache_age = f"{int(age)}s ago"
+
+        return {
+            "success": True,
+            "manufacturer_id": manufacturer_id,
+            "total_rows": total,
+            "collections": sorted(unique_collections),
+            "sample_skus": sample_res.data or [],
+            "cache_status": "cached" if cached else "not cached",
+            "cache_age": cache_age,
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e), "trace": traceback.format_exc()}
+
+
+@router.post("/clear-cache")
+async def clear_cache(manufacturer_id: str = None):
+    """Clear the in-memory pricing cache for one or all manufacturers."""
+    global GLOBAL_LOOKUP_CACHE
+    if manufacturer_id:
+        removed = manufacturer_id in GLOBAL_LOOKUP_CACHE
+        GLOBAL_LOOKUP_CACHE.pop(manufacturer_id, None)
+        return {"success": True, "cleared": manufacturer_id if removed else None, "message": "Cache cleared" if removed else "No cache entry found"}
+    else:
+        count = len(GLOBAL_LOOKUP_CACHE)
+        GLOBAL_LOOKUP_CACHE.clear()
+        return {"success": True, "cleared_all": True, "entries_removed": count}
 
 
 # ──────────────────────────────────────────────────────────────────────────────

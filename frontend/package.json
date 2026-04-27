@@ -6,10 +6,10 @@
     "node": "20.x"
   },
   "scripts": {
-    "dev": "node --max-old-space-size=2048 node_modules/next/dist/bin/next dev -p 3000",
+    "dev": "node --max-old-space-size=4096 node_modules/next/dist/bin/next dev -p 3000",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
-    "build": "node --max-old-space-size=2048 node_modules/next/dist/bin/next build",
+    "build": "node --max-old-space-size=4096 node_modules/next/dist/bin/next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
@@ -46,6 +46,7 @@
     "embla-carousel-react": "^8.6.0",
     "firebase": "^11.9.1",
     "genkit": "^1.28.0",
+    "genkitx-openai": "^0.30.0",
     "lucide-react": "^0.475.0",
     "next": "15.5.9",
     "patch-package": "^8.0.0",

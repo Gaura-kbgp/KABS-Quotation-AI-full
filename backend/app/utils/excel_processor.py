@@ -1,40 +1,52 @@
-import pandas as pd
-import io
+"""
+Excel pricing parser — uses python-calamine (Rust) for raw cell reading
+instead of openpyxl, giving 10-50x faster load on large files.
+"""
 import re
+import io
+from typing import Any
 
-# Keywords used to classify price-book column headers
+try:
+    from python_calamine import CalamineWorkbook
+    _CALAMINE_OK = True
+except ImportError:
+    _CALAMINE_OK = False
+
+# Fallback to pandas/openpyxl when calamine not available
+import pandas as pd
+
 _TIER_KEYS  = ["PRIME", "PREMIUM", "ELITE", "CHOICE", "SELECT", "VALUE", "STANDARD"]
-_WOOD_KEYS  = ["CHERRY", "MAPLE", "PAINTED", "DURAFORM", "OAK", "ASH", "HICKORY", "BIRCH", "ALDER", "WALNUT", "WHITE"]
-
-# Single-letter or generic tokens that are NOT meaningful column labels
+_WOOD_KEYS  = ["CHERRY", "MAPLE", "PAINTED", "DURAFORM", "OAK", "ASH", "HICKORY",
+               "BIRCH", "ALDER", "WALNUT", "WHITE"]
 _SKIP_SINGLES = {
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
-    'SKU', 'PRICE', 'LIST', 'DESCRIPTION', 'DESC', 'ITEM', 'CODE',
-    'NAN', '', 'NONE', 'NULL',
+    'A','B','C','D','E','F','G','H','I','J',
+    'SKU','PRICE','LIST','DESCRIPTION','DESC','ITEM','CODE',
+    'NAN','','NONE','NULL',
 }
 
 
-def _build_column_header(df: pd.DataFrame, col_idx: int, sku_row_idx: int) -> str:
-    """
-    Collect all non-empty header cells for `col_idx` from rows 0..sku_row_idx (inclusive),
-    deduplicate, filter junk, and return a single combined string.
-    """
-    seen = []
-    seen_set: set = set()
+# ─── Header helpers ───────────────────────────────────────────────────────────
+
+def _cell_str(cell: Any) -> str:
+    if cell is None:
+        return ""
+    s = str(cell).strip().upper()
+    return "" if s in ("NAN", "NONE", "NULL") else s
+
+
+def _build_column_header_from_matrix(matrix: list[list], col_idx: int, sku_row_idx: int) -> str:
+    seen, seen_set = [], set()
     for h_idx in range(sku_row_idx + 1):
-        try:
-            cell = df.iloc[h_idx, col_idx]
-        except IndexError:
+        if h_idx >= len(matrix):
+            break
+        row = matrix[h_idx]
+        if col_idx >= len(row):
             continue
-        if not pd.notna(cell):
-            continue
-        text = str(cell).strip().upper()
-        if not text or text == 'NAN':
+        text = _cell_str(row[col_idx])
+        if not text:
             continue
         for line in text.split('\n'):
-            line = line.strip()
-            # Remove surrounding slashes / bullets that sometimes appear
-            line = re.sub(r'^[/\-–•\s]+|[/\-–•\s]+$', '', line)
+            line = re.sub(r'^[/\-–•\s]+|[/\-–•\s]+$', '', line.strip())
             if line and line not in seen_set and line not in _SKIP_SINGLES:
                 seen.append(line)
                 seen_set.add(line)
@@ -42,142 +54,145 @@ def _build_column_header(df: pd.DataFrame, col_idx: int, sku_row_idx: int) -> st
 
 
 def _classify_header(combined: str) -> tuple[str, str]:
-    """
-    From a combined column header string produce:
-      (collection_name, door_style)
-
-    Logic:
-    - Detect tier keywords (PRIME, PREMIUM, ELITE, CHOICE, …)
-    - Detect wood keywords (CHERRY, MAPLE, PAINTED, DURAFORM, …)
-    - Build a human-readable collection_name from what we find
-    - door_style defaults to "FACE FRAME" unless "FRAMELESS" is present
-    """
     tier_found  = next((t for t in _TIER_KEYS if t in combined), None)
     woods_found = [w for w in _WOOD_KEYS if w in combined]
 
     if tier_found and len(woods_found) == 1:
-        # e.g. "PRIME CHERRY"
         collection_name = f"{tier_found} {woods_found[0]}"
     elif tier_found and len(woods_found) > 1:
-        # Multiple woods listed under one tier header (e.g. "PRIME CHERRY / MAPLE / PAINTED")
-        # Keep the tier + all woods so the label is fully descriptive
         collection_name = f"{tier_found} {' / '.join(woods_found)}"
     elif tier_found:
         collection_name = tier_found
     elif woods_found:
         collection_name = ' / '.join(woods_found[:4])
     else:
-        # Fallback: use the raw combined text, truncated
         collection_name = combined[:100]
 
     door_style = "FRAMELESS" if "FRAMELESS" in combined else "FACE FRAME"
     return collection_name, door_style
 
 
-async def parse_specifications_python(file_bytes: bytes, manufacturer_id: str, file_id: str):
-    """
-    1951 / multi-column Excel pricing parser.
+# ─── Core sheet parser (works on raw list-of-lists) ──────────────────────────
 
-    Correctly handles:
-    - Multi-row merged headers (tier on row 1, wood on row 2, etc.)
-    - Full SKU suffixes preserved verbatim (B30BD ≠ B30)
-    - Multiple price columns per sheet
-    - Sheets without recognisable headers (skipped gracefully)
-    """
-    pricing_records = []
+def _parse_sheet(matrix: list[list], sheet_name: str, manufacturer_id: str,
+                 file_id: str) -> list[dict]:
+    records = []
+    if not matrix:
+        return records
 
+    # 1. Find SKU anchor row
+    sku_row_idx = sku_col_idx = -1
+    for r_idx, row in enumerate(matrix):
+        row_upper = [_cell_str(c) for c in row]
+        for keyword in ("SKU", "ITEM CODE", "ITEM NO", "ITEM #", "PRODUCT CODE"):
+            if keyword in row_upper:
+                sku_row_idx = r_idx
+                sku_col_idx = row_upper.index(keyword)
+                break
+        if sku_row_idx != -1:
+            break
+
+    if sku_row_idx == -1:
+        print(f"Excel Parser: no SKU anchor in sheet '{sheet_name}' — skipping")
+        return records
+
+    # 2. Build price-column metadata
+    max_col = min(len(matrix[sku_row_idx]), sku_col_idx + 30)
+    matrix_cols: dict[int, dict] = {}
+
+    for col_idx in range(sku_col_idx + 1, max_col):
+        combined = _build_column_header_from_matrix(matrix, col_idx, sku_row_idx)
+        if not combined:
+            continue
+        if re.fullmatch(r'[A-Z]|\d+', combined.strip()):
+            continue
+        collection_name, door_style = _classify_header(combined)
+        matrix_cols[col_idx] = {"collection_name": collection_name, "door_style": door_style}
+        print(f"Excel Parser: col {col_idx} → '{collection_name}' / '{door_style}'")
+
+    if not matrix_cols:
+        print(f"Excel Parser: no price columns in sheet '{sheet_name}'")
+        return records
+
+    # 3. Scan data rows
+    for row in matrix[sku_row_idx + 1:]:
+        if sku_col_idx >= len(row):
+            continue
+        sku = _cell_str(row[sku_col_idx])
+        if not sku or len(sku) < 2 or sku.isdigit() or sku == 'NAN':
+            continue
+
+        for col_idx, meta in matrix_cols.items():
+            if col_idx >= len(row):
+                continue
+            raw_val = row[col_idx]
+            if raw_val is None:
+                continue
+            p_str = re.sub(r'[^\d.]', '', str(raw_val))
+            if not p_str:
+                continue
+            try:
+                price = float(p_str)
+                if price <= 0:
+                    continue
+                records.append({
+                    "manufacturer_id":    manufacturer_id,
+                    "raw_source_file_id": file_id,
+                    "sku":                sku,
+                    "price":              price,
+                    "collection_name":    meta["collection_name"],
+                    "door_style":         meta["door_style"],
+                    "created_at":         "now()",
+                })
+            except Exception:
+                continue
+
+    return records
+
+
+# ─── Public entry point ───────────────────────────────────────────────────────
+
+def parse_specifications_python_sync(file_bytes: bytes, manufacturer_id: str,
+                                     file_id: str) -> list[dict]:
+    """
+    Sync parser — call via run_in_executor from async context.
+    Uses calamine (Rust) when available for maximum speed; falls back to pandas.
+    """
+    pricing_records: list[dict] = []
+
+    # ── Fast path: calamine (Rust) ────────────────────────────────────────────
+    if _CALAMINE_OK:
+        try:
+            wb = CalamineWorkbook.from_object(io.BytesIO(file_bytes))
+            for sheet_name in wb.sheet_names:
+                sheet = wb.get_sheet_by_name(sheet_name)
+                matrix = sheet.to_python(skip_empty_area=False)  # list[list[Any]]
+                records = _parse_sheet(matrix, sheet_name, manufacturer_id, file_id)
+                pricing_records.extend(records)
+            print(f"Excel Parser (calamine): {len(pricing_records)} total records")
+            return pricing_records
+        except Exception as e:
+            print(f"Excel Parser calamine failed ({e}), falling back to pandas")
+
+    # ── Fallback path: pandas + openpyxl ─────────────────────────────────────
     try:
         xls = pd.ExcelFile(io.BytesIO(file_bytes))
-
         for sheet_name in xls.sheet_names:
             df = pd.read_excel(xls, sheet_name=sheet_name, header=None)
             if df.empty:
                 continue
-
-            # ── 1. Locate the SKU anchor row ──────────────────────────────────
-            sku_row_idx   = -1
-            active_sku_col = -1
-            for idx, row in df.iterrows():
-                row_list = [
-                    str(x).strip().upper() if pd.notna(x) else ""
-                    for x in row.tolist()
-                ]
-                if "SKU" in row_list or "ITEM CODE" in row_list:
-                    sku_row_idx    = idx
-                    active_sku_col = (
-                        row_list.index("SKU")
-                        if "SKU" in row_list
-                        else row_list.index("ITEM CODE")
-                    )
-                    break
-
-            if sku_row_idx == -1:
-                print(f"Excel Parser: no SKU anchor in sheet '{sheet_name}' — skipping")
-                continue
-
-            # ── 2. Build column metadata from all header rows ─────────────────
-            matrix_cols: dict[int, dict] = {}
-            max_col = min(len(df.columns), active_sku_col + 25)
-
-            for col_idx in range(active_sku_col + 1, max_col):
-                combined = _build_column_header(df, col_idx, sku_row_idx)
-                if not combined:
-                    continue
-
-                collection_name, door_style = _classify_header(combined)
-
-                # Discard columns whose header resolves to a single letter or pure number
-                if re.fullmatch(r'[A-Z]|\d+', collection_name.strip()):
-                    print(f"Excel Parser: skipping column {col_idx} — trivial label '{collection_name}'")
-                    continue
-
-                matrix_cols[col_idx] = {
-                    "collection_name": collection_name,
-                    "door_style":      door_style,
-                }
-                print(f"Excel Parser: col {col_idx} → '{collection_name}' / '{door_style}'")
-
-            if not matrix_cols:
-                print(f"Excel Parser: no price columns detected in sheet '{sheet_name}'")
-                continue
-
-            # ── 3. Scan data rows ─────────────────────────────────────────────
-            for idx in range(sku_row_idx + 1, len(df)):
-                row     = df.iloc[idx]
-                sku_raw = row.iloc[active_sku_col]
-                sku     = str(sku_raw).strip().upper() if pd.notna(sku_raw) else ""
-
-                # Skip blanks, pure numbers (page numbers), and NaN artefacts
-                if not sku or len(sku) < 2 or sku == 'NAN' or sku.isdigit():
-                    continue
-
-                for col_idx, meta in matrix_cols.items():
-                    try:
-                        raw_val = row.iloc[col_idx]
-                        if not pd.notna(raw_val):
-                            continue
-                        p_str = re.sub(r'[^\d.]', '', str(raw_val))
-                        if not p_str:
-                            continue
-                        price = float(p_str)
-                        if price <= 0:
-                            continue
-
-                        pricing_records.append({
-                            "manufacturer_id":   manufacturer_id,
-                            "raw_source_file_id": file_id,
-                            "sku":               sku,          # preserved verbatim (B30BD stays B30BD)
-                            "price":             price,
-                            "collection_name":   meta["collection_name"],
-                            "door_style":        meta["door_style"],
-                            "created_at":        "now()",
-                        })
-                    except Exception:
-                        continue
-
-        print(f"Excel Parser: extracted {len(pricing_records)} total records")
-        return pricing_records
-
+            # Convert to plain list-of-lists so _parse_sheet can handle it
+            matrix = df.where(df.notna(), None).values.tolist()
+            records = _parse_sheet(matrix, sheet_name, manufacturer_id, file_id)
+            pricing_records.extend(records)
+        print(f"Excel Parser (pandas): {len(pricing_records)} total records")
     except Exception as e:
         print(f"Excel Parser Error: {e}")
-        return []
+
+    return pricing_records
+
+
+# Keep the async signature so existing callers that await it still work
+async def parse_specifications_python(file_bytes: bytes, manufacturer_id: str,
+                                      file_id: str) -> list[dict]:
+    return parse_specifications_python_sync(file_bytes, manufacturer_id, file_id)
