@@ -4,7 +4,6 @@ Handles: manufacturer detection, manufacturer research, training document proces
          and smart cabinet code understanding for BOM descriptions.
 """
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from fastapi.responses import JSONResponse
 from app.core.supabase_client import get_supabase
 from app.utils.excel_processor import parse_specifications_python_sync
 from app.utils.pdf_processor import parse_pricing_pdf_sync
@@ -13,7 +12,7 @@ from app.utils.vision_scanner import analyze_drawing_vision
 from app.utils.ai_client import nvidia_generate
 from app.utils.rule_based_extractor import extract_rooms_rule_based
 from dotenv import load_dotenv
-import os, json, re, uuid, time, traceback, asyncio
+import os, json, re, uuid, traceback, asyncio
 from urllib.parse import unquote
 
 load_dotenv()
@@ -170,8 +169,25 @@ CABINET POSITIONING CONTEXT:
 - Island cabinets appear in center of kitchen
 - Bump = finishing/boxing material at transitions
 
-BACK-B48 = A special Integrity Cabinets SKU for vent box backing panel (48" tall)
-WTEP84 = Wall Tall End Panel, 84" tall (used at ends of tall cabinet runs)
+MANUFACTURER PDF TYPES & FORMATS:
+1. **Elite Building Solutions**: Standard format (MIH/DRH style). 
+   - Trim List present on Page 2 (sections: PERIMETER, ISLAND, OPT CROWN).
+   - Codes: W3042BUTT, B30BUTT, SB36BUTT.
+2. **DRH Express**: 
+   - Suffixes: -L/-R (hinge direction). Count variants separately.
+   - Trim Equivalents: TOEKICK8 (BTK8), MSW8 (Scribe/Filler), MQR8 (Shoe Molding).
+   - Non-Cabinets: F331, F342 (Fillers), PEPR335-L (End Panel).
+3. **Wellborn Premier/Binder**: 3D binder format.
+   - CRITICAL: No cabinet codes in PDF. Flag "Cabinet codes not found in PDF". Extract room names only.
+4. **Marquis/Custom**: Renovation format.
+   - Suffixes: -2B (2 doors bottom), -3 (3 drawers), NP, OWLSR.
+   - Parts list on floor plan itself. Extract from elevation views.
+
+SPECIAL EXTRACTION RULES:
+- BACK-B48 or B48 labeled as "(VENT BOX)" in the Opt Vent Chase Material section must NEVER be classified as a Base Cabinet.
+- Appliances (RANGE, DISH, MW.HOOD, REF) go under "Accessories".
+- Count -L and -R variants as separate line items.
+- Flag any unknown or malformed codes.
 """
 
 MANUFACTURER_RESEARCH_PROMPT = """You are an expert cabinet industry researcher with deep knowledge of all major cabinet manufacturers.
@@ -430,7 +446,6 @@ async def generate_bom_descriptions(payload: dict):
     Saves descriptions back to quotation_boms table.
     """
     try:
-        project_id = payload.get("project_id")
         manufacturer_name = payload.get("manufacturer_name", "Unknown")
         bom_items = payload.get("bom_items", [])  # list of BOM row dicts
         batch_size = 100  # Process in larger batches to minimize API calls and respect RPM
@@ -863,8 +878,8 @@ async def analyze_drawing_full(payload: dict):
         combined_text = python_data["raw_text"][:18000]
         all_codes = python_data["potential_codes"][:150]
         
-        prompt = f"""You are an expert cabinet estimator analyzing a multi-page architectural blueprint set.
-Extract ALL cabinet SKU codes from every room shown across all pages.
+        prompt = f"""You are a cabinet extraction AI for home layout PDFs.
+Your job is to extract cabinet codes and quantities with 100% accuracy from EVERY room variant.
 
 FULL BLUEPRINT TEXT (all pages):
 {combined_text}
@@ -872,30 +887,167 @@ FULL BLUEPRINT TEXT (all pages):
 ALL SKU CODES PRE-EXTRACTED BY PYTHON:
 {", ".join(all_codes)}
 
-STRICT RULES:
-1. **ROOM NAME**: Use these canonical names EXACTLY:
-   - "STANDARD 42 KITCHEN", "STD 42 KITCHEN", "STANDARD KITCHEN" → "STANDARD 42 KITCHEN"
-   - "OPT GOURMET KITCHEN", "OPT GMT KITCHEN" → "OPT GOURMET KITCHEN" (KEEP SEPARATE from STANDARD 42 KITCHEN)
-   - "OPT LAUNDRY UPPERS OVER W/D", "OPT LAUNDRY BASES", any LAUNDRY variant → "OPT LAUNDRY"
-   - "STANDARD BATH 3 UPSTAIRS", "BATH 3 UPSTAIRS" → "BATH 3"
+═══════════════════════════════════════════════════════
+PHASE 1: IDENTIFY PDF TYPE FIRST
+═══════════════════════════════════════════════════════
+Before extracting, identify which PDF type this is:
+  A) ELITE_STANDARD  → Has Trim List page, codes like W3042BUTT, BACK-B48, WTEP84
+  B) DRH_EXPRESS     → Has -L/-R suffixes, TOEKICK8, MSW8, MQR8, F331/F342
+  C) WELLBORN_BINDER → 3D visual only, no codes present (return names + flag)
+  D) CUSTOM_MARQUIS  → Codes with -2B/-3 suffixes, FREPU, parts list on floor plan
+
+═══════════════════════════════════════════════════════
+PHASE 2: SECTION RULES (enforce these strictly)
+═══════════════════════════════════════════════════════
+Map each extracted item to the correct section bucket:
+  - PERIMETER section → "cabinets", "perimeter", "hardware", "bump", "opt_crown"
+  - ISLAND section    → "island", "island_hardware", "island_bump" (NEVER merge with PERIMETER)
+  - OPT VENT CHASE    → "vent_chase_material" ONLY
+  - OPT CROWN section → "opt_crown" ONLY
+  - OPT LIGHT RAIL    → "opt_light_rail" ONLY (separate from Perimeter Specs)
+  - BUMP/BOXING       → "bump" ONLY
+
+CRITICAL — NEVER combine PERIMETER + ISLAND quantities of the same code.
+Example: SM8 in PERIMETER qty=5 AND SM8 in ISLAND qty=1 → two SEPARATE entries.
+
+═══════════════════════════════════════════════════════
+PHASE 3: CRITICAL COMPLETENESS RULES
+═══════════════════════════════════════════════════════
+
+RULE A — NEVER LEAVE SECTIONS BLANK
+Every room variant MUST have ALL sections extracted.
+Never leave Perimeter Specs, Island Specs, Hardware, or Vent Chase blank
+just because the room appears simple or the trim list did not repeat it.
+
+RULE B — SAME TRIM LIST COVERS ALL VARIANTS
+In Elite Standard PDFs the Trim List on page 2 covers BOTH Standard and
+Optional kitchen variants. Apply those trim quantities to EACH variant
+unless the trim list explicitly shows different quantities per variant.
+  Standard Kitchen → full extraction including all trim ✅
+  OPT Gourmet Kitchen → SAME full extraction, not cabinets-only ✅
+
+RULE C — EVERY KITCHEN VARIANT NEEDS ALL SECTIONS
+When the PDF contains Standard Kitchen AND OPT Gourmet Kitchen AND
+OPT Extended Kitchen etc., EACH is a completely separate room entry with:
+  cabinets, perimeter, island, hardware, island_hardware,
+  bump, island_bump, opt_crown, opt_light_rail, vent_chase_material
+
+RULE D — EVERY BATH NEEDS ALL SECTIONS
+Even small or simple bathrooms must have:
+  Vanity Cabinets, Universal Fillers, Perimeter Specs (BTK8, SM8),
+  Hardware (SHM8), Opt Crown if present.
+  Never leave bath Perimeter Specs or Hardware blank.
+
+RULE E — SB36BUTT QUANTITY HARD RULE
+SB36BUTT is a sink base cabinet. One kitchen has ONE sink. Therefore:
+  SB36BUTT quantity is ALWAYS 1 in ANY kitchen layout.
+  This applies to Standard, Gourmet, Extended, and ALL other variants.
+  If your extraction produces SB36BUTT qty=2 → you have made an error.
+  Correct it to qty=1 immediately. No exceptions.
+
+RULE E2 — BATH 2 TRIM PATTERN IS IDENTICAL TO BATH 3
+Bath 2 (STD BATH 2) must ALWAYS contain:
+  perimeter: BTK8 qty=1, SM8 qty=1
+  hardware:  SHM8 qty=1, OCM8BLD qty=1
+These values come from the bath trim list section. If Bath 3 has these items,
+Bath 2 must have the exact same items. Never leave Bath 2 perimeter or hardware blank.
+
+RULE F — LAUNDRY OPT LIGHT RAIL IS A SEPARATE SECTION
+Laundry can have BOTH Perimeter Specs and Opt Light Rail sections.
+NEVER combine their quantities. Store as two separate arrays:
+  perimeter: [SM8=1, FL24=1]
+  opt_light_rail: [SM8=1, FL24=1, BTK8=1]
+
+RULE G — VENT CHASE MUST ALWAYS BE EXTRACTED
+When a Vent Chase section exists, extract ALL 5 items:
+  B48 or BACK-B48 (vent box), WTEP84, SM8, OCM8BLD, QM8
+  These are SEPARATE from Perimeter SM8 and Bump OCM8BLD.
+
+RULE H — OCM8BLD APPEARS IN MULTIPLE SECTIONS
+OCM8BLD can be in Bump/Boxing AND OPT CROWN AND Vent Chase.
+Each appearance = its own entry in the correct array. NEVER merge them.
+
+RULE I — ISLAND SPECS ARE ALWAYS SEPARATE
+Island BTK8 ≠ Perimeter BTK8. Island SM8 ≠ Perimeter SM8.
+UF3 and UF642 found in island section → "cabinets" array (they are cabinet units).
+BTK8 and SM8 found in island section → "island" array (they are island accessories).
+
+═══════════════════════════════════════════════════════
+PHASE 4: ROOM COMPLETION CHECKLISTS
+═══════════════════════════════════════════════════════
+
+KITCHEN (any variant — Standard, Gourmet, Extended, etc.):
+  ✅ cabinets: Wall (W*), Base (B*/SB*), Tall (T*/P*/O*/OVD*), Fillers (UF*)
+  ✅ perimeter: BTK8, SM8, FL48
+  ✅ island: BTK8, SM8 (island section)
+  ✅ hardware: DWR3 (if dishwasher present), SHM8, OCM8BLD
+  ✅ island_hardware: DOORS count, DRAWERS count
+  ✅ bump: SHM8, OCM8BLD (bump/boxing section)
+  ✅ vent_chase_material: B48/BACK-B48, WTEP84, SM8, OCM8BLD, QM8
+  ✅ opt_crown: OCM8BLD, QM8 (crown section if present)
+
+BATHROOM:
+  ✅ cabinets: VSB* vanity, UF* fillers
+  ✅ perimeter: BTK8, SM8
+  ✅ hardware: SHM8, OCM8BLD if present
+  ✅ opt_crown: if present
+
+LAUNDRY:
+  ✅ cabinets: W* uppers, B* bases, UF* fillers
+  ✅ perimeter: SM8, FL24, BTK8
+  ✅ hardware: SHM8
+  ✅ opt_light_rail: SM8, FL24, BTK8 (if opt light rail section exists — separate from perimeter)
+
+═══════════════════════════════════════════════════════
+PHASE 5: CODE RULES
+═══════════════════════════════════════════════════════
+1. ROOM NAMES — canonical forms:
+   - "STANDARD 42 KITCHEN", "STD 42 KITCHEN" → "STANDARD 42 KITCHEN"
+   - "OPT GOURMET KITCHEN" → "OPT GOURMET KITCHEN" (separate entry, never merged)
+   - Any LAUNDRY variant → "OPT LAUNDRY"
+   - "STANDARD BATH 3 UPSTAIRS" → "BATH 3"
    - "STANDARD OWNERS BATH" → "OWNERS BATH"
-   - Same room on multiple pages = ONE room entry (merge the items)
-2. **CODES ONLY**: Every "code" must be a cabinet SKU. NO titles, NO descriptions, NO notes.
-3. **STRIP PREFIXES**: "1-BTK8" → code="BTK8", quantity=1. "3-DOORS" → code="DOORS", quantity=3.
-4. **KEEP MODIFIERS**: BUTT, MD, BLD, BD are part of the SKU (W3042BUTT).
-5. **VALID SKUs**: Start with letters then numbers. Reject sentences or titles.
-6. quantity is always integer ≥ 1.
-7. Group ALL items from the SAME room together in ONE entry.
+   Same room on multiple pages = ONE merged entry.
+
+2. CODES ONLY — never include room titles, descriptions, or notes as a code.
+
+3. STRIP QTY PREFIXES — "1-BTK8" → code="BTK8" qty=1. "3-DOORS" → code="DOORS" qty=3.
+
+4. KEEP MODIFIERS — BUTT, MD, BLD, BD are part of the SKU (W3042BUTT).
+
+5. QUANTITY — if Trim List exists, use Trim List qty. Flag floor plan vs. trim list mismatches.
+
+6. VENT BOX — BACK-B48 or B48 "(VENT BOX)" → "vent_chase_material" NEVER "cabinets".
+
+7. DRH EXPRESS — W2436-L and W2436-R = separate items. F331/F342/PEPR335 = not cabinets.
+   TOEKICK8 → BTK8, MQR8 → SM8.
+
+8. WELLBORN BINDER — return room names only with empty arrays + flag.
+
+9. NON-CABINET ITEMS (never classify as cabinets):
+   F331, F342, PEPR335, BEP-*, WAINSCOT, FIN END, BACK-B48, CR-W34, FALSE
+
+10. CATEGORIZATION:
+    "cabinets"            → W (wall), B/SB (base), T/P/O/OVD (tall), UF/F (filler)
+    "perimeter"           → BTK, SM, FL, TOUCHUP, RANGE, DISH, MW.HOOD (perimeter section)
+    "island"              → BTK, SM (island section accessories only — NOT cabinet units)
+    "hardware"            → DWR3, SHM8, OCM8BLD (hardware/bump section)
+    "island_hardware"     → DOORS, DRAWERS counts for island
+    "bump"                → SHM (bump/boxing section)
+    "island_bump"         → SHM (island bump section)
+    "opt_crown"           → OCM8BLD, QM8 (opt crown section only)
+    "opt_light_rail"      → LR*, LRM* and laundry opt light rail items
+    "vent_chase_material" → BACK-B48, WTEP, B48, SM8/OCM8BLD/QM8 from vent chase section
 
 Return ONLY this JSON:
 {{
   "rooms": [
     {{
-      "room_name": "KITCHEN",
-      "cabinets": [{{"code": "W3042BUTT", "quantity": 2}}, {{"code": "B30", "quantity": 4}}],
-      "perimeter": [{{"code": "BTK8", "quantity": 1}}],
+      "room_name": "...",
+      "cabinets": [{{"code": "...", "quantity": 1}}],
+      "perimeter": [],
       "island": [],
-      "hardware": [{{"code": "DOORS", "quantity": 27}}, {{"code": "DRAWERS", "quantity": 12}}],
+      "hardware": [],
       "island_hardware": [],
       "bump": [],
       "island_bump": [],
@@ -903,7 +1055,9 @@ Return ONLY this JSON:
       "opt_light_rail": [],
       "vent_chase_material": []
     }}
-  ]
+  ],
+  "flags": [{{"code": "...", "issue": "...", "severity": "WARNING|ERROR"}}],
+  "pdf_type": "ELITE_STANDARD | DRH_EXPRESS | WELLBORN_BINDER | CUSTOM_MARQUIS | UNKNOWN"
 }}"""
 
         ai_text = await _ai_generate(prompt, tier="balanced", max_tokens=6000)  # 70B + 6k tokens for full doc
@@ -917,9 +1071,15 @@ Return ONLY this JSON:
         
         def sanitize_code(code: str) -> str:
             if not code: return ""
-            code = str(code).strip()
+            code = str(code).strip().upper()
+            # Strip leading quantity
             code = re.sub(r'^\d+[-\s]+', '', code)
-            code = re.sub(r'[^A-Z0-9]', '', code.upper().replace(' ', ''))
+            # Keep hyphen for DRH hinge suffixes (-L/-R)
+            if code.endswith(('-L', '-R')):
+                prefix = re.sub(r'[^A-Z0-9]', '', code[:-2].replace(' ', ''))
+                return f"{prefix}{code[-2:]}"
+            # Standard cleanup
+            code = re.sub(r'[^A-Z0-9]', '', code.replace(' ', ''))
             return code
 
         def canonical_name(name: str) -> str:
@@ -961,7 +1121,13 @@ Return ONLY this JSON:
 
         rooms = list(rooms_map.values())
         print(f"[full-scan] Final rooms after merge: {len(rooms)}")
-        return {"success": True, "rooms": rooms, "method": "full-text-single-ai"}
+        return {
+            "success": True, 
+            "rooms": rooms, 
+            "method": "full-text-single-ai",
+            "pdf_type": resp_data.get("pdf_type", "Unknown"),
+            "flags": resp_data.get("flags", [])
+        }
 
     except Exception as e:
         print(f"[full-scan] ERROR: {e}")
@@ -1058,26 +1224,24 @@ async def analyze_drawing_fast(payload: dict):
             5. **STRIP PARENTHESES**: Notes like (DW), (VOIDS), (CROWN CLEAT) are NOT part of the code.
             6. **KEEP MODIFIERS**: BUTT, MD, BLD, BD, AS are PART of the SKU (e.g. W3042BUTT).
             7. **VALID SKU PATTERNS**: SKUs start with letters followed by numbers (W30, B24, SB36, UF3, BTK8, SM8, DOORS, DRAWERS). Reject anything that looks like a title or sentence.
-            8. quantity is always an integer ≥ 1.
-            
-            OUTPUT FORMAT - return ONLY this JSON, no other text:
-            {{
-              "rooms": [
-                {{
-                  "room_name": "KITCHEN",
-                  "cabinets": [{{"code": "W3042BUTT", "quantity": 1}}, {{"code": "B30", "quantity": 4}}],
-                  "perimeter": [{{"code": "BTK8", "quantity": 1}}],
-                  "island": [],
-                  "hardware": [{{"code": "DOORS", "quantity": 27}}, {{"code": "DRAWERS", "quantity": 12}}],
-                  "island_hardware": [],
-                  "bump": [],
-                  "island_bump": [],
-                  "opt_crown": [],
-                  "opt_light_rail": [],
-                  "vent_chase_material": []
-                }}
-              ]
-            }}
+            8. **SECTION RULES**:
+               - BACK-B48 or B48 labeled as "(VENT BOX)" in "Opt Vent Chase Material" section = Vent Chase (NOT Base Cabinet).
+               - B/SB codes under "Vent Chase", "Accessories", or "Opt" = Accessories/Vent Chase.
+            9. **QUANTITY**: Cross-reference floor plan AND trim list (page 2).
+            10. quantity is always an integer ≥ 1.
+12. **CATEGORIZATION**:
+    - "cabinets": Primary cabinets (W, B, SB, T, P, O, REF, OVD) and Universal Fillers (UF).
+    - "perimeter" / "island": Accessories (BTK, SM, FL, TOUCHUP) and Appliances (RANGE, DISH, MW.HOOD, REF).
+    - "hardware": DOORS, DRAWERS, HINGE, etc.
+    - "opt_crown": OCM, QM.
+    - "bump": SHM.
+
+OUTPUT FORMAT - return ONLY this JSON:
+{{
+  "rooms": [...],
+  "pdf_type": "...",
+  "notes": "..."
+}}
             """
             ai_text = await _ai_generate(prompt, tier="flash")
             print(f"[agent] AI Text Response: {ai_text[:500]}...")
@@ -1134,13 +1298,15 @@ async def analyze_drawing_fast(payload: dict):
                 """Clean up a raw code string extracted from the AI response."""
                 if not code:
                     return ""
-                code = str(code).strip()
+                code = str(code).strip().upper()
                 # Strip leading quantity prefix like "1-", "3-", "12-"
                 code = re.sub(r'^\d+[-\s]+', '', code)
-                # Remove spaces (but keep BUTT, BLD etc. as single word)
-                code = code.replace(' ', '')
-                # Remove special chars except alphanumeric
-                code = re.sub(r'[^A-Z0-9]', '', code.upper())
+                # Keep hyphen for DRH hinge suffixes (-L/-R)
+                if code.endswith(('-L', '-R')):
+                    prefix = re.sub(r'[^A-Z0-9]', '', code[:-2].replace(' ', ''))
+                    return f"{prefix}{code[-2:]}"
+                # Remove spaces and non-alphanumeric
+                code = re.sub(r'[^A-Z0-9]', '', code.replace(' ', ''))
                 return code
             
             CATS = ["cabinets", "perimeter", "island", "hardware", "island_hardware", "bump", "island_bump", "opt_crown", "opt_light_rail", "vent_chase_material"]
@@ -1194,7 +1360,13 @@ async def analyze_drawing_fast(payload: dict):
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
 
-        return {"success": True, "rooms": rooms, "method": "text" if python_data["has_selectable_text"] and len(python_data["potential_codes"]) > 5 else "vision"}
+        return {
+            "success": True, 
+            "rooms": rooms, 
+            "method": "text" if python_data["has_selectable_text"] and len(python_data["potential_codes"]) > 5 else "vision",
+            "pdf_type": resp_data.get("pdf_type", "Unknown"),
+            "notes": resp_data.get("notes", "")
+        }
 
     except Exception as e:
         traceback.print_exc()
@@ -1350,8 +1522,6 @@ def _fallback_description(sku: str, item: dict) -> str:
     cat = _infer_category(sku)
     room = item.get("room", "")
     qty = item.get("qty", 1)
-    matched = item.get("matched_sku", "")
-
     # Extract dimensions from SKU
     dims = re.search(r'(\d{2,4})', sku)
     dim_str = ""

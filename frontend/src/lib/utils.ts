@@ -63,9 +63,10 @@ export function detectCategory(sku: string): string {
   // NEW: Handle Estimation/Fallback SKUs (matching backend)
   if (s.endsWith('-EST') || s.endsWith(' EST.')) {
     if (s.startsWith('W')) return 'Wall Cabinets';
-    if (s.startsWith('B') || s.startsWith('SB')) return 'Base Cabinets';
+    if (s.startsWith('BTK') || s.startsWith('TK')) return 'Molding & Trim';
+    if (s.startsWith('SB') || s.startsWith('B')) return 'Base Cabinets';
     if (s.startsWith('V')) return 'Vanity Cabinets';
-    if (s.startsWith('T') || s.startsWith('P') || s.startsWith('O') || s.startsWith('UTIL') || s.startsWith('REF')) return 'Tall Cabinets';
+    if (s.startsWith('T') || s.startsWith('P') || s.startsWith('O') || s.startsWith('UTIL') || s.startsWith('REF') || s.startsWith('MICRO')) return 'Tall Cabinets';
     if (s.startsWith('UF')) return 'Universal Fillers';
   }
 
@@ -78,22 +79,24 @@ export function detectCategory(sku: string): string {
 
   // 2. Wall Cabinets
   if (s.startsWith('W')) return 'Wall Cabinets';
-  
-  // 3. Base Cabinets (Standard & Sink)
+
+  // 3. Molding & Trim — MUST be before Base Cabinets: BTK/TK start with 'B'/'T' and would
+  //    otherwise match cabinet checks. 'M' prefix is guarded against MICRO (tall cabinet).
+  if (anyPrefix(s, ['BTK', 'TK', 'CM', 'RR', 'OCM', 'SCM', 'SHM', 'SM'])) return 'Molding & Trim';
+  if (s.startsWith('M') && !s.startsWith('MICRO')) return 'Molding & Trim';
+
+  // 4. Base Cabinets (Standard & Sink)
   if (s.startsWith('SB') || s.startsWith('B')) return 'Base Cabinets';
-  
-  // 4. Tall Cabinets (Pantry, Oven, Utility)
-  if (anyPrefix(s, ['T', 'P', 'O', 'UTIL', 'REF'])) return 'Tall Cabinets';
-  
-  // 5. Vanity Cabinets
+
+  // 5. Tall Cabinets (Pantry, Oven, Utility, Microwave)
+  if (anyPrefix(s, ['T', 'P', 'O', 'MICRO', 'UTIL', 'REF'])) return 'Tall Cabinets';
+
+  // 6. Vanity Cabinets
   if (s.startsWith('V')) return 'Vanity Cabinets';
-  
-  // 6. Hardwares
+
+  // 7. Hardwares
   if (s.startsWith('HW') || s.includes('KNOB') || s.includes('PULL') || s.includes('HINGE')) return 'Hardwares';
-  
-  // 7. Molding & Trim
-  if (anyPrefix(s, ['CM', 'M', 'RR', 'OCM', 'SCM', 'BTK', 'SHM', 'SM'])) return 'Molding & Trim';
-  
+
   return 'Accessories';
 }
 

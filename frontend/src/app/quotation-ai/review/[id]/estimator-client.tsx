@@ -107,6 +107,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
   // Integrity-only: series + collection selection (global + per-room)
   const [globalSeries, setGlobalSeries] = useState<string>('');
   const [globalCollection, setGlobalCollection] = useState<string>('');
+  const [globalDoorStyle, setGlobalDoorStyle] = useState<string>('');
   const [roomSeriesMap, setRoomSeriesMap] = useState<Record<number, string>>({});
   
   const [isRunningAgent, setIsRunningAgent] = useState(false);
@@ -694,6 +695,13 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                         onValueChange={(v) => {
                           setGlobalSeries(v);
                           setGlobalCollection('');
+                          setGlobalDoorStyle('');
+                          // Sync per-room series map so each room row reflects the selection
+                          setRoomSeriesMap(() => {
+                            const next: Record<number, string> = {};
+                            rooms.forEach((_, i) => { next[i] = v; });
+                            return next;
+                          });
                           setRooms(prev => prev.map(r => ({ ...r, collection: '', door_style: '' })));
                         }}
                       >
@@ -717,6 +725,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                       disabled={isIntegrity && !globalSeries}
                       onValueChange={(v) => {
                         setGlobalCollection(v);
+                        setGlobalDoorStyle('');
                         setRooms(prev => prev.map(r => ({ ...r, collection: v, door_style: '' })));
                       }}
                     >
@@ -734,12 +743,18 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                   </div>
                   <div className="space-y-1">
                     <p className="text-[9px] font-black uppercase text-sky-600 tracking-widest pl-1">Door Style</p>
-                    <Select onValueChange={(v) => {
-                      setRooms(prev => prev.map(r => ({ ...r, door_style: v })));
-                    }} disabled={!rooms[0]?.collection}>
+                    <Select
+                      key={globalCollection}
+                      value={globalDoorStyle}
+                      disabled={!globalCollection}
+                      onValueChange={(v) => {
+                        setGlobalDoorStyle(v);
+                        setRooms(prev => prev.map(r => ({ ...r, door_style: v })));
+                      }}
+                    >
                       <SelectTrigger className="w-44 h-11 text-sm bg-white border-sky-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent className="bg-white border-slate-100">
-                        {rooms[0]?.collection && manMapping[rooms[0].collection]?.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        {globalCollection && manMapping[globalCollection]?.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>

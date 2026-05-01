@@ -116,28 +116,125 @@ export async function refineBomFlow(input: {
 
   try {
 
-    const prompt = `You are the Quotation Smart Agent, an expert NKBA cabinet estimator and quality assurance reviewer. 
-Your task is to analyze the provided array of Rooms (containing bill of materials items), find any misclassified, missing, or malformed items, and return the CORRECTED array of rooms.
+    const prompt = `You are the Quotation Smart Agent — an expert NKBA cabinet estimator and quality-assurance reviewer.
+Analyze the BOM rooms below, fix every misclassified / malformed item, and return the corrected data.
 
-Here is the current state of the BOM:
+CURRENT BOM STATE:
 ${JSON.stringify(mergedRooms, null, 2)}
 
-------------------------------------------------
-SMART AGENT RULES & NKBA STANDARDS
-1. **Misclassified Items**: Items are sometimes placed in the wrong array category. Move them to the correct array!
-   - "cabinets" array: MUST contain ALL Primary Cabinets (Wall cabinets starting with W, Base cabinets starting with B or SB, Tall cabinets starting with T, O, P, Vanity starting with V, and Universal Fillers starting with UF).
-   - "hardware" / "island_hardware" array: MUST contain items like DOORS, DRAWERS, HINGE, TRAY, ROLLOUT, PULLS, KNOBS. If you see a Wall or Base cabinet in here, MOVE IT to "cabinets"!
-   - "perimeter" / "island" array: MUST contain accessories like panels (DWR3, REFPANEL), fillers (if not UF), toe kicks (BTK8), shoe molding (SM8).
-   - "opt_crown" / "opt_light_rail" / "bump" array: Specifically for moldings like CM8, LR8, SHM8, OCM8.
+═══════════════════════════════════════════════════════
+PART 1: CATEGORY ASSIGNMENTS
+═══════════════════════════════════════════════════════
+"cabinets"           → W* (wall), B*/SB* (base), T*/P*/O*/OVD* (tall), UF*/F* (universal filler)
+"perimeter"          → BTK*, SM*, FL*, TOUCHUP*, TUKIT, TUPSPRAY, RANGE*, DISH*, MW.HOOD
+"island"             → BTK*, SM* belonging to island section (accessories only — NOT cabinet units)
+"hardware"           → DWR3, SHM8, OCM8BLD from hardware/bump section
+"island_hardware"    → DOORS, DRAWERS counts for island
+"bump"               → SHM* perimeter side ONLY
+"island_bump"        → SHM* island side ONLY
+"opt_crown"          → OCM*, QM* from OPT CROWN section ONLY
+"opt_light_rail"     → LR*, LRM* and laundry opt light rail items (SEPARATE from perimeter)
+"vent_chase_material"→ BACK-B48, WTEP*, B48 — NEVER in "cabinets"
 
-2. **Fix Formatting**: Ensure all SKU codes are fully uppercase, and have all spaces and special characters removed (e.g. "W3042 BUTT" -> "W3042BUTT").
-   Examples: "UF3DW" → "UF3", "HWC1X2X94CROWNCLEAT" → "HWC1X2X94", "FL48VOIDS" → "FL48".
+═══════════════════════════════════════════════════════
+PART 2: SECTION SEPARATION RULES
+═══════════════════════════════════════════════════════
+1. PERIMETER and ISLAND are ALWAYS separate — never combine same-code quantities.
+   ✅ perimeter SM8=5, island SM8=1   ❌ SM8=6 (combined — WRONG)
 
-3. **Remove Garbage**: Delete any item whose code is clearly not a SKU (e.g. a sentence, a project title, or a number-only string).
+2. OCM8BLD appears in THREE places: hardware section, opt_crown section, vent_chase_material.
+   Each is a separate entry in its own array. Never merge them.
 
-4. **Explanations**: Provide a short list of what you changed. If nothing changed, return empty explanations array.
+3. SHM8 perimeter → "bump". SHM8 island → "island_bump". Never combined.
 
-Return ONLY this JSON structure, no other text:
+4. Laundry "opt_light_rail" is SEPARATE from laundry "perimeter".
+   ✅ perimeter: SM8=1, FL24=1    opt_light_rail: SM8=1, FL24=1, BTK8=1
+   ❌ perimeter: SM8=2, FL24=2   (combined — WRONG)
+
+5. Vent chase SM8, OCM8BLD, QM8 are separate from perimeter/bump versions.
+   Always keep vent_chase_material items in that array only.
+
+═══════════════════════════════════════════════════════
+PART 3: COMPLETENESS RULES — NEVER LEAVE BLANK
+═══════════════════════════════════════════════════════
+RULE — EVERY ROOM VARIANT MUST BE FULLY EXTRACTED.
+In Elite Standard PDFs, the Trim List covers BOTH Standard and Optional kitchen variants.
+Apply trim quantities to EACH variant unless explicitly different in the trim list.
+  Standard Kitchen → full extraction ✅
+  OPT Gourmet Kitchen → full extraction (not cabinets-only) ✅
+
+KITCHEN completeness check — each kitchen variant must have:
+  ✅ cabinets: walls, bases, talls, fillers
+  ✅ perimeter: BTK8, SM8, FL48
+  ✅ island: BTK8, SM8
+  ✅ hardware: DWR3 (if dishwasher present), SHM8, OCM8BLD
+  ✅ island_hardware: DOORS, DRAWERS
+  ✅ bump: SHM8, OCM8BLD
+  ✅ vent_chase_material: B48/BACK-B48, WTEP84, SM8, OCM8BLD, QM8
+  ✅ opt_crown: OCM8BLD, QM8 (if present)
+
+BATHROOM completeness check — every bath must have:
+  ✅ cabinets: VSB* vanity, UF* fillers
+  ✅ perimeter: BTK8, SM8
+  ✅ hardware: SHM8, OCM8BLD if present
+
+LAUNDRY completeness check:
+  ✅ cabinets: wall uppers, base, fillers
+  ✅ perimeter: SM8, FL24, BTK8
+  ✅ hardware: SHM8
+  ✅ opt_light_rail: SM8, FL24, BTK8 (separate section if it exists)
+
+If any of these arrays appear empty when they should not be, add a note in explanations.
+
+═══════════════════════════════════════════════════════
+PART 4: SPECIAL CODE RULES
+═══════════════════════════════════════════════════════
+VENT BOX: BACK-B48, BACKB48, B48 → move to "vent_chase_material". Never in "cabinets".
+
+SB36BUTT HARD RULE: One kitchen = one sink = SB36BUTT qty ALWAYS 1.
+  This applies to ALL kitchen variants (Standard, Gourmet, Extended, etc.).
+  If SB36BUTT qty=2 anywhere → force it to qty=1 and add an explanation. No exceptions.
+
+BATH 2 TRIM PATTERN: STD BATH 2 must ALWAYS have:
+  perimeter: BTK8 qty=1, SM8 qty=1
+  hardware:  SHM8 qty=1, OCM8BLD qty=1
+  Bath 2 follows the exact same trim pattern as Bath 3. If Bath 3 has these items,
+  Bath 2 must also have them. If either array is empty in the input, fill it in.
+
+DRH EXPRESS (-L/-R codes present):
+  - W2436-L and W2436-R = DIFFERENT items — keep separate, do NOT combine.
+  - F331, F342, PEPR335-L = not cabinets → remove from "cabinets".
+  - TOEKICK8 → BTK8. MQR8 → SM8. MW.HOOD → "perimeter".
+
+NON-CABINET ITEMS — remove from "cabinets" if found there:
+  FALSE, WAINSCOT, FIN END L/R, CR-W34, 1/4 BBS-FW, BACK-B48, F331, F342, PEPR335
+
+FORMATTING: All SKU codes must be UPPERCASE with no spaces (e.g. "W3042 BUTT" → "W3042BUTT").
+Exception: keep the hyphen in DRH codes (e.g. "W2436-L").
+
+Remove any item whose code is clearly not a SKU: pure numbers, project titles, sentences.
+
+═══════════════════════════════════════════════════════
+SELF-CHECK BEFORE RETURNING (verify each checkbox)
+═══════════════════════════════════════════════════════
+  □ Every kitchen variant has perimeter, island, hardware, vent_chase_material?
+  □ Every bath has perimeter + hardware?
+  □ No BACK-B48 / B48 in "cabinets"?
+  □ No F331 / F342 / PEPR335 in "cabinets"?
+  □ -L and -R variants kept separate?
+  □ OCM8BLD NOT merged across bump / opt_crown / vent_chase_material?
+  □ SHM8 in bump / island_bump (not in opt_crown)?
+  □ Laundry perimeter and opt_light_rail are separate arrays?
+  □ Island BTK8/SM8 in "island", NOT added to perimeter totals?
+  □ All codes uppercase, no spaces?
+  □ SB36BUTT qty verified — flagged if qty>1?
+  □ OPT GOURMET KITCHEN SB36BUTT forced to qty=1?
+  □ BATH 2 has perimeter (BTK8=1, SM8=1) and hardware (SHM8=1, OCM8BLD=1)?
+  □ Any blank sections that should not be blank? If yes → fill them.
+
+If any checkbox fails → fix before returning.
+
+Return ONLY this JSON, no other text:
 {"corrected_rooms": [...rooms with same structure as input...], "explanations": ["..."]}`;
 
     const response = await openai.chat.completions.create({

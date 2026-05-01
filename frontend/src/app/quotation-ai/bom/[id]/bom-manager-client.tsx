@@ -419,7 +419,9 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
         } else {
           const category = detectCategory(item.sku);
           const isCabinetOrFiller = category.includes('Cabinets') || category === 'Universal Fillers';
-          factor = isCabinetOrFiller ? 1 : 0;
+          const isMolding = category === 'Molding & Trim';
+          // Toe kick / molding uses factor 0.1 per spreadsheet; trim never counts for 3PL delivery
+          factor = isCabinetOrFiller ? 1 : isMolding ? 0.1 : 0;
           tplInclude = isCabinetOrFiller;
         }
         totalInstallUnitsInline += Number(item.qty) * factor;
@@ -521,7 +523,9 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
         missingRulesCount++;
         const category = detectCategory(item.sku);
         const isCabinetOrFiller = category.includes('Cabinets') || category === 'Universal Fillers';
-        const factor = isCabinetOrFiller ? 1 : 0;
+        const isMolding = category === 'Molding & Trim';
+        // Toe kick / molding uses factor 0.1 per spreadsheet; trim never counts for 3PL delivery
+        const factor = isCabinetOrFiller ? 1 : isMolding ? 0.1 : 0;
         const installUnits = Number(item.qty) * factor;
         const tplUnits = isCabinetOrFiller ? Number(item.qty) : 0;
         
@@ -1181,6 +1185,9 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                  {isInstallManufacturer && installRate > 0 && (
                                    <TableHead className="text-right text-[10px] uppercase font-bold text-orange-500">INSTALL</TableHead>
                                  )}
+                                 {isInstallManufacturer && includeDelivery && deliverySellRate > 0 && (
+                                   <TableHead className="text-right text-[10px] uppercase font-bold text-blue-500">DELIVERY</TableHead>
+                                 )}
                                </TableRow>
                              </TableHeader>
                              <TableBody>
@@ -1270,6 +1277,15 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                         return (
                                           <TableCell className="pt-4 text-right font-mono text-xs text-orange-600 font-bold">
                                             {installCost > 0 ? `$${installCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}
+                                          </TableCell>
+                                        );
+                                      })()}
+                                      {isInstallManufacturer && includeDelivery && deliverySellRate > 0 && (() => {
+                                        const calc = installCalculations.itemCalcs[item.id];
+                                        const deliveryCost = calc ? calc.tplUnits * deliverySellRate : 0;
+                                        return (
+                                          <TableCell className="pt-4 text-right font-mono text-xs text-blue-600 font-bold">
+                                            {deliveryCost > 0 ? `$${deliveryCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}
                                           </TableCell>
                                         );
                                       })()}
