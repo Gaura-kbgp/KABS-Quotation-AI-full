@@ -19,6 +19,7 @@ os.environ['NO_PROXY'] = '*'
 
 from app.api.pricing import router as pricing_router
 from app.api.agent import router as agent_router
+from app.api.labor import router as labor_router
 
 app = FastAPI(title="KABS Quotation AI Backend")
 # Force reload v3
@@ -35,6 +36,7 @@ app.add_middleware(
 # Include routes
 app.include_router(pricing_router, prefix="/api")
 app.include_router(agent_router, prefix="/api")
+app.include_router(labor_router, prefix="/api")
 
 @app.get("/debug/env")
 async def debug_env():

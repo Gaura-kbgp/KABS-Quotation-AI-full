@@ -97,6 +97,7 @@ interface BomItem {
   cabinet_type?: string;
   match_explanation?: string;
   match_confidence?: number;
+  install_points?: number;
 }
 
 interface BomManagerClientProps {
@@ -125,8 +126,8 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
     const configs: any = {};
     project.extracted_data?.rooms?.forEach((r: any) => {
       configs[r.room_name] = {
-        collection: r.collection || 'UNIVERSAL',
-        door_style: r.door_style || 'UNIVERSAL',
+        collection: (r.collection || 'UNIVERSAL').toUpperCase(),
+        door_style: (r.door_style || 'UNIVERSAL').toUpperCase(),
         box_construction: r.box_construction || 'Plywood',
         finish: r.finish || 'Standard Stain',
         wood_species: r.wood_species || 'Maple',
@@ -141,7 +142,36 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
       try {
         const res = await fetch(`/api/manufacturer-config?id=${project.manufacturer_id}`);
         const data = await res.json();
-        if (data.success) setMfgConfig(data.mapping);
+        if (data.success) {
+          setMfgConfig(data.mapping);
+          // Normalize stored collection/door_style values to match the catalog keys
+          // (AI extraction may produce short names like "PRIME PAINTED" which now
+          //  exist as keys after the backend variant expansion).
+          const availableKeys = Object.keys(data.mapping);
+          setRoomConfigs((prev: any) => {
+            const updated = { ...prev };
+            for (const roomName of Object.keys(updated)) {
+              const cfg = updated[roomName];
+              const col = (cfg.collection || '').toUpperCase();
+              // If the stored collection exactly matches a catalog key, keep it.
+              // Otherwise find the best-matching key (substring or starts-with).
+              if (col && !availableKeys.includes(col)) {
+                const match = availableKeys.find(k => k === col)
+                  || availableKeys.find(k => k.includes(col) || col.includes(k));
+                if (match) {
+                  const styles = data.mapping[match] as string[];
+                  const style = (cfg.door_style || '').toUpperCase();
+                  updated[roomName] = {
+                    ...cfg,
+                    collection: match,
+                    door_style: styles.includes(style) ? style : (styles[0] || cfg.door_style),
+                  };
+                }
+              }
+            }
+            return updated;
+          });
+        }
       } catch (err) {
         console.error('Failed to fetch manufacturer config:', err);
       }
@@ -383,13 +413,18 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
     const effectiveRooms = activePrintRoom ? [activePrintRoom] : selectedRooms;
     const activeItems = bom.filter(item => item.is_billable && effectiveRooms.includes(item.room));
     
-    let listSubtotal = 0;
+    let rawListSubtotal = 0;
+    let totalRoomDiscount = 0;
     activeItems.forEach(item => {
       const roomDiscount = roomDiscounts[item.room] || 0;
       const basePrice = (getEffectiveUnitPrice(item) * Number(item.qty) || 0);
-      const discountedPrice = basePrice * (1 - roomDiscount / 100);
-      listSubtotal += discountedPrice;
+      const discountAmt = basePrice * (roomDiscount / 100);
+      
+      rawListSubtotal += basePrice;
+      totalRoomDiscount += discountAmt;
     });
+
+    const listSubtotal = rawListSubtotal - totalRoomDiscount;
 
     const dealerCost = listSubtotal * Number(pricingFactor);
     const marginDecimal = Number(targetMargin) / 100;
@@ -413,16 +448,44 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
         const rule = override ?? defRule ?? null;
         let factor = 0;
         let tplInclude = false;
-        if (rule) {
+        
+        const category = detectCategory(item.sku);
+        const cabType = (item.cabinet_type || "").toLowerCase();
+        const isFiller = category === 'Universal Fillers' || cabType.includes('filler') || skuKey.startsWith('UF') || skuKey.startsWith('WF') || skuKey.startsWith('BF');
+        const isPanel = category === 'Panels' || cabType.includes('panel') || skuKey.includes('EP') || skuKey.includes('PNL');
+        const isMolding = category === 'Molding & Trim' || cabType.includes('molding');
+        const isAccessory = category === 'Accessories' || cabType.includes('accessory');
+        
+        // Full cabinets are items in cabinet categories that aren't fillers or panels
+        const isFullCabinet = category.toLowerCase().includes('cabinets') && !isFiller && !isPanel;
+        
+        // Smart Factor Assignment
+        if (override) {
+          // 1. Explicit Manual Override always wins
+          factor = Number(override.install_factor);
+          tplInclude = override.include_in_3pl;
+        } else if (isFiller || isPanel || isMolding) {
+          // 2. Accessories strictly follow the point system regardless of catalog/prefix defaults
+          const digits = skuKey.match(/\d+/g);
+          const height = digits && digits.length > 0 ? parseInt(digits[digits.length - 1], 10) : 0;
+          
+          if (isFiller) factor = height >= 80 ? 0.3 : 0.1;
+          else if (isPanel) factor = height >= 80 ? 1.0 : 0.5;
+          else if (isMolding) factor = 0.1;
+          
+          tplInclude = isFullCabinet; // Usually false for these
+        } else if (item.install_points !== undefined && Number(item.install_points) > 0) {
+          // 3. Backend Catalog points (for cabinets)
+          factor = Number(item.install_points);
+          tplInclude = rule ? rule.include_in_3pl : isFullCabinet;
+        } else if (rule) {
+          // 4. Prefix-based rules (for cabinets)
           factor = Number(rule.install_factor);
           tplInclude = rule.include_in_3pl;
         } else {
-          const category = detectCategory(item.sku);
-          const isCabinetOrFiller = category.includes('Cabinets') || category === 'Universal Fillers';
-          const isMolding = category === 'Molding & Trim';
-          // Toe kick / molding uses factor 0.1 per spreadsheet; trim never counts for 3PL delivery
-          factor = isCabinetOrFiller ? 1 : isMolding ? 0.1 : 0;
-          tplInclude = isCabinetOrFiller;
+          // 5. Global Fallback
+          factor = isFullCabinet ? 1.0 : 0;
+          tplInclude = isFullCabinet; 
         }
         totalInstallUnitsInline += Number(item.qty) * factor;
         if (tplInclude) total3PLUnitsInline += Number(item.qty);
@@ -479,7 +542,9 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
       grandTotal,
       scalingFactor,
       estimatedMfgCost,
-      estimatedProfit
+      estimatedProfit,
+      rawListSubtotal,
+      totalRoomDiscount
     };
   }, [bom, selectedRooms, activePrintRoom, pricingFactor, targetMargin, globalDiscount, taxRate, freight, fuelSurcharge, miscCharges, installationCharges, laborCharges, roomDiscounts, customItemCharges, installRate, installCostRate, includeInstall, includeDelivery, deliverySellRate, deliveryCostRate, installRules, installOverrides, isInstallManufacturer]);
 
@@ -504,37 +569,62 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
     activeItems.forEach(item => {
       const skuKey = (item.sku || '').toUpperCase().trim();
       const override = installOverrides.find(o => o.item_code.toUpperCase().trim() === skuKey);
-      const defRule  = installRules.find(r => r.item_code.toUpperCase().trim() === skuKey);
-      const rule = override ?? defRule ?? null;
-
-      if (rule) {
-        const factor       = Number(rule.install_factor);
-        const installUnits = Number(item.qty) * factor;
-        const tplUnits     = rule.include_in_3pl ? Number(item.qty) : 0;
-        totalInstallUnits += installUnits;
-        total3PLUnits     += tplUnits;
-        itemCalcs[item.id] = {
-          installUnits,
-          tplUnits,
-          factor,
-          ruleSource: override ? 'override' : 'default',
-        };
-      } else {
-        missingRulesCount++;
-        const category = detectCategory(item.sku);
-        const isCabinetOrFiller = category.includes('Cabinets') || category === 'Universal Fillers';
-        const isMolding = category === 'Molding & Trim';
-        // Toe kick / molding uses factor 0.1 per spreadsheet; trim never counts for 3PL delivery
-        const factor = isCabinetOrFiller ? 1 : isMolding ? 0.1 : 0;
-        const installUnits = Number(item.qty) * factor;
-        const tplUnits = isCabinetOrFiller ? Number(item.qty) : 0;
-        
-        totalInstallUnits += installUnits;
-        total3PLUnits += tplUnits;
-        
-        itemCalcs[item.id] = { installUnits, tplUnits, factor, ruleSource: 'missing' };
+      
+      // 1. Try Exact SKU Match
+      let rule = override ?? installRules.find(r => r.item_code.toUpperCase().trim() === skuKey) ?? null;
+      
+      // 2. Try Prefix Match if no exact rule found (e.g., 'UF', 'CM', 'W', 'B')
+      if (!rule) {
+        const itemPrefix = skuKey.replace(/\d+.*$/, '');
+        if (itemPrefix) {
+          rule = installRules.find(r => r.item_code.toUpperCase().trim() === itemPrefix) ?? null;
+        }
       }
-    });
+
+      const category = detectCategory(item.sku);
+      const cabType = (item.cabinet_type || "").toLowerCase();
+      const isFiller = category === 'Universal Fillers' || cabType.includes('filler') || skuKey.startsWith('UF') || skuKey.startsWith('WF') || skuKey.startsWith('BF');
+      const isPanel = category === 'Panels' || cabType.includes('panel') || skuKey.includes('EP') || skuKey.includes('PNL');
+      const isMolding = category === 'Molding & Trim' || cabType.includes('molding');
+      const isFullCabinet = category.toLowerCase().includes('cabinets') && !isFiller && !isPanel;
+      const backendFactor = (item as any).install_points !== undefined ? Number((item as any).install_points) : 0;
+      let factor = 0;
+
+      // Unified Factor Logic (Same as financials)
+      if (override) {
+        factor = Number(override.install_factor);
+        itemCalcs[item.id] = { installUnits: Number(item.qty) * factor, tplUnits: override.include_in_3pl ? Number(item.qty) : 0, factor, ruleSource: 'override' };
+      } else if (isFiller || isPanel || isMolding) {
+          const digits = skuKey.match(/\d+/g);
+          const height = digits && digits.length > 0 ? parseInt(digits[digits.length - 1], 10) : 0;
+          
+          if (isFiller) factor = height >= 80 ? 0.3 : 0.1;
+          else if (isPanel) factor = height >= 80 ? 1.0 : 0.5;
+          else if (isMolding) factor = 0.1;
+          
+          const installUnits = Number(item.qty) * factor;
+          const tplUnits = isFullCabinet ? Number(item.qty) : 0;
+          itemCalcs[item.id] = { installUnits, tplUnits, factor, ruleSource: 'default' };
+        } else if (backendFactor > 0) {
+          factor = backendFactor;
+          const installUnits = Number(item.qty) * factor;
+          const tplUnits = rule ? (rule.include_in_3pl ? Number(item.qty) : 0) : (isFullCabinet ? Number(item.qty) : 0);
+          itemCalcs[item.id] = { installUnits, tplUnits, factor, ruleSource: 'default' };
+        } else if (rule) {
+          factor = Number(rule.install_factor);
+          const installUnits = Number(item.qty) * factor;
+          const tplUnits = rule.include_in_3pl ? Number(item.qty) : 0;
+          itemCalcs[item.id] = { installUnits, tplUnits, factor, ruleSource: 'default' };
+        } else {
+          factor = isFullCabinet ? 1.0 : 0;
+          const installUnits = Number(item.qty) * factor;
+          const tplUnits = isFullCabinet ? Number(item.qty) : 0;
+          itemCalcs[item.id] = { installUnits, tplUnits, factor, ruleSource: 'missing' };
+        }
+
+        totalInstallUnits += itemCalcs[item.id].installUnits;
+        total3PLUnits += itemCalcs[item.id].tplUnits;
+      });
 
     return { totalInstallUnits, total3PLUnits, missingRulesCount, itemCalcs };
   }, [bom, selectedRooms, installRules, installOverrides]);
@@ -599,28 +689,70 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
     try {
       const res = await fetch(`/api/catalog-check?manufacturer_id=${project.manufacturer_id}`);
       const data = await res.json();
+      
       if (!data.success) {
-        toast({ variant: 'destructive', title: 'Catalog Check Failed', description: data.error });
+        toast({ 
+          variant: 'destructive', 
+          title: 'Catalog Check Failed', 
+          description: data.error || 'The pricing backend could not be reached.' 
+        });
         return;
       }
+
       if (data.total_rows === 0) {
         const hint = data.manufacturers_with_pricing?.length
-          ? `IDs with data: ${data.manufacturers_with_pricing.slice(0, 3).join(', ')}…`
-          : 'No pricing data found in any manufacturer.';
+          ? `Other manufacturers with data: ${data.manufacturers_with_pricing.slice(0, 3).join(', ')}...`
+          : 'No pricing data found for ANY manufacturer in the database.';
+        
         toast({
           variant: 'destructive',
-          title: `No Catalog Data for this Manufacturer ID`,
-          description: `${data.warning} ${hint}`,
+          title: `No Data Found: ${manufacturerName}`,
+          description: (
+            <div className="space-y-2 mt-2">
+              <p className="text-xs font-medium text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-100">
+                {data.warning || "No pricing catalog has been uploaded for this manufacturer ID yet."}
+              </p>
+              <p className="text-[10px] text-slate-500 italic">{hint}</p>
+              <p className="text-[10px] text-slate-400">Checked ID: {project.manufacturer_id}</p>
+            </div>
+          ),
         });
       } else {
-        const cols = (data.collections || []).slice(0, 5).join(', ');
+        const cols = (data.collections || []).slice(0, 8).join(', ');
+        const sample = data.sample_skus?.[0]?.sku || 'None';
+        
         toast({
-          title: `Catalog OK — ${data.total_rows.toLocaleString()} rows`,
-          description: `Collections: ${cols || 'N/A'} | Cache: ${data.cache_status}`,
+          title: `Catalog Healthy — ${manufacturerName}`,
+          description: (
+            <div className="space-y-2 mt-2">
+              <div className="flex justify-between text-xs border-b border-slate-100 pb-1">
+                <span className="text-slate-500 font-medium">Total Records:</span>
+                <span className="font-black text-sky-600">{data.total_rows.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-xs border-b border-slate-100 pb-1">
+                <span className="text-slate-500 font-medium">Cache Status:</span>
+                <span className="font-bold text-emerald-600 uppercase tracking-tighter">{data.cache_status}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Collections ({data.collections?.length || 0})</span>
+                <p className="text-[10px] text-slate-600 leading-tight">
+                  {cols}{data.collections?.length > 8 ? ' ...' : ''}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] pt-1">
+                <span className="text-slate-400">Sample SKU:</span>
+                <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">{sample}</span>
+              </div>
+            </div>
+          ),
         });
       }
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Diagnose Error', description: err.message });
+      toast({ 
+        variant: 'destructive', 
+        title: 'Diagnose Error', 
+        description: 'Failed to connect to the pricing intelligence service.' 
+      });
     }
   };
 
@@ -1015,13 +1147,12 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
               {roomsList.map(roomName => {
                 const roomItems = bom.filter(i => i.room === roomName);
                       const isSelected = selectedRooms.includes(roomName);
-                const categories = ['Wall Cabinets', 'Base Cabinets', 'Tall Cabinets', 'Vanity Cabinets', 'Universal Fillers', 'Molding & Trim', 'Hardwares'];
+                const categories = ['Wall Cabinets', 'Base Cabinets', 'Tall Cabinets', 'Vanity Cabinets', 'Universal Fillers', 'Panels', 'Molding & Trim', 'Hardwares'];
                 
                 // Calculate cabinet count (excluding fillers)
-                const cabCount = roomItems.filter(i => {
-                  const cat = detectCategory(i.sku);
-                  return cat.includes('Cabinets');
-                }).reduce((sum, item) => sum + item.qty, 0);
+                const roomPoints = roomItems.filter(i => i.is_billable).reduce((sum, item) => {
+                  return sum + (installCalculations.itemCalcs[item.id]?.installUnits || 0);
+                }, 0);
 
                 const currentConfig = roomConfigs[roomName] || {};
                 const availableCollections = Object.keys(mfgConfig || {});
@@ -1142,23 +1273,37 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                           <div className="flex items-center gap-4 text-[10px] font-bold uppercase text-slate-400">
                              <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-full">
                                 <Box className="w-3 h-3" />
-                                <span>{cabCount} Total Cabinets</span>
+                                <span>{roomPoints.toFixed(1)} Points</span>
                              </div>
                              <div className="hidden md:block">
-                                Selected: <span className="text-sky-600">{currentConfig.collection}</span> / <span className="text-sky-600">{currentConfig.door_style}</span>
+                                <div className="flex items-center gap-2 px-4 py-1.5 bg-sky-50 rounded-2xl border border-sky-100 shadow-sm">
+                                   <div className="flex items-center gap-1.5">
+                                      <span className="text-[9px] font-black uppercase text-sky-400 tracking-widest">Collection</span>
+                                      <span className="text-xs font-black text-sky-700">{currentConfig.collection}</span>
+                                   </div>
+                                   <div className="w-px h-3 bg-sky-200 mx-2" />
+                                   <div className="flex items-center gap-1.5">
+                                      <span className="text-[9px] font-black uppercase text-sky-400 tracking-widest">Door Style</span>
+                                      <span className="text-xs font-black text-sky-700">{currentConfig.door_style}</span>
+                                   </div>
+                                </div>
                              </div>
                           </div>
 
                           {roomsList.length > 1 && isSelected && (
-                            <div className="flex items-center gap-4 bg-slate-100/50 px-4 py-1.5 rounded-full border border-slate-200">
-                               <Tag className="w-3.5 h-3.5 text-sky-600" />
-                               <Label className="text-[10px] font-black uppercase text-slate-500">Room Discount (%)</Label>
-                               <Input 
-                                 type="number" 
-                                 value={roomDiscounts[roomName] || 0} 
-                                 onChange={(e) => setRoomDiscounts(prev => ({ ...prev, [roomName]: parseFloat(e.target.value) || 0 }))}
-                                 className="w-16 h-7 text-center font-bold bg-white border-none text-xs"
-                               />
+                            <div className="flex items-center gap-3 bg-white px-4 py-1.5 rounded-2xl border border-slate-200 shadow-sm group">
+                               <Tag className="w-3.5 h-3.5 text-sky-500 group-hover:scale-110 transition-transform" />
+                               <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Room Discount (%)</Label>
+                               <div className="relative w-20">
+                                 <Input 
+                                   type="number" 
+                                   value={roomDiscounts[roomName] || ''} 
+                                   placeholder="0"
+                                   className="h-8 pr-6 text-right font-black text-sky-700 bg-slate-50/50 border-slate-200 focus:bg-white transition-all rounded-lg"
+                                   onChange={(e) => setRoomDiscounts(prev => ({ ...prev, [roomName]: parseFloat(e.target.value) || 0 }))}
+                                 />
+                                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-sky-400">%</span>
+                               </div>
                             </div>
                           )}
                        </div>
@@ -1182,11 +1327,11 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                  <TableHead className="text-center text-[10px] uppercase font-bold text-slate-400">QTY</TableHead>
                                  <TableHead className="text-right text-[10px] uppercase font-bold text-slate-400">UNIT PRICE (LIST)</TableHead>
                                  <TableHead className="text-right text-[10px] uppercase font-bold text-slate-400">TOTAL</TableHead>
-                                 {isInstallManufacturer && installRate > 0 && (
-                                   <TableHead className="text-right text-[10px] uppercase font-bold text-orange-500">INSTALL</TableHead>
-                                 )}
-                                 {isInstallManufacturer && includeDelivery && deliverySellRate > 0 && (
-                                   <TableHead className="text-right text-[10px] uppercase font-bold text-blue-500">DELIVERY</TableHead>
+                                 {isInstallManufacturer && (
+                                   <>
+                                     <TableHead className="text-right text-[10px] uppercase font-bold text-slate-400">PTS</TableHead>
+                                     <TableHead className="text-right text-[10px] uppercase font-black text-emerald-600 tracking-tighter">Install ($)</TableHead>
+                                   </>
                                  )}
                                </TableRow>
                              </TableHeader>
@@ -1271,22 +1416,26 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                       <TableCell className="pt-4 text-right font-black font-mono text-slate-900 text-sm">
                                         ${(item.unit_price * item.qty).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                       </TableCell>
-                                      {isInstallManufacturer && installRate > 0 && (() => {
+                                      {isInstallManufacturer && (() => {
                                         const calc = installCalculations.itemCalcs[item.id];
-                                        const installCost = calc ? calc.installUnits * installRate : 0;
+                                        const totalPoints = calc ? calc.installUnits : 0;
+                                        const pointFactor = calc ? calc.factor : 0;
+                                        const dollarVal = Math.round(totalPoints * installRate);
                                         return (
-                                          <TableCell className="pt-4 text-right font-mono text-xs text-orange-600 font-bold">
-                                            {installCost > 0 ? `$${installCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}
-                                          </TableCell>
-                                        );
-                                      })()}
-                                      {isInstallManufacturer && includeDelivery && deliverySellRate > 0 && (() => {
-                                        const calc = installCalculations.itemCalcs[item.id];
-                                        const deliveryCost = calc ? calc.tplUnits * deliverySellRate : 0;
-                                        return (
-                                          <TableCell className="pt-4 text-right font-mono text-xs text-blue-600 font-bold">
-                                            {deliveryCost > 0 ? `$${deliveryCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}
-                                          </TableCell>
+                                          <>
+                                            <TableCell className="pt-4 text-right font-mono text-[11px] text-slate-500 font-bold">
+                                              <input 
+                                                type="number"
+                                                step="0.1"
+                                                className="w-16 text-right font-mono text-[11px] text-slate-500 font-bold bg-transparent border-none outline-none focus:bg-white focus:px-1 focus:rounded-md focus:border focus:border-sky-200 transition-all"
+                                                value={pointFactor > 0 ? pointFactor : 0} 
+                                                onChange={e => handleUpdateItem(idx, { install_points: parseFloat(e.target.value) || 0 })}
+                                              />
+                                            </TableCell>
+                                            <TableCell className="pt-4 text-right font-mono text-[11px] text-emerald-700 font-black">
+                                              {dollarVal > 0 ? `$${dollarVal}` : '—'}
+                                            </TableCell>
+                                          </>
                                         );
                                       })()}
                                     </TableRow>
@@ -1367,10 +1516,10 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                 <p className="text-sm font-bold">{currentConfig.collection} / {currentConfig.door_style}</p>
                             </div>
                             <div className="space-y-1 border-l border-slate-700 pl-8">
-                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Unit Count</p>
+                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Install Points</p>
                                 <p className="text-sm font-bold flex items-center gap-2">
                                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                                  {cabCount} Total Units
+                                  {roomPoints.toFixed(1)} Points
                                 </p>
                             </div>
                             {/* Per-room Install / 3PL summary removed */}
@@ -1798,18 +1947,9 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                <div className="text-xs font-semibold text-[#002060]">$0</div>
                              </div>
                            </div>
-                           {isInstallManufacturer && includeInstall && financials.totalInstallSell > 0 && (
-                             <div className="flex items-center px-16 py-2 bg-orange-50/60 border-t border-orange-100 relative">
-                               <div className="flex-grow text-center text-xs font-bold text-orange-700 uppercase">INSTALLATION CHARGES</div>
-                               <div className="text-xs font-bold text-orange-700">${financials.totalInstallSell.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
-                             </div>
-                           )}
-                           {isInstallManufacturer && includeDelivery && financials.totalDeliverySell > 0 && (
-                             <div className="flex items-center px-16 py-2 bg-blue-50/60 border-t border-blue-100 relative">
-                               <div className="flex-grow text-center text-xs font-bold text-blue-700 uppercase">DELIVERY / 3PL</div>
-                               <div className="text-xs font-bold text-blue-700">${financials.totalDeliverySell.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
-                             </div>
-                           )}
+                           {/* Installation and delivery breakdown — internal view only.
+                               In client PDF these are baked into the TOTAL and not shown separately. */}
+
                            <div className="h-3 bg-[#000040] w-full"></div>
                            <div className="flex items-center px-16 py-2 bg-slate-50 relative">
                              <div className="flex-grow text-center text-xs font-bold text-[#002060] uppercase">TOTAL</div>
@@ -1913,7 +2053,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                              groups[cat].push(item);
                                           });
                                           
-                                          const order = ['Wall Cabinets', 'Base Cabinets', 'Tall Cabinets', 'Vanity Cabinets', 'Universal Fillers', 'Molding & Trim', 'Hardwares', 'Accessories'];
+                                          const order = ['Wall Cabinets', 'Base Cabinets', 'Tall Cabinets', 'Vanity Cabinets', 'Universal Fillers', 'Panels', 'Molding & Trim', 'Hardwares', 'Accessories'];
                                           return order.map(cat => {
                                              const items = groups[cat] || [];
                                              if (items.length === 0) return null;
@@ -1980,7 +2120,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                            {isInstallManufacturer && includeInstall && financials.totalInstallSell > 0 && (
                              <div className="bg-orange-50/60 flex justify-between items-center px-6 py-2 border-b border-orange-100">
                                <span className="text-[10px] font-black text-orange-700 uppercase italic">
-                                 Installation ({installCalculations.totalInstallUnits.toFixed(1)} units × ${installRate})
+                                 Installation ({installCalculations.totalInstallUnits.toFixed(1)} points × ${installRate})
                                </span>
                                <span className="text-[11px] font-black font-mono text-orange-700">
                                  +${financials.totalInstallSell.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -2016,8 +2156,18 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                         <div className="w-full max-w-sm space-y-4">
                           <div className="bg-slate-50 p-6 rounded-lg mb-4 space-y-2 border border-slate-200 text-left">
                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Internal Cost Breakdown</p>
-                            <div className="flex justify-between text-[11px] font-bold uppercase text-slate-500">
-                               <span>Gross List</span>
+                            <div className="flex justify-between text-[11px] font-bold uppercase text-slate-400">
+                               <span>Gross List (Original)</span>
+                               <span className="font-mono">${financials.rawListSubtotal.toFixed(2)}</span>
+                            </div>
+                            {financials.totalRoomDiscount > 0 && (
+                               <div className="flex justify-between text-[11px] font-bold uppercase text-red-500">
+                                  <span>Room Discounts</span>
+                                  <span className="font-mono">-${financials.totalRoomDiscount.toFixed(2)}</span>
+                               </div>
+                            )}
+                            <div className="flex justify-between text-[11px] font-black uppercase text-slate-700 border-t border-slate-100 pt-1 pb-2">
+                               <span>Net List Subtotal</span>
                                <span className="font-mono">${financials.listSubtotal.toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between text-[11px] font-bold uppercase text-sky-600">
@@ -2167,7 +2317,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                     {includeInstall && (
                       <div className="p-3 bg-orange-50/60 rounded-xl border border-orange-100 space-y-3">
                         <p className="text-[9px] text-slate-400 font-semibold">
-                          Total value: {installCalculations.totalInstallUnits.toFixed(1)} units
+                          Total value: {installCalculations.totalInstallUnits.toFixed(1)} points
                         </p>
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
@@ -2267,19 +2417,28 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                 )}
 
                 <div className="pt-6 border-t border-slate-100 space-y-4">
-                   <div className="space-y-2">
-                       <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Room Sale Summary</p>
-                       {selectedRooms.map(room => {
-                           const rSub = bom.filter(i => i.room === room && i.is_billable).reduce((sum, item) => sum + (item.unit_price * item.qty), 0);
-                           const rFinal = rSub * (1 - (roomDiscounts[room] || 0) / 100) * (financials.scalingFactor || 0);
-                           return (
-                               <div key={room} className="flex justify-between items-center text-[10px] font-bold text-slate-500">
-                                   <span className="truncate max-w-[140px]">{room}</span>
-                                   <span className="font-mono text-slate-900">${rFinal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                               </div>
-                           );
-                       })}
-                   </div>
+                    <div className="space-y-3">
+                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">Room Sale Summary</p>
+                        {selectedRooms.map(room => {
+                            const rSub = bom.filter(i => i.room === room && i.is_billable).reduce((sum, item) => sum + (item.unit_price * item.qty), 0);
+                            const discount = roomDiscounts[room] || 0;
+                            const rFinal = rSub * (1 - discount / 100) * (financials.scalingFactor || 0);
+                            return (
+                                <div key={room} className="flex flex-col gap-0.5 border-b border-slate-50 pb-2 mb-2 last:border-0">
+                                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-600">
+                                        <span className="truncate max-w-[140px] uppercase tracking-tighter">{room}</span>
+                                        <span className="font-mono text-slate-900">${rFinal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </div>
+                                    {discount > 0 && (
+                                        <div className="flex justify-between text-[8px] font-black text-red-500 uppercase tracking-widest pl-2">
+                                            <span>{discount}% Room Discount</span>
+                                            <span>- ${(rSub * (discount / 100) * (financials.scalingFactor || 1)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
 
                    <div className="pt-4 border-t border-slate-50 flex justify-between text-xs">
                       <span className="text-slate-400 font-bold uppercase tracking-widest">Net Value</span>

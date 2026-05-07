@@ -12,88 +12,102 @@ export const MANUFACTURER_CONFIG: Record<string, {
   "Wellborn": {
     collections: [
       {
-        name: "Wood Door Collection",
+        name: "ELITE CHERRY / ELITE DURAFORM (TEXTURED)",
         styles: [
-          "Amelia", "Antigua", "Beaumont", "Bedford Square", "Chelsea II",
-          "Collins", "Davenport Square", "Florence", "Galena Square", "Hanover",
-          "Henlow Square", "Lexington", "Melrose", "Milan", "Millbrook Square",
-          "Monterey", "Muriel", "Napa", "New Haven", "Prairie", "Preston",
-          "Ridgebrook", "Savannah", "Seville Square", "Sonoma", "Urban", "Wyatt"
+          "CANYON CHERRY", "CANYON MAPLE", "CANYON DFO CHERRY", "CANYON DFO DURAFORM (TEXTURED)",
+          "CANYON DFO MAPLE", "DURANGO CHERRY", "DURANGO MAPLE", "ELDERIDGE CHERRY", "ELDERIDGE MAPLE"
         ]
       },
       {
-        name: "MDF Door Collection",
+        name: "PREMIUM CHERRY / PREMIUM DURAFORM (TEXTURED) / ELITE MAPLE / ELITE PAINTED",
         styles: [
-          "Arcadia", "Bel-Air", "Alto", "Hancock", "Preston", "Urban", "Amelia",
-          "Bedford Square", "Belmont", "Bishop", "Camden Square", "Florence",
-          "Galena Square", "Hartford", "Millbrook Square", "Muriel", "Prairie",
-          "Saybrook", "Trestle", "Davenport Square", "Harbour", "Henlow Square",
-          "Lexington", "Milan", "New Haven", "Sandia", "Seville Square", "Hanover",
-          "Napa", "Sonoma", "Morristown", "Antigua", "Beaumont", "Breckenridge",
-          "Chelsea II", "Collins", "Marlow", "Melrose", "Midtown", "Monterey",
-          "Ridgebrook", "Soho", "Wyatt", "Savannah"
+          "ABILENE CHERRY", "ABILENE MAPLE", "ABILENE DFO CHERRY", "ABILENE DFO MAPLE",
+          "BELCOURT CHERRY", "BELCOURT MAPLE", "BELCOURT DFO CHERRY", "BELCOURT DFO MAPLE",
+          "CLAYTON CHERRY", "CLAYTON MAPLE", "CLAYTON DFO CHERRY", "CLAYTON DFO MAPLE",
+          "LUBBOCK CHERRY", "LUBBOCK DURAFORM (NON-TEXTURED)", "LUBBOCK MAPLE",
+          "OXRIDGE MAPLE", "OXRIDGE DFO MAPLE"
         ]
       },
       {
-        name: "Regal Door Collection",
+        name: "PRIME CHERRY / PREMIUM MAPLE / PREMIUM PAINTED / PREMIUM DURAFORM (NON-TEXTURED)",
         styles: [
-          "Arcadia", "Bel-Air", "Alto", "Hancock", "Preston", "Urban", "Amelia",
-          "Bedford Square", "Belmont", "Bishop", "Camden Square", "Florence",
-          "Galena Square", "Hartford", "Millbrook Square", "Muriel", "Prairie",
-          "Saybrook", "Trestle", "Davenport Square", "Harbour", "Henlow Square",
-          "Lexington", "Milan", "New Haven", "Sandia", "Seville Square", "Hanover",
-          "Napa", "Sonoma", "Morristown", "Antigua", "Beaumont", "Breckenridge",
-          "Chelsea II", "Collins", "Marlow", "Melrose", "Midtown", "Monterey",
-          "Ridgebrook", "Soho", "Wyatt", "Savannah"
+          "ABILENE CHERRY", "ABILENE MAPLE", "ABILENE PAINTED", "ABILENE DFO CHERRY", "ABILENE DFO MAPLE",
+          "ABILENE DFO PAINTED", "BELCOURT MAPLE", "BELCOURT PAINTED", "BELCOURT DFO MAPLE",
+          "BELCOURT DFO PAINTED", "CLAYTON MAPLE", "CLAYTON PAINTED", "CLAYTON DFO MAPLE",
+          "CLAYTON DFO PAINTED", "DENVER CHERRY", "DENVER MAPLE", "DENVER DFO CHERRY",
+          "DENVER DFO MAPLE", "LUBBOCK DURAFORM (NON-TEXTURED)", "LUBBOCK MAPLE",
+          "LUBBOCK PAINTED", "OXRIDGE MAPLE", "OXRIDGE PAINTED", "OXRIDGE DFO MAPLE",
+          "OXRIDGE DFO PAINTED"
         ]
       },
       {
-        name: "Brilliant Door Collection",
+        name: "PRIME MAPLE / PRIME PAINTED / PRIME DURAFORM",
         styles: [
-          "Arcadia", "Bel-Air", "Alto", "Hancock", "Preston", "Urban", "Amelia",
-          "Bedford Square", "Belmont", "Bishop", "Camden Square", "Florence",
-          "Galena Square", "Hartford", "Millbrook Square", "Muriel", "Prairie",
-          "Saybrook", "Trestle", "Davenport Square", "Harbour", "Henlow Square",
-          "Lexington", "Milan", "New Haven", "Sandia", "Seville Square", "Hanover",
-          "Napa", "Sonoma", "Morristown", "Antigua", "Beaumont", "Breckenridge",
-          "Chelsea II", "Collins", "Marlow", "Melrose", "Midtown", "Monterey",
-          "Ridgebrook", "Soho", "Wyatt", "Savannah"
+          "BANDERA MAPLE", "BANDERA DFO MAPLE", "COOPER MAPLE", "COOPER DFO MAPLE",
+          "DENVER CHERRY", "DENVER MAPLE", "DENVER DFO CHERRY", "DENVER DFO MAPLE"
         ]
+      },
+      {
+        name: "CHOICE DURAFORM / CHOICE MAPLE / CHOICE PAINTED",
+        styles: [
+          "BARREN MAPLE", "BARREN DURAFORM", "BARREN PAINTED", "CARSON DURAFORM",
+          "CARSON PAINTED", "CARSON DFO DURAFORM", "CARSON DFO PAINTED"
+        ]
+      },
+      {
+        name: "BASE",
+        styles: ["BOERNE HARDWOOD"]
       }
     ]
   },
   "1951 Cabinetry": {
     collections: [
       {
-        name: "Elite Cherry",
+        name: "ELITE CHERRY / ELITE DURAFORM (TEXTURED)",
         styles: [
-          "Canyon Cherry",
-          "Abilene Cherry",
-          "Lubbock Cherry"
+          "CANYON CHERRY", "CANYON MAPLE", "CANYON DFO CHERRY", "CANYON DFO DURAFORM (TEXTURED)",
+          "CANYON DFO MAPLE", "DURANGO CHERRY", "DURANGO MAPLE", "ELDERIDGE CHERRY", "ELDERIDGE MAPLE"
         ]
       },
       {
-        name: "Premium Maple",
+        name: "PREMIUM CHERRY / PREMIUM DURAFORM (TEXTURED) / ELITE MAPLE / ELITE PAINTED",
         styles: [
-          "Bandera Maple",
-          "Denver Maple",
-          "Cooper Maple"
+          "ABILENE CHERRY", "ABILENE MAPLE", "ABILENE DFO CHERRY", "ABILENE DFO MAPLE",
+          "BELCOURT CHERRY", "BELCOURT MAPLE", "BELCOURT DFO CHERRY", "BELCOURT DFO MAPLE",
+          "CLAYTON CHERRY", "CLAYTON MAPLE", "CLAYTON DFO CHERRY", "CLAYTON DFO MAPLE",
+          "LUBBOCK CHERRY", "LUBBOCK DURAFORM (NON-TEXTURED)", "LUBBOCK MAPLE",
+          "OXRIDGE MAPLE", "OXRIDGE DFO MAPLE"
         ]
       },
       {
-        name: "Prime Painted",
+        name: "PRIME CHERRY / PREMIUM MAPLE / PREMIUM PAINTED / PREMIUM DURAFORM (NON-TEXTURED)",
         styles: [
-          "Oxford White",
-          "Alpine White",
-          "Snowbound"
+          "ABILENE CHERRY", "ABILENE MAPLE", "ABILENE PAINTED", "ABILENE DFO CHERRY", "ABILENE DFO MAPLE",
+          "ABILENE DFO PAINTED", "BELCOURT MAPLE", "BELCOURT PAINTED", "BELCOURT DFO MAPLE",
+          "BELCOURT DFO PAINTED", "CLAYTON MAPLE", "CLAYTON PAINTED", "CLAYTON DFO MAPLE",
+          "CLAYTON DFO PAINTED", "DENVER CHERRY", "DENVER MAPLE", "DENVER DFO CHERRY",
+          "DENVER DFO MAPLE", "LUBBOCK DURAFORM (NON-TEXTURED)", "LUBBOCK MAPLE",
+          "LUBBOCK PAINTED", "OXRIDGE MAPLE", "OXRIDGE PAINTED", "OXRIDGE DFO MAPLE",
+          "OXRIDGE DFO PAINTED"
         ]
       },
       {
-        name: "Choice Durafrom",
+        name: "PRIME MAPLE / PRIME PAINTED / PRIME DURAFORM",
         styles: [
-          "Choice Maple",
-          "Choice Paint"
+          "BANDERA MAPLE", "BANDERA DFO MAPLE", "COOPER MAPLE", "COOPER DFO MAPLE",
+          "DENVER CHERRY", "DENVER MAPLE", "DENVER DFO CHERRY", "DENVER DFO MAPLE"
         ]
+      },
+      {
+        name: "CHOICE DURAFORM / CHOICE MAPLE / CHOICE PAINTED",
+        styles: [
+          "BARREN MAPLE", "BARREN DURAFORM", "BARREN PAINTED", "CARSON DURAFORM",
+          "CARSON PAINTED", "CARSON DFO DURAFORM", "CARSON DFO PAINTED"
+        ]
+      },
+      {
+        name: "BASE",
+        styles: ["BOERNE HARDWOOD"]
       }
     ]
   }

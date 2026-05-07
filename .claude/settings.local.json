@@ -6,7 +6,8 @@
       "Bash(npx tsc *)",
       "Bash(grep -n \"^=======$\" \"c:/KABS completed project files/KABS-Quotation-AI-full-main/frontend/src/app/quotation-ai/bom/[id]/bom-manager-client.tsx\")",
       "Bash(python -c \"from app.api.pricing import _quick_description, _quick_match_explanation, _quick_cabinet_type; print\\(_quick_description\\('W3042BUTT','Kitchen','EXACT_SPEC_BRIDGED'\\)\\); print\\('---'\\); print\\(_quick_match_explanation\\('W3042BUTT','W3042BD','EXACT_SPEC_BRIDGED'\\)\\)\")",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

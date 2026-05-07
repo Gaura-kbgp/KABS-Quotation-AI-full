@@ -71,18 +71,22 @@ export function detectCategory(sku: string): string {
   }
 
   // 0. SPECIFIC ACCESSORIES (Priority)
-  const accessoryKeywords = ['TOUCHUP', 'KIT', 'SPRAY', 'GLUE', 'FILL', 'DISH-IQ', 'DWR3', 'RANGE', 'HOOD', 'DOORS', 'DRAWERS', 'SHELF', 'BACK-B', 'WTEP'];
+  const accessoryKeywords = ['TOUCHUP', 'KIT', 'SPRAY', 'GLUE', 'FILL', 'DISH-IQ', 'DWR3', 'RANGE', 'HOOD', 'DOORS', 'DRAWERS', 'SHELF', 'BACK-B'];
   if (accessoryKeywords.some(k => s.includes(k))) return 'Accessories';
 
-  // 1. Universal Fillers
-  if (s.startsWith('UF') || s.startsWith('F')) return 'Universal Fillers';
+  // 1. Universal Fillers (Highest priority for these prefixes)
+  if (s.startsWith('UF') || s.startsWith('WF') || s.startsWith('BF') || s.startsWith('TF') || s.startsWith('VF')) return 'Universal Fillers';
+
+  // 1b. Panels (End Panels, Back Panels, etc.)
+  // Specifically catch WTEP (Wall Tall End Panel) before Wall Cabinet check
+  if (anyPrefix(s, ['EP', 'BEP', 'WEP', 'WTEP', 'REP', 'DEP', 'FEP', 'PNL', 'FBP'])) return 'Panels';
 
   // 2. Wall Cabinets
   if (s.startsWith('W')) return 'Wall Cabinets';
 
   // 3. Molding & Trim — MUST be before Base Cabinets: BTK/TK start with 'B'/'T' and would
   //    otherwise match cabinet checks. 'M' prefix is guarded against MICRO (tall cabinet).
-  if (anyPrefix(s, ['BTK', 'TK', 'CM', 'RR', 'OCM', 'SCM', 'SHM', 'SM'])) return 'Molding & Trim';
+  if (anyPrefix(s, ['BTK', 'TK', 'CM', 'RR', 'OCM', 'SCM', 'SHM', 'SM', 'QM'])) return 'Molding & Trim';
   if (s.startsWith('M') && !s.startsWith('MICRO')) return 'Molding & Trim';
 
   // 4. Base Cabinets (Standard & Sink)

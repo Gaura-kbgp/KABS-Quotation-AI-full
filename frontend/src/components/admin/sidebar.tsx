@@ -12,14 +12,16 @@ import {
   ChevronRight,
   LogOut,
   Brain,
+  Wrench,
 } from 'lucide-react';
 import { logout } from '@/app/admin/actions';
 
 const menuItems = [
-  { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
-  { name: 'Manufacturers', icon: Factory, href: '/admin/manufacturers' },
-  { name: 'NKBA Rules', icon: BookOpen, href: '/admin/nkba' },
-  { name: 'AI Training', icon: Brain, href: '/admin/training' },
+  { name: 'Dashboard',          icon: LayoutDashboard, href: '/admin/dashboard' },
+  { name: 'Manufacturers',      icon: Factory,         href: '/admin/manufacturers' },
+  { name: 'Labor & Charges',    icon: Wrench,          href: '/admin/labor' },
+  { name: 'NKBA Rules',         icon: BookOpen,        href: '/admin/nkba' },
+  { name: 'AI Training',        icon: Brain,           href: '/admin/training' },
 ];
 
 export function AdminSidebar() {

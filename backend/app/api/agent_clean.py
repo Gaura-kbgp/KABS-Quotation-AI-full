@@ -1,5 +1,5 @@
 """
-KABS AI Agent — Cabinet Intelligence Engine
+KABS AI Agent  Cabinet Intelligence Engine
 Handles: manufacturer detection, manufacturer research, training document processing,
          and smart cabinet code understanding for BOM descriptions.
 """
@@ -19,7 +19,7 @@ load_dotenv()
 
 router = APIRouter()
 
-# ─── NVIDIA Helper (OpenAI Compatible) ──────────────────────────────────────
+#  NVIDIA Helper (OpenAI Compatible) 
 
 async def _ai_generate(prompt: str, tier: str = "flash", max_tokens: int = 4096) -> str:
     """Call NVIDIA NIM API with strict JSON enforcement."""
@@ -40,31 +40,20 @@ async def _ai_generate(prompt: str, tier: str = "flash", max_tokens: int = 4096)
         raise
 
 def _parse_json_response(text: str) -> dict:
-    """Robustly parse JSON from AI response, with truncation recovery and cleanup."""
+    """Robustly parse JSON from AI response, with truncation recovery."""
     if not text:
         return {}
     
-    # Pre-cleanup: remove potential markdown artifacts if they wrap the entire thing
-    text = text.strip()
-    if text.startswith('```json'):
-        text = re.sub(r'^```json\s*', '', text)
-        text = re.sub(r'\s*```$', '', text)
-    elif text.startswith('```'):
-        text = re.sub(r'^```\s*', '', text)
-        text = re.sub(r'\s*```$', '', text)
-    
     def try_parse(s: str):
         try:
-            # Try cleaning common AI hallucinations
-            s = s.replace('None', 'null').replace('True', 'true').replace('False', 'false')
             return json.loads(s)
         except:
             return None
     
-    # 1. Try finding JSON within markdown code blocks (again, in case of multiple blocks)
-    blocks = re.findall(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
-    for b in blocks:
-        result = try_parse(b)
+    # 1. Try finding JSON within markdown code blocks
+    m = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
+    if m:
+        result = try_parse(m.group(1))
         if result is not None:
             return result
             
@@ -76,11 +65,11 @@ def _parse_json_response(text: str) -> dict:
             return result
             
     # 3. Direct parse
-    result = try_parse(text)
+    result = try_parse(text.strip())
     if result is not None:
         return result
 
-    # 4. From first { to end — handles truncated responses (e.g. cut off by max_tokens)
+    # 4. From first { to end  handles truncated responses (e.g. cut off by max_tokens)
     start = text.find('{')
     if start != -1:
         candidate = text[start:]
@@ -89,14 +78,9 @@ def _parse_json_response(text: str) -> dict:
             return result
         
         # 5. JSON REPAIR: count unclosed braces/brackets and close them
-        # Also strip trailing commas which are common in truncated AI responses
-        repaired = candidate.rstrip()
-        while repaired and repaired[-1] in (',', ' ', '\n', '\r', '\t'):
-            repaired = repaired[:-1]
-            
-        open_braces = repaired.count('{') - repaired.count('}')
-        open_brackets = repaired.count('[') - repaired.count(']')
-        
+        open_braces = candidate.count('{') - candidate.count('}')
+        open_brackets = candidate.count('[') - candidate.count(']')
+        repaired = candidate.rstrip().rstrip(',')
         repaired += ']' * max(0, open_brackets)
         repaired += '}' * max(0, open_braces)
         
@@ -105,20 +89,11 @@ def _parse_json_response(text: str) -> dict:
             print(f"[agent] Repaired truncated JSON (was {len(text)} chars). Recovered successfully.")
             return result
             
-    # 6. EMERGENCY FALLBACK: If it's a huge response but failing, maybe it's just missing the root brackets?
-    if len(text) > 500 and '"rooms"' in text and not text.strip().startswith('{'):
-        candidate = "{" + text + "}"
-        result = try_parse(candidate)
-        if result is not None:
-            return result
-
     print(f"[agent] Failed to parse AI JSON response. Length: {len(text)}")
-    # Log the first 500 chars to help debugging
-    print(f"[agent] Start of failing response: {text[:500]}...")
     return {}
 
 
-# ─── NKBA Cabinet Code Knowledge Base ───────────────────────────────────────
+#  NKBA Cabinet Code Knowledge Base 
 
 NKBA_KNOWLEDGE = """
 NKBA CABINET CODE STANDARDS (National Kitchen & Bath Association):
@@ -210,11 +185,8 @@ MANUFACTURER PDF TYPES & FORMATS:
 
 SPECIAL EXTRACTION RULES:
 - BACK-B48 or B48 labeled as "(VENT BOX)" in the Opt Vent Chase Material section must NEVER be classified as a Base Cabinet.
-- Appliances (RANGE, DISH, MW.HOOD, REF) go under "Accessories" or "Perimeter".
+- Appliances (RANGE, DISH, MW.HOOD, REF) go under "Accessories".
 - Count -L and -R variants as separate line items.
-- Universal Fillers (UF) found in the ISLAND section must be categorized as 'island' items, not general cabinets.
-- Hardware keywords like DOORS, DRAWERS, HINGES, PULLS must be extracted as valid items when found in hardware sections, preserving their quantities (e.g., "24 DOORS").
-- Scribe (SM8) and Toe Kick (BTK8) must be accurately categorized based on their section (Perimeter vs Island).
 - Flag any unknown or malformed codes.
 """
 
@@ -361,7 +333,7 @@ Return ONLY valid JSON:
 """
 
 
-# ─── Endpoint: Detect Manufacturer ──────────────────────────────────────────
+#  Endpoint: Detect Manufacturer 
 
 @router.post("/agent/detect-manufacturer")
 async def detect_manufacturer(payload: dict):
@@ -410,7 +382,7 @@ async def detect_manufacturer(payload: dict):
         return {"success": False, "error": str(e), "detected_manufacturer": "Unknown", "confidence": 0}
 
 
-# ─── Endpoint: Research Manufacturer ────────────────────────────────────────
+#  Endpoint: Research Manufacturer 
 
 @router.post("/agent/research-manufacturer")
 async def research_manufacturer(payload: dict):
@@ -464,7 +436,7 @@ async def research_manufacturer(payload: dict):
         return {"success": False, "error": str(e), "research": {}}
 
 
-# ─── Endpoint: Generate Cabinet Descriptions for BOM ────────────────────────
+#  Endpoint: Generate Cabinet Descriptions for BOM 
 
 @router.post("/agent/generate-bom-descriptions")
 async def generate_bom_descriptions(payload: dict):
@@ -575,7 +547,7 @@ Example: [{{"description": "...", "cabinet_type": "...", "match_explanation": ".
         return {"success": False, "error": str(e)}
 
 
-# ─── Helper: Training Logic ──────────────────────────────────────────────────
+#  Helper: Training Logic 
 
 async def _perform_training(
     file_content: bytes,
@@ -604,7 +576,7 @@ async def _perform_training(
         )
         file_url = supabase.storage.from_("training-docs").get_public_url(storage_path)
 
-    # ── Step 1: Smart Python extraction ──
+    #  Step 1: Smart Python extraction 
     structured_summary = ""
     pre_parsed_records = []
 
@@ -647,7 +619,7 @@ async def _perform_training(
     if not structured_summary:
         structured_summary = _extract_text_from_bytes(file_content, file_ext)[:6000]
 
-    # ── Step 2: AI Knowledge Extraction ──
+    #  Step 2: AI Knowledge Extraction 
     extracted_knowledge = {}
     if structured_summary.strip():
         prompt = TRAINING_EXTRACT_PROMPT.format(
@@ -661,7 +633,7 @@ async def _perform_training(
 
     extracted_knowledge["_pre_parsed_records"] = len(pre_parsed_records)
 
-    # ── Step 3: Save to DB ──
+    #  Step 3: Save to DB 
     insert_data = {
         "name": doc_name,
         "description": description,
@@ -687,7 +659,7 @@ async def _perform_training(
     }
 
 
-# ─── Endpoint: Process Training Document (Upload) ───────────────────────────
+#  Endpoint: Process Training Document (Upload) 
 
 @router.post("/agent/process-training-doc")
 async def process_training_doc(
@@ -844,7 +816,7 @@ async def get_available_manufacturer_files():
         return {"success": False, "error": str(e)}
 
 
-# ─── Endpoint: List Training Documents ──────────────────────────────────────
+#  Endpoint: List Training Documents 
 
 @router.get("/agent/training-docs")
 async def list_training_docs():
@@ -861,14 +833,14 @@ async def list_training_docs():
         return {"success": False, "error": str(e), "documents": []}
 
 
-# ─── Endpoint: FULL DOCUMENT Analysis (Single AI Call) ─────────────────────
+#  Endpoint: FULL DOCUMENT Analysis (Single AI Call) 
 
 @router.post("/agent/analyze-drawing-full")
 async def analyze_drawing_full(payload: dict):
     """
     STEP-WISE FAST ANALYSIS - Processes the entire PDF in one shot:
     STEP 1: PyMuPDF extracts text from ALL pages (< 1 second, no AI needed).
-    STEP 2: One single AI call with all extracted text → returns all rooms.
+    STEP 2: One single AI call with all extracted text  returns all rooms.
     10x faster than per-page approach.
     """
     try:
@@ -908,8 +880,8 @@ async def analyze_drawing_full(payload: dict):
         print(f"[full-scan] STEP 2: Running single AI pass on full document...")
         
         # Trim to fit context window (keep page structure)
-        combined_text = python_data["raw_text"][:18000]
-        all_codes = python_data["potential_codes"][:150]
+        combined_text = python_data["raw_text"][:20000]
+        all_codes = python_data["potential_codes"][:300]
         
         prompt = f"""You are a cabinet extraction AI for home layout PDFs.
 Your job is to extract cabinet codes and quantities with 100% accuracy from EVERY room variant.
@@ -920,153 +892,104 @@ FULL BLUEPRINT TEXT (all pages):
 ALL SKU CODES PRE-EXTRACTED BY PYTHON:
 {", ".join(all_codes)}
 
-═══════════════════════════════════════════════════════
+
 PHASE 1: IDENTIFY PDF TYPE FIRST
-═══════════════════════════════════════════════════════
+
 Before extracting, identify which PDF type this is:
-  A) ELITE_STANDARD  → Has Trim List page, codes like W3042BUTT, BACK-B48, WTEP84
-  B) DRH_EXPRESS     → Has -L/-R suffixes, TOEKICK8, MSW8, MQR8, F331/F342
-  C) WELLBORN_BINDER → 3D visual only, no codes present (return names + flag)
-  D) CUSTOM_MARQUIS  → Codes with -2B/-3 suffixes, FREPU, parts list on floor plan
+  A) ELITE_STANDARD   Has Trim List page, codes like W3042BUTT, BACK-B48, WTEP84
+  B) DRH_EXPRESS      Has -L/-R suffixes, TOEKICK8, MSW8, MQR8, F331/F342
+  C) WELLBORN_BINDER  3D visual only, no codes present (return names + flag)
+  D) CUSTOM_MARQUIS   Codes with -2B/-3 suffixes, FREPU, parts list on floor plan
 
-═══════════════════════════════════════════════════════
+
 PHASE 2: SECTION RULES (enforce these strictly)
-═══════════════════════════════════════════════════════
+
 Map each extracted item to the correct section bucket:
-  - PERIMETER section → "cabinets", "perimeter", "hardware", "bump", "opt_crown"
-  - ISLAND section    → "island", "island_hardware", "island_bump" (NEVER merge with PERIMETER)
-  - OPT VENT CHASE    → "vent_chase_material" ONLY
-  - OPT CROWN section → "opt_crown" ONLY
-  - OPT LIGHT RAIL    → "opt_light_rail" ONLY (separate from Perimeter Specs)
-  - BUMP/BOXING       → "bump" ONLY
+  - PERIMETER section  "cabinets", "perimeter", "hardware", "bump", "opt_crown"
+  - ISLAND section     "island", "island_hardware", "island_bump" (NEVER merge with PERIMETER)
+  - OPT VENT CHASE     "vent_chase_material" ONLY
+  - OPT CROWN section  "opt_crown" ONLY
+  - OPT LIGHT RAIL     "opt_light_rail" ONLY (separate from Perimeter Specs)
+  - BUMP/BOXING        "bump" ONLY
 
-CRITICAL — NEVER combine PERIMETER + ISLAND quantities of the same code.
-Example: SM8 in PERIMETER qty=5 AND SM8 in ISLAND qty=1 → two SEPARATE entries.
+CRITICAL  NEVER combine PERIMETER + ISLAND quantities of the same code.
+Example: SM8 in PERIMETER qty=5 AND SM8 in ISLAND qty=1  two SEPARATE entries.
 
-═══════════════════════════════════════════════════════
+
 PHASE 3: CRITICAL COMPLETENESS RULES
-═══════════════════════════════════════════════════════
 
-RULE A — NEVER LEAVE SECTIONS BLANK
+
+RULE A  NEVER LEAVE SECTIONS BLANK
 Every room variant MUST have ALL sections extracted.
-Never leave Perimeter Specs, Island Specs, Hardware, or Vent Chase blank
-just because the room appears simple or the trim list did not repeat it.
+Never leave Perimeter Specs, Island Specs, Hardware, or Vent Chase blank.
+If a section is missing from the AI extraction, it is a failure.
 
-RULE B — SAME TRIM LIST COVERS ALL VARIANTS
+RULE B  SAME TRIM LIST COVERS ALL VARIANTS
 In Elite Standard PDFs the Trim List on page 2 covers BOTH Standard and
-Optional kitchen variants. Apply those trim quantities to EACH variant
-unless the trim list explicitly shows different quantities per variant.
-  Standard Kitchen → full extraction including all trim ✅
-  OPT Gourmet Kitchen → SAME full extraction, not cabinets-only ✅
+Optional kitchen variants. Apply those trim quantities to EACH variant.
+  Standard Kitchen  full extraction including all trim 
+  OPT Gourmet Kitchen  SAME full extraction, not cabinets-only 
 
-RULE C — EVERY KITCHEN VARIANT NEEDS ALL SECTIONS
+RULE C  EVERY KITCHEN VARIANT NEEDS ALL SECTIONS
 When the PDF contains Standard Kitchen AND OPT Gourmet Kitchen AND
-OPT Extended Kitchen etc., EACH is a completely separate room entry with:
-  cabinets, perimeter, island, hardware, island_hardware,
-  bump, island_bump, opt_crown, opt_light_rail, vent_chase_material
+OPT Extended Kitchen etc., EACH is a completely separate room entry.
 
-RULE D — EVERY BATH NEEDS ALL SECTIONS
+RULE D  EVERY BATH NEEDS ALL SECTIONS (BTK8, SM8, SHM8)
 Even small or simple bathrooms must have:
-  Vanity Cabinets, Universal Fillers, Perimeter Specs (BTK8, SM8),
-  Hardware (SHM8), Opt Crown if present.
-  Never leave bath Perimeter Specs or Hardware blank.
+  - cabinets: Vanity (VSB*), Universal Fillers (UF*)
+  - perimeter: BTK8, SM8 (ALWAYS include these if in the trim list)
+  - hardware: SHM8, OCM8BLD
+Never leave OWNERS BATH or BATH 3 perimeter/hardware blank.
 
-RULE E — SB36BUTT QUANTITY HARD RULE
-SB36BUTT is a sink base cabinet. One kitchen has ONE sink. Therefore:
-  SB36BUTT quantity is ALWAYS 1 in ANY kitchen layout.
-  This applies to Standard, Gourmet, Extended, and ALL other variants.
-  If your extraction produces SB36BUTT qty=2 → you have made an error.
-  Correct it to qty=1 immediately. No exceptions.
+RULE E  ISLAND FILLERS (UF3, UF642)
+If the PDF shows UF3 or UF642 in the "ISLAND" section (e.g. Page 2),
+extract them into the "cabinets" array for that kitchen variant.
+Do NOT skip island fillers.
 
-RULE E2 — BATH 2 TRIM PATTERN IS IDENTICAL TO BATH 3
-Bath 2 (STD BATH 2) must ALWAYS contain:
-  perimeter: BTK8 qty=1, SM8 qty=1
-  hardware:  SHM8 qty=1, OCM8BLD qty=1
-These values come from the bath trim list section. If Bath 3 has these items,
-Bath 2 must have the exact same items. Never leave Bath 2 perimeter or hardware blank.
-
-RULE F — LAUNDRY OPT LIGHT RAIL IS A SEPARATE SECTION
-Laundry can have BOTH Perimeter Specs and Opt Light Rail sections.
-NEVER combine their quantities. Store as two separate arrays:
-  perimeter: [SM8=1, FL24=1]
-  opt_light_rail: [SM8=1, FL24=1, BTK8=1]
-
-RULE G — VENT CHASE MUST ALWAYS BE EXTRACTED
-When a Vent Chase section exists, extract ALL 5 items:
-  B48 or BACK-B48 (vent box), WTEP84, SM8, OCM8BLD, QM8
-  These are SEPARATE from Perimeter SM8 and Bump OCM8BLD.
-
-RULE H — OCM8BLD APPEARS IN MULTIPLE SECTIONS
-OCM8BLD can be in Bump/Boxing AND OPT CROWN AND Vent Chase.
-Each appearance = its own entry in the correct array. NEVER merge them.
-
-RULE I — ISLAND SPECS ARE ALWAYS SEPARATE
-Island BTK8 ≠ Perimeter BTK8. Island SM8 ≠ Perimeter SM8.
-UF3 and UF642 found in island section → "island" array (match the PDF section layout).
-BTK8 and SM8 found in island section → "island" array (they are island accessories).
-DOORS and DRAWERS found in island hardware section → "island_hardware" array.
-
-═══════════════════════════════════════════════════════
-PHASE 4: ROOM COMPLETION CHECKLISTS
-═══════════════════════════════════════════════════════
-
-KITCHEN (any variant — Standard, Gourmet, Extended, etc.):
-  ✅ cabinets: Wall (W*), Base (B*/SB*), Tall (T*/P*/O*/OVD*), Fillers (UF*)
-  ✅ perimeter: BTK8, SM8, FL48
-  ✅ island: BTK8, SM8 (island section)
-  ✅ hardware: DWR3 (if dishwasher present), SHM8, OCM8BLD
-  ✅ island_hardware: DOORS count, DRAWERS count
-  ✅ bump: SHM8, OCM8BLD (bump/boxing section)
-  ✅ vent_chase_material: B48/BACK-B48, WTEP84, SM8, OCM8BLD, QM8
-  ✅ opt_crown: OCM8BLD, QM8 (crown section if present)
-
-BATHROOM:
-  ✅ cabinets: VSB* vanity, UF* fillers
-  ✅ perimeter: BTK8, SM8
-  ✅ hardware: SHM8, OCM8BLD if present
-  ✅ opt_crown: if present
-
-LAUNDRY:
-  ✅ cabinets: W* uppers, B* bases, UF* fillers
-  ✅ perimeter: SM8, FL24, BTK8
-  ✅ hardware: SHM8
-  ✅ opt_light_rail: SM8, FL24, BTK8 (if opt light rail section exists — separate from perimeter)
-
-═══════════════════════════════════════════════════════
+RULE F  HARDWARE COUNTS (DOORS, DRAWERS)
+Extract "DOORS" and "DRAWERS" counts from the Hardware sections.
+  Example: "Perimeter: 24 Doors / 5 Drawers"  hardware: [{{"code": "DOORS", "qty": 24}}, {{"code": "DRAWERS", "qty": 5}}]
+  Example: "Island: 3 Doors / 1 Drawer"  island
 PHASE 5: CODE RULES
-═══════════════════════════════════════════════════════
-1. ROOM NAMES — canonical forms:
-   - "STANDARD 42 KITCHEN", "STD 42 KITCHEN" → "STANDARD 42 KITCHEN"
-   - "OPT GOURMET KITCHEN" → "OPT GOURMET KITCHEN" (separate entry, never merged)
-   - Any LAUNDRY variant → "OPT LAUNDRY"
-   - "STANDARD BATH 3 UPSTAIRS" → "BATH 3"
-   - "STANDARD OWNERS BATH" → "OWNERS BATH"
+
+1. ROOM NAMES  canonical: "STANDARD 42 KITCHEN", "OPT GOURMET KITCHEN", "OWNERS BATH", "BATH 3", "OPT LAUNDRY".
+2. STRIP QTY PREFIXES  "1-BTK8"  code="BTK8" qty=1. "24 DOORS"  code="DOORS" qty=24.
+3. CATEGORIZATION:
+    "cabinets"             W, B, SB, T, P, O, UF, F
+    "perimeter"            BTK, SM, FL, TOUCHUP, RANGE, DISH, MW.HOOD
+    "island"               BTK, SM from island section
+    "hardware"             DOORS, DRAWERS (perimeter), SHM8, OCM8BLD, DWR3
+    "island_hardware"      DOORS, DRAWERS from island section
+    "opt_crown"            CROWN, HWC, OCM8BLD, QM8 from crown section
+    "vent_chase_material"  BACK-B48, WTEP84, B48, SM8, OCM8BLD from vent chase
+
+1. ROOM NAMES  canonical forms:
+   - "STANDARD 42 KITCHEN", "STD 42 KITCHEN"  "STANDARD 42 KITCHEN"
+   - "OPT GOURMET KITCHEN"  "OPT GOURMET KITCHEN" (separate entry, never merged)
+   - Any LAUNDRY variant  "OPT LAUNDRY"
+   - "STANDARD BATH 3 UPSTAIRS"  "BATH 3"
+   - "STANDARD OWNERS BATH"  "OWNERS BATH"
    Same room on multiple pages = ONE merged entry.
 
-2. CODES ONLY — never include room titles, descriptions, or notes as a code.
+2. CODES ONLY  never include room titles, descriptions, or notes as a code.
 
-3. STRIP QTY PREFIXES — "1-BTK8" → code="BTK8" qty=1. "3-DOORS" → code="DOORS" qty=3.
+3. STRIP QTY PREFIXES  "1-BTK8"  code="BTK8" qty=1. "3-DOORS"  code="DOORS" qty=3.
 
-4. KEEP MODIFIERS — BUTT, MD, BLD, BD are part of the SKU (W3042BUTT).
+4. KEEP MODIFIERS  BUTT, MD, BLD, BD are part of the SKU (W3042BUTT).
 
-5. QUANTITY — if Trim List exists, use Trim List qty. Flag floor plan vs. trim list mismatches.
+5. QUANTITY  if Trim List exists, use Trim List qty. Flag floor plan vs. trim list mismatches.
 
-6. VENT BOX — BACK-B48 or B48 "(VENT BOX)" → "vent_chase_material" NEVER "cabinets".
+6. VENT BOX  BACK-B48 or B48 "(VENT BOX)"  "vent_chase_material" NEVER "cabinets".
 
-7. DRH EXPRESS — W2436-L and W2436-R = separate items. F331/F342/PEPR335 = not cabinets.
-   TOEKICK8 → BTK8, MQR8 → SM8.
+7. DRH EXPRESS  W2436-L and W2436-R = separate items. F331/F342/PEPR335 = not cabinets.
+   TOEKICK8  BTK8, MQR8  SM8.
 
-8. WELLBORN BINDER — return room names only with empty arrays + flag.
+8. WELLBORN BINDER  return room names only with empty arrays + flag.
 
 9. NON-CABINET ITEMS (never classify as cabinets):
    F331, F342, PEPR335, BEP-*, WAINSCOT, FIN END, BACK-B48, CR-W34, FALSE
 
-10. CATEGORIZATION: "cabinets" (W,B,SB,T,P,O,REF,OVD), "perimeter" (BTK,SM,FL,RANGE,DISH,MW,TOUCHUP), "island" (UF,BTK,SM), "hardware" (DOORS,DRAWERS,DWR,SHM,OCM).
-11. SPECIAL RULES:
-    - **SUM EVERYTHING**: If "DOORS 4" appears 3 times in different laundry sections, the total must be **12**. Do NOT deduplicate different sections.
-    - **TOUCHUP**: Preserve format like "2KIT+1SPRAY".
-    - **BATHROOMS**: Extract every detail. `SHM8` and `OCM8BLD` are critical. Total counts must match the sum of all listed items.
-    - **CABINETS**: Only use `max()` if you are 100% sure it's a duplicate of the same physical unit (like floor plan vs list). Otherwise, sum them.
+10. CATEGORIZATION: "cabinets" (W,B,SB,T,P,O,REF,OVD), "perimeter" (BTK,SM,FL,RANGE,DISH,MW), "island" (UF,BTK,SM), "hardware" (DOORS,DRAWERS,DWR,SHM,OCM).
 Return ONLY valid JSON in this format:
 {{
   "rooms": [
@@ -1083,24 +1006,7 @@ Return ONLY valid JSON in this format:
         print(f"[full-scan] STEP 2 done. AI response length: {len(ai_text)}")
 
         resp_data = _parse_json_response(ai_text)
-        
-        # Flexibly handle the "rooms" key (some AI models might name it differently)
-        raw_rooms = resp_data.get("rooms") or resp_data.get("room_list") or resp_data.get("data", {}).get("rooms")
-        if not raw_rooms and isinstance(resp_data, list):
-            raw_rooms = resp_data
-        elif not raw_rooms and isinstance(resp_data, dict):
-            # If the AI just returned a single room object instead of a list
-            if "cabinets" in resp_data and ("room_name" in resp_data or "name" in resp_data):
-                raw_rooms = [resp_data]
-            else:
-                # Last resort: try to find any list that looks like rooms
-                for v in resp_data.values():
-                    if isinstance(v, list) and len(v) > 0 and isinstance(v[0], dict) and ("code" in str(v[0]) or "sku" in str(v[0])):
-                        raw_rooms = v
-                        break
-        
-        if not raw_rooms:
-            raw_rooms = []
+        raw_rooms = resp_data.get("rooms", [])
 
         # Sanitize and merge rooms by canonical name
         CATS = ["cabinets", "perimeter", "island", "hardware", "island_hardware", "bump", "island_bump", "opt_crown", "opt_light_rail", "vent_chase_material"]
@@ -1120,14 +1026,7 @@ Return ONLY valid JSON in this format:
             # Preserve format for touchup kits
             if any(k in code for k in ("KIT", "SPRAY", "TOUCHUP")):
                 return re.sub(r'[^A-Z0-9+\-]', '', code.replace(' ', ''))
-            # Preserve HWC dimension format: "HWC 1X2X94" or "HWC 1 X 2 X 94"
-            # Keep the space between the prefix and the dimension string.
-            hwc_m = re.match(r'^(HWC|CLEAT)\s+(\d[\dX\s]+)$', code)
-            if hwc_m:
-                dim_tokens = [t for t in re.split(r'\s+', hwc_m.group(2)) if t.isdigit()]
-                if dim_tokens:
-                    return hwc_m.group(1) + " " + "X".join(dim_tokens)
-            # Standard cleanup — strip spaces and non-alphanumeric chars
+            # Standard cleanup
             code = re.sub(r'[^A-Z0-9]', '', code.replace(' ', ''))
             return code
 
@@ -1152,13 +1051,13 @@ Return ONLY valid JSON in this format:
             if rname not in rooms_map:
                 rooms_map[rname] = {"room_name": rname}
                 for cat in CATS:
-                    rooms_map[rname][cat] = {}
+                    rooms_map[rname][cat] = []
             for cat in CATS:
                 for item in r.get(cat, []):
                     if isinstance(item, str):
                         code = sanitize_code(item)
                         if code and len(code) >= 2:
-                            rooms_map[rname][cat][code] = max(rooms_map[rname][cat].get(code, 0), 1)
+                            rooms_map[rname][cat].append({"code": code, "quantity": 1})
                     elif isinstance(item, dict):
                         code = sanitize_code(item.get("code") or item.get("sku") or "")
                         try:
@@ -1166,27 +1065,9 @@ Return ONLY valid JSON in this format:
                         except:
                             qty = 1
                         if code and len(code) >= 2:
-                            # Use SUM for everything now that AI is instructed to deduplicate physically
-                            rooms_map[rname][cat][code] = rooms_map[rname][cat].get(code, 0) + qty
+                            rooms_map[rname][cat].append({"code": code, "quantity": qty})
 
-        rooms = []
-        for rname, rdata in rooms_map.items():
-            final_r = {"room_name": rname}
-            for cat in CATS:
-                final_r[cat] = []
-                for c, q in rdata[cat].items():
-                    # Robust zero-quantity filtering
-                    try:
-                        q_val = float(q) if q is not None else 0
-                    except:
-                        q_val = 1 # Keep string-based touchups
-                        
-                    if q_val == 0:
-                        continue
-                        
-                    final_r[cat].append({"code": c, "quantity": q})
-            rooms.append(final_r)
-
+        rooms = list(rooms_map.values())
         print(f"[full-scan] Final rooms after merge: {len(rooms)}")
         return {
             "success": True, 
@@ -1201,7 +1082,7 @@ Return ONLY valid JSON in this format:
         return {"success": False, "rooms": [], "error": str(e)}
 
 
-# ─── Endpoint: LOCAL Extraction (No AI, No API Key) ──────────────────────
+#  Endpoint: LOCAL Extraction (No AI, No API Key) 
 
 @router.post("/agent/analyze-drawing-local")
 async def analyze_drawing_local(payload: dict):
@@ -1230,7 +1111,7 @@ async def analyze_drawing_local(payload: dict):
         return {"success": False, "rooms": [], "error": str(e), "method": "rule-based-local"}
 
 
-# ─── Endpoint: High-Speed Drawing Analysis (Legacy per-page) ─────────────────
+#  Endpoint: High-Speed Drawing Analysis (Legacy per-page) 
 
 @router.post("/agent/analyze-drawing-fast")
 async def analyze_drawing_fast(payload: dict):
@@ -1278,13 +1159,13 @@ async def analyze_drawing_fast(payload: dict):
             STRICT RULES:
             1. **ROOM NAME**: Use ONLY the short canonical room name. Look for room labels in the drawing (e.g. "KITCHEN", "OWNERS BATH", "BATH 2", "BATH 3", "LAUNDRY", "GARAGE"). 
                DO NOT use page titles or descriptions as the room name.
-               - "STANDARD 42 KITCHEN", "STD 42 KITCHEN" → "STANDARD 42 KITCHEN"
-               - "OPT GOURMET KITCHEN", "OPT GMT KITCHEN" → "OPT GOURMET KITCHEN" (KEEP SEPARATE from STANDARD 42 KITCHEN)
-               - "OPT LAUNDRY UPPERS OVER W/D" → "OPT LAUNDRY"
-               - "OPT LAUNDRY BASES ACROSS FROM WD" → "OPT LAUNDRY"
-               - "STANDARD BATH 3 UPSTAIRS" → "BATH 3"
-               - "STANDARD OWNERS BATH" → "OWNERS BATH"
-               - "BATH 3 UPSTAIRS" → "BATH 3"
+               - "STANDARD 42 KITCHEN", "STD 42 KITCHEN"  "STANDARD 42 KITCHEN"
+               - "OPT GOURMET KITCHEN", "OPT GMT KITCHEN"  "OPT GOURMET KITCHEN" (KEEP SEPARATE from STANDARD 42 KITCHEN)
+               - "OPT LAUNDRY UPPERS OVER W/D"  "OPT LAUNDRY"
+               - "OPT LAUNDRY BASES ACROSS FROM WD"  "OPT LAUNDRY"
+               - "STANDARD BATH 3 UPSTAIRS"  "BATH 3"
+               - "STANDARD OWNERS BATH"  "OWNERS BATH"
+               - "BATH 3 UPSTAIRS"  "BATH 3"
             2. Extract items into categories: "cabinets", "perimeter", "island", "hardware", "island_hardware", "bump", "island_bump", "opt_crown", "opt_light_rail", "vent_chase_material".
             3. **CODES ONLY**: Every "code" value must be a cabinet SKU only. NEVER include room titles, project names, notes, or descriptions.
             4. **STRIP QUANTITY PREFIXES**: If a code appears like "1-BTK8" or "3-DOORS", the number prefix is a QUANTITY, not part of the code. Output code: "BTK8", quantity: 1.
@@ -1295,15 +1176,13 @@ async def analyze_drawing_fast(payload: dict):
                - BACK-B48 or B48 labeled as "(VENT BOX)" in "Opt Vent Chase Material" section = Vent Chase (NOT Base Cabinet).
                - B/SB codes under "Vent Chase", "Accessories", or "Opt" = Accessories/Vent Chase.
             9. **QUANTITY**: Cross-reference floor plan AND trim list (page 2).
-            10. quantity is always an integer ≥ 1.
+            10. quantity is always an integer  1.
 12. **CATEGORIZATION**:
-    - "cabinets": Primary cabinets (W, B, SB, T, P, O, REF, OVD).
-    - "perimeter": Accessories (BTK, SM, FL, TOUCHUP) and Appliances (RANGE, DISH, MW.HOOD, REF).
-    - "island": Universal Fillers (UF) and accessories found in island section.
-    - "hardware": DOORS, DRAWERS, HINGE, SHM, OCM.
-    - "island_hardware": DOORS, DRAWERS specifically for island.
-    - "opt_crown": Crown moldings (CM, OCM, QM, CROWN).
-    - "bump": SHM (bump section).
+    - "cabinets": Primary cabinets (W, B, SB, T, P, O, REF, OVD) and Universal Fillers (UF).
+    - "perimeter" / "island": Accessories (BTK, SM, FL, TOUCHUP) and Appliances (RANGE, DISH, MW.HOOD, REF).
+    - "hardware": DOORS, DRAWERS, HINGE, etc.
+    - "opt_crown": OCM, QM.
+    - "bump": SHM.
 
 OUTPUT FORMAT - return ONLY this JSON:
 {{
@@ -1341,7 +1220,7 @@ OUTPUT FORMAT - return ONLY this JSON:
                 # Direct alias lookup
                 if name in ROOM_ALIASES:
                     return ROOM_ALIASES[name]
-                # Pattern-based normalization — gourmet must precede generic kitchen
+                # Pattern-based normalization  gourmet must precede generic kitchen
                 if re.search(r'(OPT\s+)?(GMT\s+KITCHEN|GOURMET\s+KITCHEN)', name):
                     return "OPT GOURMET KITCHEN"
                 if re.search(r'(STANDARD|STD)\s+42["\']?\s+KITCHEN|STANDARD\s+42\s+KITCHEN', name):
@@ -1368,18 +1247,12 @@ OUTPUT FORMAT - return ONLY this JSON:
                 if not code:
                     return ""
                 code = str(code).strip().upper()
-                # Preserve special hardware keywords
-                if any(k in code for k in ("DOORS", "DRAWERS", "HINGES", "PULLS", "KNOBS", "CROWN", "LIGHT RAIL")):
-                    return code
                 # Strip leading quantity prefix like "1-", "3-", "12-"
                 code = re.sub(r'^\d+[-\s]+', '', code)
                 # Keep hyphen for DRH hinge suffixes (-L/-R)
                 if code.endswith(('-L', '-R')):
                     prefix = re.sub(r'[^A-Z0-9]', '', code[:-2].replace(' ', ''))
                     return f"{prefix}{code[-2:]}"
-                # Preserve format for touchup kits
-                if any(k in code for k in ("KIT", "SPRAY", "TOUCHUP")):
-                    return re.sub(r'[^A-Z0-9+\-]', '', code.replace(' ', ''))
                 # Remove spaces and non-alphanumeric
                 code = re.sub(r'[^A-Z0-9]', '', code.replace(' ', ''))
                 return code
@@ -1387,58 +1260,39 @@ OUTPUT FORMAT - return ONLY this JSON:
             CATS = ["cabinets", "perimeter", "island", "hardware", "island_hardware", "bump", "island_bump", "opt_crown", "opt_light_rail", "vent_chase_material"]
             
             # Build and normalize rooms, then MERGE rooms with the same canonical name
-            rooms_map = {}
+            rooms_by_name: dict = {}
             for r in raw_rooms:
                 raw_name = r.get("room_name") or r.get("name") or "Unknown Room"
-                rname = canonical_room_name(raw_name)
+                room_name = canonical_room_name(raw_name)
                 
-                if rname not in rooms_map:
-                    rooms_map[rname] = {cat: {} for cat in CATS}
+                if room_name not in rooms_by_name:
+                    rooms_by_name[room_name] = {"room_name": room_name}
+                    for cat in CATS:
+                        rooms_by_name[room_name][cat] = []
                 
                 for cat in CATS:
                     items = r.get(cat, [])
                     for item in items:
-                        code, qty = "", 0
                         if isinstance(item, str):
                             code = sanitize_code(item)
-                            qty = 1
+                            if code and len(code) >= 2:
+                                rooms_by_name[room_name][cat].append({"code": code, "quantity": 1})
                         elif isinstance(item, dict):
-                            code = sanitize_code(item.get("code") or item.get("sku") or "")
+                            raw_code = item.get("code") or item.get("sku") or ""
+                            code = sanitize_code(raw_code)
                             qty = item.get("quantity", 1)
                             try:
-                                if isinstance(qty, str) and ("+" in qty or "-" in qty):
-                                    pass # Keep string for touchups
-                                else:
-                                    qty = int(qty)
-                            except:
+                                qty = int(qty)
+                            except (ValueError, TypeError):
                                 qty = 1
-                        
-                        if code and len(code) >= 2:
-                            existing_qty = rooms_map[rname][cat].get(code, 0)
-                            if isinstance(qty, int) and isinstance(existing_qty, int):
-                                rooms_map[rname][cat][code] = existing_qty + qty
-                            else:
-                                rooms_map[rname][cat][code] = qty
-
-            rooms = []
-            for rname, rdata in rooms_map.items():
-                final_r = {"room_name": rname}
-                for cat in CATS:
-                    final_r[cat] = []
-                    for c, q in rdata[cat].items():
-                        # Robust zero-quantity filtering
-                        try:
-                            q_val = float(q) if q is not None else 0
-                        except:
-                            q_val = 1
-                            
-                        if q_val == 0:
-                            continue
-                            
-                        final_r[cat].append({"code": c, "quantity": q})
-                rooms.append(final_r)
+                            if qty < 1:
+                                qty = 1
+                            if code and len(code) >= 2:
+                                rooms_by_name[room_name][cat].append({"code": code, "quantity": qty})
             
-            print(f"[agent] Extracted & Merged Rooms: {len(rooms)}")
+            rooms = list(rooms_by_name.values())
+            
+            print(f"[agent] Extracted & Normalized Rooms: {len(rooms)}")
         else:
             # OPTION B: Fallback to Vision
             print("[agent] Selectable text not found or insufficient codes. Falling back to Vision.")
@@ -1467,7 +1321,7 @@ OUTPUT FORMAT - return ONLY this JSON:
         return {"success": False, "error": str(e), "rooms": []}
 
 
-# ─── Endpoint: Re-scan Project Drawing ───────────────────────────────────────
+#  Endpoint: Re-scan Project Drawing 
 
 @router.post("/agent/rescan-project")
 async def rescan_project(payload: dict):
@@ -1539,7 +1393,7 @@ async def analyze_drawing_local_inner(pdf_url: str) -> dict:
     return extract_rooms_rule_based(pdf_bytes)
 
 
-# ─── Endpoint: Delete Training Document ─────────────────────────────────────
+#  Endpoint: Delete Training Document 
 
 @router.delete("/agent/training-docs/{doc_id}")
 async def delete_training_doc(doc_id: str):
@@ -1552,7 +1406,7 @@ async def delete_training_doc(doc_id: str):
         return {"success": False, "error": str(e)}
 
 
-# ─── Endpoint: Get Manufacturer Research ────────────────────────────────────
+#  Endpoint: Get Manufacturer Research 
 
 @router.get("/agent/manufacturer-research/{manufacturer_name}")
 async def get_manufacturer_research(manufacturer_name: str):
@@ -1568,7 +1422,7 @@ async def get_manufacturer_research(manufacturer_name: str):
         return {"success": False, "error": str(e), "found": False}
 
 
-# ─── Helper Functions ────────────────────────────────────────────────────────
+#  Helper Functions 
 
 def _infer_category(sku: str) -> str:
     """Quick category inference from SKU prefix."""

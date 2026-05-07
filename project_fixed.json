@@ -1,0 +1,512 @@
+[
+  {
+    "id": "cb7eebd1-546a-44fc-b595-7e803511aa76",
+    "project_name": "4031 MAGNOLIA GR LAYOUTS (01.09.26) (1)",
+    "status": "Reviewing",
+    "raw_pdf_url": "https://ecmltjcajtneflsyxuil.supabase.co/storage/v1/object/public/manufacturer-docs/quotations/drawings/1a2ce86d-6aa4-454c-af3a-01abc6b0e78d.pdf",
+    "extracted_data": {
+      "rooms": [
+        {
+          "bump": [],
+          "island": [
+            {
+              "code": "BTK8",
+              "quantity": 1
+            },
+            {
+              "code": "SM8",
+              "quantity": 1
+            }
+          ],
+          "cabinets": [
+            {
+              "code": "REF2D36",
+              "quantity": 1,
+              "_assignedCategory": "Tall Cabinets"
+            },
+            {
+              "code": "UF3",
+              "quantity": 2,
+              "_assignedCategory": "Universal Fillers"
+            },
+            {
+              "code": "B30BUTT",
+              "quantity": 4,
+              "_assignedCategory": "Base Cabinets"
+            },
+            {
+              "code": "SB36BUTT",
+              "quantity": 1,
+              "_assignedCategory": "Base Cabinets"
+            },
+            {
+              "code": "B15R",
+              "quantity": 1,
+              "_assignedCategory": "Base Cabinets"
+            },
+            {
+              "code": "B24BUTT",
+              "quantity": 1,
+              "_assignedCategory": "Base Cabinets"
+            },
+            {
+              "code": "UF342",
+              "quantity": 2,
+              "_assignedCategory": "Universal Fillers"
+            },
+            {
+              "code": "W3624BUTT",
+              "quantity": 1,
+              "_assignedCategory": "Wall Cabinets"
+            },
+            {
+              "code": "W3042BUTT",
+              "quantity": 4,
+              "_assignedCategory": "Wall Cabinets"
+            },
+            {
+              "code": "W3024BUTT",
+              "quantity": 1,
+              "_assignedCategory": "Wall Cabinets"
+            },
+            {
+              "code": "W2442BUTT",
+              "quantity": 1,
+              "_assignedCategory": "Wall Cabinets"
+            },
+            {
+              "code": "UF642",
+              "quantity": 1,
+              "_assignedCategory": "Universal Fillers"
+            }
+          ],
+          "hardware": [
+            {
+              "code": "DWR3",
+              "quantity": 1
+            },
+            {
+              "code": "SHM8",
+              "quantity": 3
+            },
+            {
+              "code": "OCM8BLD",
+              "quantity": 1
+            }
+          ],
+          "opt_crown": [],
+          "perimeter": [
+            {
+              "code": "RANGE130",
+              "quantity": 1
+            },
+            {
+              "code": "BTK8",
+              "quantity": 3
+            },
+            {
+              "code": "SM8",
+              "quantity": 5
+            },
+            {
+              "code": "FL48",
+              "quantity": 1
+            }
+          ],
+          "room_name": "STANDARD 42 KITCHEN",
+          "collection": "PREMIUM CHERRY / PREMIUM DURAFORM (TEXTURED) / ELITE MAPLE / ELITE PAINTED",
+          "door_style": "BELCOURT DFO MAPLE",
+          "island_bump": [],
+          "opt_light_rail": [],
+          "island_hardware": [],
+          "vent_chase_material": [
+            {
+              "code": "WTEP84",
+              "quantity": 1
+            },
+            {
+              "code": "SM8",
+              "quantity": 1
+            },
+            {
+              "code": "OCM8BLD",
+              "quantity": 1
+            },
+            {
+              "code": "QM8",
+              "quantity": 1
+            },
+            {
+              "code": "B48",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "bump": [],
+          "island": [
+            {
+              "code": "BTK8",
+              "quantity": 1
+            },
+            {
+              "code": "SM8",
+              "quantity": 1
+            }
+          ],
+          "cabinets": [
+            {
+              "code": "UF392",
+              "quantity": 1,
+              "_assignedCategory": "Universal Fillers"
+            },
+            {
+              "code": "OVD3396AS",
+              "quantity": 1,
+              "_assignedCategory": "Tall Cabinets"
+            },
+            {
+              "code": "B39",
+              "quantity": 1,
+              "_assignedCategory": "Base Cabinets"
+            },
+            {
+              "code": "SB36BUTT",
+              "quantity": 2,
+              "_assignedCategory": "Base Cabinets"
+            },
+            {
+              "code": "B42",
+              "quantity": 1,
+              "_assignedCategory": "Base Cabinets"
+            },
+            {
+              "code": "B15R",
+              "quantity": 1,
+              "_assignedCategory": "Base Cabinets"
+            },
+            {
+              "code": "B24BUTT",
+              "quantity": 1,
+              "_assignedCategory": "Base Cabinets"
+            },
+            {
+              "code": "UF3",
+              "quantity": 1,
+              "_assignedCategory": "Universal Fillers"
+            },
+            {
+              "code": "UF342",
+              "quantity": 1,
+              "_assignedCategory": "Universal Fillers"
+            },
+            {
+              "code": "W3624",
+              "quantity": 1,
+              "_assignedCategory": "Wall Cabinets"
+            },
+            {
+              "code": "W4242",
+              "quantity": 1,
+              "_assignedCategory": "Wall Cabinets"
+            },
+            {
+              "code": "W3942",
+              "quantity": 1,
+              "_assignedCategory": "Wall Cabinets"
+            },
+            {
+              "code": "W2442BUTT",
+              "quantity": 1,
+              "_assignedCategory": "Wall Cabinets"
+            },
+            {
+              "code": "S3324",
+              "quantity": 1,
+              "_assignedCategory": "Accessories"
+            },
+            {
+              "code": "UF642",
+              "quantity": 1,
+              "_assignedCategory": "Universal Fillers"
+            },
+            {
+              "code": "S3S396",
+              "quantity": 2,
+              "_assignedCategory": "Accessories"
+            }
+          ],
+          "hardware": [
+            {
+              "code": "DWR3",
+              "quantity": 1
+            },
+            {
+              "code": "SHM8",
+              "quantity": 3
+            },
+            {
+              "code": "OCM8BLD",
+              "quantity": 1
+            }
+          ],
+          "opt_crown": [],
+          "perimeter": [
+            {
+              "code": "RR120FL",
+              "quantity": 1
+            },
+            {
+              "code": "BTK8",
+              "quantity": 3
+            },
+            {
+              "code": "SM8",
+              "quantity": 5
+            },
+            {
+              "code": "FL48",
+              "quantity": 1
+            }
+          ],
+          "room_name": "OPT GOURMET KITCHEN",
+          "collection": "PREMIUM CHERRY / PREMIUM DURAFORM (TEXTURED) / ELITE MAPLE / ELITE PAINTED",
+          "door_style": "BELCOURT DFO MAPLE",
+          "island_bump": [],
+          "opt_light_rail": [],
+          "island_hardware": [],
+          "vent_chase_material": [
+            {
+              "code": "WTEP84",
+              "quantity": 1
+            },
+            {
+              "code": "SM8",
+              "quantity": 1
+            },
+            {
+              "code": "OCM8BLD",
+              "quantity": 1
+            },
+            {
+              "code": "QM8",
+              "quantity": 1
+            },
+            {
+              "code": "B48",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "bump": [],
+          "island": [],
+          "cabinets": [
+            {
+              "code": "UF3",
+              "quantity": 2,
+              "_assignedCategory": "Universal Fillers"
+            },
+            {
+              "code": "VSB3634HBUTT",
+              "quantity": 2,
+              "_assignedCategory": "Vanity Cabinets"
+            }
+          ],
+          "hardware": [
+            {
+              "code": "SHM8",
+              "quantity": 1
+            }
+          ],
+          "opt_crown": [],
+          "perimeter": [
+            {
+              "code": "BTK8",
+              "quantity": 1
+            },
+            {
+              "code": "SM8",
+              "quantity": 1
+            }
+          ],
+          "room_name": "STD OWNERS BATH",
+          "collection": "PREMIUM CHERRY / PREMIUM DURAFORM (TEXTURED) / ELITE MAPLE / ELITE PAINTED",
+          "door_style": "BELCOURT DFO MAPLE",
+          "island_bump": [],
+          "opt_light_rail": [],
+          "island_hardware": [],
+          "vent_chase_material": []
+        },
+        {
+          "bump": [],
+          "island": [],
+          "cabinets": [
+            {
+              "code": "VSB5434HBUTT",
+              "quantity": 1,
+              "_assignedCategory": "Vanity Cabinets"
+            },
+            {
+              "code": "UF3",
+              "quantity": 1,
+              "_assignedCategory": "Universal Fillers"
+            }
+          ],
+          "hardware": [
+            {
+              "code": "SHM8",
+              "quantity": 1
+            },
+            {
+              "code": "OCM8BLD",
+              "quantity": 1
+            }
+          ],
+          "opt_crown": [],
+          "perimeter": [
+            {
+              "code": "BTK8",
+              "quantity": 1
+            },
+            {
+              "code": "SM8",
+              "quantity": 1
+            }
+          ],
+          "room_name": "STD BATH 2",
+          "collection": "PREMIUM CHERRY / PREMIUM DURAFORM (TEXTURED) / ELITE MAPLE / ELITE PAINTED",
+          "door_style": "BELCOURT DFO MAPLE",
+          "island_bump": [],
+          "opt_light_rail": [],
+          "island_hardware": [],
+          "vent_chase_material": []
+        },
+        {
+          "bump": [],
+          "island": [],
+          "cabinets": [
+            {
+              "code": "VSB4834H",
+              "quantity": 1,
+              "_assignedCategory": "Vanity Cabinets"
+            },
+            {
+              "code": "UF3",
+              "quantity": 1,
+              "_assignedCategory": "Universal Fillers"
+            }
+          ],
+          "hardware": [
+            {
+              "code": "SHM8",
+              "quantity": 1
+            },
+            {
+              "code": "OCM8BLD",
+              "quantity": 1
+            }
+          ],
+          "opt_crown": [],
+          "perimeter": [
+            {
+              "code": "BTK8",
+              "quantity": 1
+            },
+            {
+              "code": "SM8",
+              "quantity": 1
+            }
+          ],
+          "room_name": "STD BATH 3",
+          "collection": "PREMIUM CHERRY / PREMIUM DURAFORM (TEXTURED) / ELITE MAPLE / ELITE PAINTED",
+          "door_style": "BELCOURT DFO MAPLE",
+          "island_bump": [],
+          "opt_light_rail": [],
+          "island_hardware": [],
+          "vent_chase_material": []
+        },
+        {
+          "bump": [],
+          "island": [],
+          "cabinets": [
+            {
+              "code": "UF3",
+              "quantity": 2,
+              "_assignedCategory": "Universal Fillers"
+            },
+            {
+              "code": "B30BUTT",
+              "quantity": 1,
+              "_assignedCategory": "Base Cabinets"
+            },
+            {
+              "code": "B33BUTT",
+              "quantity": 1,
+              "_assignedCategory": "Base Cabinets"
+            },
+            {
+              "code": "UF342",
+              "quantity": 4,
+              "_assignedCategory": "Universal Fillers"
+            },
+            {
+              "code": "W3336BUTT",
+              "quantity": 2,
+              "_assignedCategory": "Wall Cabinets"
+            },
+            {
+              "code": "W3036BUTT",
+              "quantity": 2,
+              "_assignedCategory": "Wall Cabinets"
+            }
+          ],
+          "hardware": [
+            {
+              "code": "SHM8",
+              "quantity": 1
+            }
+          ],
+          "opt_crown": [],
+          "perimeter": [
+            {
+              "code": "SM8",
+              "quantity": 1
+            },
+            {
+              "code": "FL24",
+              "quantity": 1
+            }
+          ],
+          "room_name": "OPT LAUNDRY",
+          "collection": "PREMIUM CHERRY / PREMIUM DURAFORM (TEXTURED) / ELITE MAPLE / ELITE PAINTED",
+          "door_style": "BELCOURT DFO MAPLE",
+          "island_bump": [],
+          "opt_light_rail": [
+            {
+              "code": "SM8",
+              "quantity": 1
+            },
+            {
+              "code": "FL24",
+              "quantity": 1
+            },
+            {
+              "code": "BTK8",
+              "quantity": 1
+            }
+          ],
+          "island_hardware": [],
+          "vent_chase_material": []
+        }
+      ]
+    },
+    "manufacturer_id": "3be07931-596a-4fa3-8d39-8d04c36cf4bb",
+    "selected_collection": null,
+    "selected_door_style": null,
+    "selected_finish": null,
+    "selected_hardware": null,
+    "user_session": null,
+    "created_at": "2026-05-05T06:48:40.66399+00:00"
+  }
+]

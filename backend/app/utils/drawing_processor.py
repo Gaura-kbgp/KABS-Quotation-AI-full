@@ -33,7 +33,9 @@ def extract_drawing_data_python(pdf_bytes: bytes) -> Dict[str, Any]:
         all_text_parts = []
         all_codes = set()
         
+        # Scan up to 12 pages for optimal balance of speed and coverage
         for page_num, page in enumerate(doc):
+            if page_num >= 12: break
             text = page.get_text()
             if text.strip():
                 results["has_selectable_text"] = True

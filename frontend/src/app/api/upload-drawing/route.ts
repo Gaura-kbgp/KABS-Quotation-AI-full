@@ -98,6 +98,12 @@ export async function POST(req: Request) {
     } catch (e: any) {
       logHit(`AI Flow Catch Error: ${e.message}`);
       console.error('[ROUTE] Analysis or Update Error:', e);
+      
+      // Update status to Error so the UI knows it failed
+      await supabase
+        .from('quotation_projects')
+        .update({ status: 'Error', metadata: { last_error: e.message } })
+        .eq('id', project.id);
     }
 
     logHit("Returning final response.");

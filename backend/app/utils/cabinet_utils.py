@@ -31,6 +31,7 @@ CABINET_TYPE_MAP = {
 
     # Sink / Appliance Bases
     "SB":   "Sink Base",
+    "SBN":  "Sink Base",
     "DB":   "Dishwasher Base",
     "DW":   "Dishwasher Return",
     "RB":   "Range Base",
@@ -48,6 +49,8 @@ CABINET_TYPE_MAP = {
     "O":    "Oven Cabinet",
     "OVD":  "Oven Tall Cabinet",
     "UTIL": "Utility Cabinet",
+    "UT":   "Utility Cabinet",
+    "U":    "Utility Cabinet",
     "REF":  "Refrigerator Cabinet",
     "MICRO":"Microwave Cabinet",
 
@@ -133,15 +136,9 @@ INTEGRITY_PREFIX_ALIASES = {
 }
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# INTEGRITY SKU SUFFIX FAMILIES
-# Integrity appends finish/door type suffixes to base codes.
-# e.g. W3042 → W3042BD (single door), W3042MDBD (multi-door),
-#      B30 → B30BD (basic door), B30BDFHD (full height door)
-# When matching, strip these to get the base code + dimensions.
-# ──────────────────────────────────────────────────────────────────────────────
+# Integrity & Wellborn append finish/door type suffixes to base codes.
 INTEGRITY_CATALOG_SUFFIXES = re.compile(
-    r'(FHDDDLX|FHDSDLX|BDFHD|MDBD|SFHD|SDLX|DDLX|FHD|BLD|DWR|DW|MDBD|BD|MD|SD|SS|AL|SW|C|S|V|H|VENTBOX|VENT|BOX)$',
+    r'\s*(FHDDDLX|FHDSDLX|BDFHD|MDBD|SFHD|SDLX|DDLX|FHD|BLD|DWR|DW|MDBD|BD|BUTTDOOR|BUTT|MD|SD|SS|AL|SW|C|S|V|H|VENTBOX|VENT|BOX|AS|BS|CS|LS)$',
     re.IGNORECASE
 )
 
@@ -284,17 +281,24 @@ def compress_sku(sku: str) -> str:
 
 def normalize_collection_name(col: str) -> str:
     """
-    Normalize a collection name so that encoding differences (e.g. curly quotes,
-    non-ASCII inch symbols like \ufffd or â€™) do not prevent matching.
-    Also strips depth suffixes to get the core series name.
+    Normalize a collection name so encoding differences and catalog-specific
+    parenthetical suffixes do not prevent matching.
+
+    Examples:
+      "Premium Maple (Durafrom Textured)"  -> "PREMIUM MAPLE"
+      "ELITE CHERRY (NON TEXTURED)"        -> "ELITE CHERRY"
+      "CLASSIC SERIES - 24 DEEP LIST"      -> "CLASSIC SERIES"
+      "CHOICE DURAFORM"                    -> "CHOICE DURAFORM"
     """
     if not col:
         return ''
     s = str(col).upper().strip()
-    # Replace non-ASCII inch markers (\ufffd, â, ", ", etc.) with plain double quote
-    s = re.sub(r'[\"\u201c\u201d\ufffd\u00e2\u0080\u009c\u009d]', '"', s)
-    # Normalize "24" DEEP" or '24 DEEP' to just the numeric part for comparison
-    s = re.sub(r'\s*-\s*\d+[""]?\s*(DEEP|IN|INCH).*', '', s)
+    # Replace non-ASCII inch/quote markers with plain double quote
+    s = re.sub(r'["“”â€œ]', '"', s)
+    # Strip parenthetical qualifiers like "(DURAFROM TEXTURED)", "(NON TEXTURED)", "(TEXTURED)"
+    s = re.sub(r'\s*\([^)]*\)', '', s).strip()
+    # Strip depth/price suffixes like "- 24 DEEP LIST PRICE", "- 18 IN", etc.
+    s = re.sub(r'\s*-\s*\d+["”]?\s*(DEEP|IN|INCH).*', '', s)
     # Remove newlines
     s = s.split('\n')[0].strip()
     return s
@@ -411,7 +415,7 @@ def detect_category(sku: str) -> str:
         return 'Accessories'
 
     # 1. Specialized: Molding & Trim (Priority)
-    molding_pattern = r'^(CM|M|RR|OCM|SCM|BTK|SHM|SM|QM|DM|PM|TK|SCRBE|SCRM|Scribe|Crown|Base Molding|Outside Corner|Shoe|LR|LIGHT RAIL|FL|HWC|CROWN|LIGHT)'
+    molding_pattern = r'^(CM|M|RR|OCM|SCM|BTK|SHM|SKM|SM|QM|DM|PM|TK|SCRBE|SCRM|Scribe|Crown|Base Molding|Outside Corner|Shoe|LR|LIGHT RAIL|FL|HWC|CROWN|LIGHT)'
     if re.match(molding_pattern, s, re.IGNORECASE):
         return 'Molding & Trim'
 
@@ -437,7 +441,7 @@ def detect_category(sku: str) -> str:
         return 'Base Cabinets'
 
     # 7. Tall Cabinets (Pantry, Oven, Utility, Refrigerator)
-    tall_prefixes = ['T', 'P', 'O', 'UTIL', 'REF', 'UTIL', 'OVD']
+    tall_prefixes = ['T', 'P', 'O', 'UTIL', 'UT', 'U', 'REF', 'OVD']
     if any(s.startswith(p) for p in tall_prefixes) or 'TALL' in s:
         return 'Tall Cabinets'
 
@@ -468,6 +472,30 @@ def parse_sku_dimensions(sku: str) -> dict:
     # Use stripped for dimension parsing if it still has digits
     if s_stripped and re.search(r'\d', s_stripped):
         s = s_stripped
+
+    # ── Pattern C-UT: Utility/Tall with X separator (UT3624 X 93, UT1224 X 84) ──
+    # Format: Prefix + Width(2) + Depth(2) + "X" + Height(2)
+    clean = re.sub(r'[^A-Z0-9\s]', '', s) # Keep spaces for NxN patterns
+    ut_x_m = re.match(r'^(UT|U|T|P)(\d{2})(\d{2})\s*[Xx]\s*(\d{2})', clean)
+    if ut_x_m:
+        return {
+            'prefix': ut_x_m.group(1),
+            'width': int(ut_x_m.group(2)),
+            'height': int(ut_x_m.group(4)),
+            'depth': int(ut_x_m.group(3)),
+        }
+
+    # ── Pattern C-REF: Refrigerator codes with door count (REF2D36, REF3D48) ──
+    # REF + N doors + D + width — the "N" is door count, NOT the cabinet width
+    ref_door_m = re.match(r'^(REF)(\d+)D(\d{2,3})', clean.replace(" ", ""))
+    if ref_door_m:
+        return {
+            'prefix': 'REF',
+            'width': int(ref_door_m.group(3)),  # actual width after "D"
+            'height': None,
+            'depth': None,
+        }
+
     # ── Pattern A: NxNxN format (HWC 2X4X96, HWC 1X2X94) ──
     m3 = re.search(r'(\d+)\s*[Xx]\s*(\d+)\s*[Xx]\s*(\d+)', s)
     if m3:
@@ -511,18 +539,6 @@ def parse_sku_dimensions(sku: str) -> dict:
         return {
             'prefix': 'UF',
             'width': int(uf_w_only.group(2)),
-            'height': None,
-            'depth': None,
-        }
-
-    # ── Pattern C-REF: Refrigerator codes with door count (REF2D36, REF3D48) ──
-    # REF + N doors + D + width — the "N" is door count, NOT the cabinet width
-    clean = re.sub(r'[^A-Z0-9]', '', s)
-    ref_door_m = re.match(r'^(REF)(\d+)D(\d{2,3})', clean)
-    if ref_door_m:
-        return {
-            'prefix': 'REF',
-            'width': int(ref_door_m.group(3)),  # actual width after "D"
             'height': None,
             'depth': None,
         }
@@ -610,10 +626,22 @@ def find_nearest_cabinet_match(
     target_w = target_dims.get('width')
     target_h = target_dims.get('height')
 
-    # 2. Apply Integrity alias — translate the drawing prefix to what Integrity
-    #    actually uses in their catalog, if a manufacturer hint is provided.
+    # 2. Apply Prefix aliases — translate drawing prefix to catalog standard
+    # e.g. "OVD" (Oven Vertical Door) -> "O" (Oven Cabinet)
+    GLOBAL_PREFIX_ALIASES = {
+        "OVD": "O",
+        "S3S": "P",
+        "REF2D": "REF",
+        "REF3D": "REF",
+        "REF": "UT",  # Refrigerator cabinets often match Utility cabinets in catalogs
+        "REP": "REF",
+        "REFP": "REF",
+    }
+    
     effective_prefix = target_prefix
-    if manufacturer_hint and 'integrity' in manufacturer_hint.lower():
+    if effective_prefix in GLOBAL_PREFIX_ALIASES:
+        effective_prefix = GLOBAL_PREFIX_ALIASES[effective_prefix]
+    elif manufacturer_hint and 'integrity' in manufacturer_hint.lower():
         for alias_from, alias_to in INTEGRITY_PREFIX_ALIASES.items():
             if target_prefix.startswith(alias_from):
                 effective_prefix = alias_to + target_prefix[len(alias_from):]
@@ -752,11 +780,17 @@ def find_nearest_cabinet_match(
             # No dimensions parseable in target – all same-type candidates equally good
             return 0.0
 
+        # Bonus for matching prefix (e.g. REF prefers REF over UT)
+        prefix_bonus = 0.0
+        row_sku = str(row.get('sku', '')).upper()
+        if target_prefix and row_sku.startswith(target_prefix):
+            prefix_bonus = -5.0  # Significant bonus for same prefix
+
         if is_molding:
             # For molding, numeric suffix = linear length (stored in width slot)
             tw = target_w or 0
             cw = w or 0
-            return abs(tw - cw) * 1.0
+            return abs(tw - cw) * 1.0 + prefix_bonus
 
         if is_tall:
             # primary = height (×3), secondary = width (×1)
@@ -764,24 +798,25 @@ def find_nearest_cabinet_match(
             ch = h or 0
             tw = target_w or 0
             cw = w or 0
-            return abs(th - ch) * 3.0 + abs(tw - cw) * 1.0
+            
+            h_delta = abs(th - ch) if (th and ch) else 0
+            w_delta = abs(tw - cw) if (tw and cw) else 0
+            
+            # If target height is missing (e.g. REF2D36), don't penalize catalog height
+            return h_delta * 3.0 + w_delta * 1.0 + prefix_bonus
 
         if is_filler:
             # Universal Fillers: height is the primary dimension
-            # UF342 (3"x42") vs UF396 (3"x96") have very different prices
             tw = target_w or 0
             cw = w or 0
             th = target_h or 0
             ch = h or 0
-            if th > 0:
-                return abs(th - ch) * 3.0 + abs(tw - cw) * 1.0
+            if th > 0 and ch > 0:
+                return abs(th - ch) * 3.0 + abs(tw - cw) * 1.0 + prefix_bonus
             else:
-                # Only width known (UF3 with no height) — match by width only
-                return abs(tw - cw) * 1.0
+                return abs(tw - cw) * 1.0 + prefix_bonus
 
         # Standard (Wall / Base / Vanity / Sink Base)
-        # Primary = width (×3), secondary = height (×1)
-        # HIGH weight on width to ensure W3042 → W3042xx not W3036xx
         tw = target_w or 0
         cw = w or 0
         th = target_h or 0
@@ -789,12 +824,10 @@ def find_nearest_cabinet_match(
         width_delta = abs(tw - cw)
         height_delta = abs(th - ch) if (th and ch) else 0
 
-        # Give a strong bonus to exact-width matches — don't let height drift
-        # when width is already correct (e.g. prefer W3042 over W3036 for W3042 target)
+        # Give a strong bonus to exact-width matches
         if tw and cw and tw == cw:
-            # Exact width — only penalize height difference minimally
-            return height_delta * 0.5
-        return width_delta * 3.0 + height_delta * 1.0
+            return height_delta * 0.5 + prefix_bonus
+        return width_delta * 3.0 + height_delta * 1.0 + prefix_bonus
 
     scored = [(row, score(row)) for row in candidates]
     scored.sort(key=lambda x: x[1])

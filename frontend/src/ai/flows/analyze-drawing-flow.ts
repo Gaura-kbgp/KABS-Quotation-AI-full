@@ -85,7 +85,7 @@ export async function analyzeDrawing(input: {
 
     if (!result.success) {
       logToFile(`[STEP-WISE SCAN] Backend AI reported failure: ${result.error}`);
-      return { rooms: [] };
+      throw new Error(`AI Extraction failed: ${result.error}`);
     }
 
     return { rooms: result.rooms || [] };
@@ -93,6 +93,6 @@ export async function analyzeDrawing(input: {
   } catch (error: any) {
     logToFile(`[STEP-WISE SCAN] CRITICAL ERROR: ${error.message}`);
     console.error('[analyzeDrawing] Critical error:', error);
-    return { rooms: [] };
+    throw error; // Rethrow so the caller knows it failed
   }
 }

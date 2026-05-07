@@ -16,9 +16,46 @@ import shutil
 import re
 import traceback
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 _CONFIG_CACHE = {}
 _MFG_DB_CACHE = {'sku': {}, 'col': {}}
+_TIER_KEYS  = ["PRIME", "PREMIUM", "ELITE", "CHOICE", "SELECT", "VALUE", "STANDARD"]
+_WOOD_KEYS  = ["CHERRY", "MAPLE", "PAINTED", "DURAFORM", "OAK", "ASH", "HICKORY",
+               "BIRCH", "ALDER", "WALNUT", "WHITE"]
+
+WELLBORN_STRUCTURE = {
+    "ELITE CHERRY / ELITE DURAFORM (TEXTURED)": [
+        "CANYON CHERRY", "CANYON MAPLE", "CANYON DFO CHERRY", "CANYON DFO DURAFORM (TEXTURED)",
+        "CANYON DFO MAPLE", "DURANGO CHERRY", "DURANGO MAPLE", "ELDERIDGE CHERRY", "ELDERIDGE MAPLE"
+    ],
+    "PREMIUM CHERRY / PREMIUM DURAFORM (TEXTURED) / ELITE MAPLE / ELITE PAINTED": [
+        "ABILENE CHERRY", "ABILENE MAPLE", "ABILENE DFO CHERRY", "ABILENE DFO MAPLE",
+        "BELCOURT CHERRY", "BELCOURT MAPLE", "BELCOURT DFO CHERRY", "BELCOURT DFO MAPLE",
+        "CLAYTON CHERRY", "CLAYTON MAPLE", "CLAYTON DFO CHERRY", "CLAYTON DFO MAPLE",
+        "LUBBOCK CHERRY", "LUBBOCK DURAFORM (NON-TEXTURED)", "LUBBOCK MAPLE",
+        "OXRIDGE MAPLE", "OXRIDGE DFO MAPLE"
+    ],
+    "PRIME CHERRY / PREMIUM MAPLE / PREMIUM PAINTED / PREMIUM DURAFORM (NON-TEXTURED)": [
+        "ABILENE CHERRY", "ABILENE MAPLE", "ABILENE PAINTED", "ABILENE DFO CHERRY", "ABILENE DFO MAPLE",
+        "ABILENE DFO PAINTED", "BELCOURT MAPLE", "BELCOURT PAINTED", "BELCOURT DFO MAPLE",
+        "BELCOURT DFO PAINTED", "CLAYTON MAPLE", "CLAYTON PAINTED", "CLAYTON DFO MAPLE",
+        "CLAYTON DFO PAINTED", "DENVER CHERRY", "DENVER MAPLE", "DENVER DFO CHERRY",
+        "DENVER DFO MAPLE", "LUBBOCK DURAFORM (NON-TEXTURED)", "LUBBOCK MAPLE",
+        "LUBBOCK PAINTED", "OXRIDGE MAPLE", "OXRIDGE PAINTED", "OXRIDGE DFO MAPLE",
+        "OXRIDGE DFO PAINTED"
+    ],
+    "PRIME MAPLE / PRIME PAINTED / PRIME DURAFORM": [
+        "BANDERA MAPLE", "BANDERA DFO MAPLE", "COOPER MAPLE", "COOPER DFO MAPLE",
+        "DENVER CHERRY", "DENVER MAPLE", "DENVER DFO CHERRY", "DENVER DFO MAPLE"
+    ],
+    "CHOICE DURAFORM / CHOICE MAPLE / CHOICE PAINTED": [
+        "BARREN MAPLE", "BARREN DURAFORM", "BARREN PAINTED", "CARSON DURAFORM",
+        "CARSON PAINTED", "CARSON DFO DURAFORM", "CARSON DFO PAINTED"
+    ],
+    "BASE": ["BOERNE HARDWOOD"]
+}
+
 # NEW: Global Cache for fully built lookup maps
 # key: manufacturer_id, value: { 'maps': lookup_maps, 'timestamp': time.time() }
 GLOBAL_LOOKUP_CACHE = {}
@@ -27,77 +64,127 @@ GLOBAL_LOOKUP_CACHE = {}
 # key: job_id, value: { status, progress, message, count, fileName, error }
 SPEC_UPLOAD_JOBS: dict = {}
 
-def _fetch_pricing_data_internal(supabase, manufacturer_id: str, project_skus: set) -> list:
-    """Consolidated fetcher that handles both full load and targeted SKU fetch."""
+def _fetch_pricing_data_internal(supabase, manufacturer_id: str, project_skus: set, project_collections: set = None) -> list:
+    """Consolidated fetcher that handles both full load, targeted SKU, and collection-based fetch."""
     page_size = 1000
     pricing_data = []
     seen_ids: set = set()
 
     # 1. Total count
-    count_res = supabase.table("manufacturer_pricing").select("id", count="exact").eq("manufacturer_id", manufacturer_id).execute()
-    total = count_res.count or 0
+    try:
+        count_res = supabase.table("manufacturer_pricing").select("id", count="exact").eq("manufacturer_id", manufacturer_id).execute()
+        total = count_res.count or 0
+    except Exception as e:
+        print(f"ERROR fetching count: {e}")
+        return []
+    
     print(f"DEBUG: Catalog total items: {total}")
 
-    if total < 50000:
-        # Full load for small/medium catalogs
-        off = 0
-        while off < total:
-            res = supabase.table("manufacturer_pricing").select("id,sku,price,collection_name,door_style") \
-                .eq("manufacturer_id", manufacturer_id).range(off, off + page_size - 1).execute()
-            batch = res.data or []
+    # Use targeted/collection fetch if catalog is large (>5000)
+    use_targeted = total > 5000
+    
+    if not use_targeted:
+        # Full load for small catalogs (Parallel)
+        def fetch_chunk(start, end):
+            try:
+                res = supabase.table("manufacturer_pricing").select("id,sku,price,collection_name,door_style") \
+                    .eq("manufacturer_id", manufacturer_id).range(start, end).execute()
+                return res.data or []
+            except Exception as e:
+                print(f"ERROR fetching range {start}-{end}: {e}")
+                return []
+
+        ranges = [(i, i + page_size - 1) for i in range(0, total, page_size)]
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            batch_results = list(executor.map(lambda r: fetch_chunk(*r), ranges))
+        
+        for batch in batch_results:
             for row in batch:
                 rid = row.get('id')
                 if rid and rid not in seen_ids:
                     seen_ids.add(rid)
                     pricing_data.append(row)
-            if len(batch) < page_size: break
-            off += page_size
     else:
-        # Targeted SKU fetch for extremely large catalogs (>50k rows)
-        # This prevents OOM and network timeouts
-        print(f"DEBUG: Using targeted fetch for {len(project_skus)} SKUs")
-        sku_list = list(project_skus)
-        for i in range(0, len(sku_list), 200):
-            chunk = sku_list[i : i + 200]
-            res = supabase.table("manufacturer_pricing").select("id,sku,price,collection_name,door_style") \
-                .eq("manufacturer_id", manufacturer_id).in_("sku", chunk).execute()
-            batch = res.data or []
-            for row in batch:
-                rid = row.get('id')
-                if rid and rid not in seen_ids:
-                    seen_ids.add(rid)
-                    pricing_data.append(row)
+        # Targeted SKU + Collection fetch
+        sku_list = list(project_skus) if project_skus else []
+        col_list = list(project_collections) if project_collections else []
+        
+        # A. Fetch by Collection (Broad match)
+        if col_list:
+            print(f"DEBUG: Fetching by collections: {col_list}")
+            for cname in col_list:
+                if not cname or len(cname) < 2: continue
+                try:
+                    # 1. Get total count for this specific collection to handle pagination
+                    c_count_res = supabase.table("manufacturer_pricing").select("id", count="exact") \
+                        .eq("manufacturer_id", manufacturer_id) \
+                        .ilike("collection_name", f"%{cname}%").execute()
+                    c_total = c_count_res.count or 0
+                    
+                    if c_total > 0:
+                        # 2. Paginate fetch (Supabase defaults to 1000 limit)
+                        for start in range(0, c_total, 1000):
+                            end = start + 999
+                            res = supabase.table("manufacturer_pricing").select("id,sku,price,collection_name,door_style") \
+                                .eq("manufacturer_id", manufacturer_id) \
+                                .ilike("collection_name", f"%{cname}%") \
+                                .range(start, end).execute()
+                            for row in (res.data or []):
+                                rid = row.get('id')
+                                if rid and rid not in seen_ids:
+                                    seen_ids.add(rid); pricing_data.append(row)
+                except Exception as e:
+                    print(f"ERROR fetching collection {cname}: {e}")
+
+        # B. Targeted SKU fetch (Parallel)
+        if sku_list:
+            print(f"DEBUG: Using targeted parallel fetch for {len(sku_list)} SKUs")
+            def fetch_skus(chunk):
+                try:
+                    res = supabase.table("manufacturer_pricing").select("id,sku,price,collection_name,door_style") \
+                        .eq("manufacturer_id", manufacturer_id).in_("sku", chunk).execute()
+                    return res.data or []
+                except Exception as e:
+                    print(f"ERROR fetching SKU chunk: {e}")
+                    return []
+
+            chunks = [sku_list[i : i + 200] for i in range(0, len(sku_list), 200)]
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                batch_results = list(executor.map(fetch_skus, chunks))
+            
+            for batch in batch_results:
+                for row in batch:
+                    rid = row.get('id')
+                    if rid and rid not in seen_ids:
+                        seen_ids.add(rid); pricing_data.append(row)
     
     return pricing_data
 
-def get_manufacturer_pricing_maps(supabase, manufacturer_id: str, _manufacturer_hint: str = ""):
+def get_manufacturer_pricing_maps(supabase, manufacturer_id: str, _manufacturer_hint: str = "", project_skus: set = None, project_collections: set = None):
     """
     Returns built lookup maps for a manufacturer, using a global memory cache if available.
     """
     now = datetime.datetime.now().timestamp()
-    # Cache for 15 minutes unless re-upload occurs (TODO: bust on file upload)
+    
+    # Use cache if available (Full catalog cache covers any targeted request)
     if manufacturer_id in GLOBAL_LOOKUP_CACHE:
         entry = GLOBAL_LOOKUP_CACHE[manufacturer_id]
         if now - entry['timestamp'] < 900: # 15 mins
-            print(f"DEBUG: Using CACHED lookup maps for {manufacturer_id}")
+            print(f"DEBUG: Using CACHED full lookup maps for {manufacturer_id}")
             return entry['maps']
 
-    # 2. Fetch all rows using consolidated fetcher
-    # We pass an empty set of skus because we want the full catalog (handled by total < 50k logic)
-    pricing_data = _fetch_pricing_data_internal(supabase, manufacturer_id, set())
+    # 2. Fetch all rows (or targeted rows) using consolidated fetcher
+    pricing_data = _fetch_pricing_data_internal(supabase, manufacturer_id, project_skus or set(), project_collections or set())
 
     # 3. Build maps
     lookup_maps = _build_lookup_maps(pricing_data)
 
-    # 4. Cache only if we have data — never cache an empty result so a missing
-    #    catalog doesn't block pricing for 15 minutes after an upload.
-    if lookup_maps.get('all_catalog_rows'):
+    # 4. Cache ONLY if it's a full load (no project_skus) and has data
+    if not project_skus and lookup_maps.get('all_catalog_rows'):
         GLOBAL_LOOKUP_CACHE[manufacturer_id] = {
             'maps': lookup_maps,
             'timestamp': now
         }
-    else:
-        print(f"DEBUG: Catalog empty for {manufacturer_id} — skipping cache")
     return lookup_maps
 
 def _build_lookup_maps(pricing_data: list):
@@ -112,8 +199,13 @@ def _build_lookup_maps(pricing_data: list):
         'col_skus': {}, 'category_items': {}, 'category_sums': {},
         'all_catalog_rows': [],
         # NEW: SECTION-INDEXED rows for 10x faster dimension matching
-        'section_rows': {} 
+        'section_rows': {},
+        'labor': {} # NEW: { sku: points }
     }
+
+    # MEMOIZATION: Drastically speed up map building for multi-collection catalogs
+    _sku_info_cache = {}
+    _norm_col_cache = {}
 
     for p in pricing_data:
         sku = str(p['sku']).strip().upper()
@@ -121,22 +213,58 @@ def _build_lookup_maps(pricing_data: list):
         col = str(p.get('collection_name', '')).strip().upper()
         style = str(p.get('door_style', '')).strip().upper()
         
-        sku_base = strip_catalog_suffix(sku)
-        ct = classify_cabinet_type(sku_base)
-        cs = get_cabinet_section(sku_base)
+        # 1. Memoized SKU properties (independent of collection)
+        if sku not in _sku_info_cache:
+            sku_base = strip_catalog_suffix(sku)
+            _sku_info_cache[sku] = {
+                "base": sku_base,
+                "ct": classify_cabinet_type(sku_base),
+                "cs": get_cabinet_section(sku_base),
+                "dims": parse_sku_dimensions(sku_base),
+                "ac": re.sub(r'[^A-Z0-9]', '', sku_base.upper()),
+                "comp": compress_sku(sku),
+                "cat": detect_category(sku)
+            }
         
-        # NEW: Pre-calculate everything for ultra-fast matching
-        dims_p = parse_sku_dimensions(sku_base)
+        s_info = _sku_info_cache[sku]
+        sku_base = s_info["base"]
+        ct = s_info["ct"]
+        cs = s_info["cs"]
+        dims_p = s_info["dims"]
         w_val = dims_p.get('width')
         h_val = dims_p.get('height')
-        norm_col = normalize_collection_name(col)
+        ac = s_info["ac"]
+        comp = s_info["comp"]
+        cat = s_info["cat"]
+
+        # 2. Memoized Collection normalization
+        if col not in _norm_col_cache:
+            _norm_col_cache[col] = normalize_collection_name(col)
+        norm_col = _norm_col_cache[col]
         
-        cat = detect_category(sku)
+        # ── Labor Points Extraction (Wellborn Accessory Sheets) ──
+        if col == "LABOR_POINTS":
+            lookup_maps['labor'][sku] = price
+            continue
+            
+        # SELF-HEALING: Prevent labor point factors (0.1, 0.3, 1.0) from being used as material prices.
+        # This occurs when points were mistakenly uploaded as prices in the primary collection.
+        from app.utils.cabinet_utils import detect_category
+        item_cat = detect_category(sku)
+        # Aggressive filter for any item with 'point-like' prices in labor-prone categories
+        is_labor_prone = item_cat in ("Molding & Trim", "Universal Fillers", "Accessories", "Hardwares", "Panels")
+        
+        if is_labor_prone and 0 < price < 5.0:
+            if sku not in lookup_maps['labor']:
+                lookup_maps['labor'][sku] = price
+            # Skip from primary list-price maps to allow finding the real price row
+            continue
+        
         item = {
             "sku": sku, "price": price, "collection_name": col, "door_style": style,
             "ct": ct, "cs": cs, "w": w_val, "h": h_val,
             "ncol": norm_col, "csku": sku_base,
-            "ac": re.sub(r'[^A-Z0-9]', '', sku_base.upper())
+            "ac": ac
         }
         
         lookup_maps['all_catalog_rows'].append(item)
@@ -149,8 +277,15 @@ def _build_lookup_maps(pricing_data: list):
         
         sku_comp_base = compress_sku(sku_base)
 
-        if col and style: lookup_maps['local'][f"{sku}|{col}|{style}"] = item
-        if col: lookup_maps['local'][f"{sku}|{col}"] = item
+        # Indexing for local_map[sku|col] and local_map[sku|col|style]
+        # Priority mapping: If multiple rows exist (e.g. from bad uploads), prioritize higher prices
+        def set_local_priority(key, val):
+            if key not in lookup_maps['local'] or val['price'] > lookup_maps['local'][key]['price']:
+                lookup_maps['local'][key] = val
+
+        if col and style: set_local_priority(f"{sku}|{col}|{style}", item)
+        if col: set_local_priority(f"{sku}|{col}", item)
+        
         if col:
             if col not in lookup_maps['col_skus']: lookup_maps['col_skus'][col] = []
             lookup_maps['col_skus'][col].append(sku)
@@ -160,25 +295,80 @@ def _build_lookup_maps(pricing_data: list):
             if norm_col not in lookup_maps['col_skus']:
                 lookup_maps['col_skus'][norm_col] = []
             lookup_maps['col_skus'][norm_col].append(sku)
-            if col and style: lookup_maps['local'][f"{sku}|{norm_col}|{style}"] = item
-            if col: lookup_maps['local'][f"{sku}|{norm_col}"] = item
+            if col and style: set_local_priority(f"{sku}|{norm_col}|{style}", item)
+            if col: set_local_priority(f"{sku}|{norm_col}", item)
 
-        if style: lookup_maps['local'][f"{sku}|{style}"] = item
+        # Indexing under all component Tier + Wood combinations
+        tiers_in_col = [t for t in _TIER_KEYS if t in col]
+        woods_in_col = [w for w in _WOOD_KEYS if w in col]
+        for t in tiers_in_col:
+            for w in woods_in_col:
+                variant_col = f"{t} {w}"
+                if variant_col != col:
+                    if variant_col not in lookup_maps['col_skus']:
+                        lookup_maps['col_skus'][variant_col] = []
+                    lookup_maps['col_skus'][variant_col].append(sku)
+                    set_local_priority(f"{sku}|{variant_col}", item)
+                    if style: set_local_priority(f"{sku}|{variant_col}|{style}", item)
+        
+        # Wellborn Structured Collection Indexing
+        for full_col in WELLBORN_STRUCTURE.keys():
+            if col and (col in full_col or full_col in col):
+                set_local_priority(f"{sku}|{full_col}", item)
+                if comp != sku: set_local_priority(f"{comp}|{full_col}", item)
+                if style: 
+                    set_local_priority(f"{sku}|{full_col}|{style}", item)
+                    if comp != sku: set_local_priority(f"{comp}|{full_col}|{style}", item)
+                    if sku_base != sku: set_local_priority(f"{sku_base}|{full_col}|{style}", item)
+                if sku_base != sku: set_local_priority(f"{sku_base}|{full_col}", item)
 
+                if full_col not in lookup_maps['col_skus']:
+                    lookup_maps['col_skus'][full_col] = []
+                lookup_maps['col_skus'][full_col].append(sku)
+                if comp != sku: lookup_maps['col_skus'][full_col].append(comp)
+
+                norm_full = normalize_collection_name(full_col)
+                if norm_full != full_col:
+                    set_local_priority(f"{sku}|{norm_full}", item)
+                    if comp != sku: set_local_priority(f"{comp}|{norm_full}", item)
+                    if norm_full not in lookup_maps['col_skus']:
+                        lookup_maps['col_skus'][norm_full] = []
+                    lookup_maps['col_skus'][norm_full].append(sku)
+
+        if style: set_local_priority(f"{sku}|{style}", item)
+
+        # Priority mapping for global_map[sku]
         if sku not in lookup_maps['global'] or price > lookup_maps['global'][sku]['price']:
             lookup_maps['global'][sku] = item
-        comp = compress_sku(sku)
+        
         if comp not in lookup_maps['compressed']: lookup_maps['compressed'][comp] = item
 
+        # Index compressed SKU in local map
+        if comp != sku:
+            if col:
+                set_local_priority(f"{comp}|{col}", item)
+                if style: set_local_priority(f"{comp}|{col}|{style}", item)
+            if norm_col and norm_col != col:
+                set_local_priority(f"{comp}|{norm_col}", item)
+            for t in tiers_in_col:
+                for w in woods_in_col:
+                    variant_col = f"{t} {w}"
+                    if variant_col != col:
+                        set_local_priority(f"{comp}|{variant_col}", item)
+                        if style: set_local_priority(f"{comp}|{variant_col}|{style}", item)
+
         if sku_base and sku_base != sku:
-            if col and style: lookup_maps['local'].setdefault(f"{sku_base}|{col}|{style}", item)
-            if col: lookup_maps['local'].setdefault(f"{sku_base}|{col}", item)
-            if style: lookup_maps['local'].setdefault(f"{sku_base}|{style}", item)
-            lookup_maps['global'].setdefault(sku_base, item)
+            if col and style: set_local_priority(f"{sku_base}|{col}|{style}", item)
+            if col: set_local_priority(f"{sku_base}|{col}", item)
+            if style: set_local_priority(f"{sku_base}|{style}", item)
+            
+            if sku_base not in lookup_maps['global'] or price > lookup_maps['global'][sku_base]['price']:
+                lookup_maps['global'][sku_base] = item
+                
             if sku_comp_base not in lookup_maps['compressed']:
                 lookup_maps['compressed'][sku_comp_base] = item
             if norm_col and norm_col != col:
-                lookup_maps['local'].setdefault(f"{sku_base}|{norm_col}", item)
+                set_local_priority(f"{sku_base}|{norm_col}", item)
 
         stripped = re.sub(r'[\s-]*(BUTT|H|L|R|FL|S|D)$', '', sku).strip()
         if stripped != sku:
@@ -191,8 +381,10 @@ def _build_lookup_maps(pricing_data: list):
         if cat not in lookup_maps['category_items']: lookup_maps['category_items'][cat] = []
         lookup_maps['category_items'][cat].append(item)
         if cat not in lookup_maps['category_sums']: lookup_maps['category_sums'][cat] = [0.0, 0]
-        lookup_maps['category_sums'][cat][0] += price
-        lookup_maps['category_sums'][cat][1] += 1
+        # Outlier protection: skip insane prices (likely phone numbers or parsing errors)
+        if price < 50000:
+            lookup_maps['category_sums'][cat][0] += price
+            lookup_maps['category_sums'][cat][1] += 1
 
         dims = parse_sku_dimensions(sku_base if sku_base else sku)
         if dims.get('prefix') and dims.get('width'):
@@ -227,10 +419,11 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
         # print(f"DEBUG: {message}")
         pass
 
-    def try_match(sku_variant: str, match_type_suffix: str):
+    def try_match(sku_variant: str, match_type_suffix: str, include_global: bool = True, override_col: str = None):
         if not sku_variant: return None
+        target_col = override_col if override_col else col
         # 1. Strict SKU + Col + Style
-        key1 = f"{sku_variant}|{col}|{style}"
+        key1 = f"{sku_variant}|{target_col}|{style}"
         if key1 in local_map:
             log_match(f"MATCH: {key1} (Local Spec)")
             return local_map[key1], f"EXACT_SPEC_{match_type_suffix}"
@@ -242,157 +435,212 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
             return local_map[key2], f"EXACT_STYLE_{match_type_suffix}"
             
         # 3. Strict SKU + Col
-        key3 = f"{sku_variant}|{col}"
+        key3 = f"{sku_variant}|{target_col}"
         if key3 in local_map:
             log_match(f"MATCH: {key3} (Local Col)")
             return local_map[key3], f"EXACT_COL_{match_type_suffix}"
             
-        # 4. Global SKU
-        if sku_variant in global_map:
+        # 4. Global SKU (Now optional)
+        if include_global and sku_variant in global_map:
             log_match(f"MATCH: {sku_variant} (Global)")
             return global_map[sku_variant], f"EXACT_GLOBAL_{match_type_suffix}"
         return None
 
     log_match(f"PROBING: {target} (Room: {col} / {style})")
 
-    # TIER 1: ORIGINAL
-    match = try_match(target, "ORIGINAL")
-    if match: return match
-
-    # TIER 2: CLEAN PARENS (strip (), {}, [])
+    # PRE-FLIGHT: Gather all variants to probe
+    # We will try LOCAL match for all variants first, then GLOBAL as fallback.
     clean_target = re.sub(r'[\(\{\[].*?[\)\}\]]', '', target).strip()
-    # Strip estimation suffixes too
     clean_target = re.sub(r'\s*(-EST|EST\.)$', '', clean_target).strip()
     
-    if clean_target != target:
-        log_match(f"TRYING TIER 2 (Clean): {clean_target}")
-        match = try_match(clean_target, "CLEANED")
-        if match: return match
-
-    # TIER 2.5: SUFFIX BRIDGE — map design shorthand suffixes to pricebook codes
-    # e.g. "B30 BUTT" → try "B30BD" before falling back to bare "B30"
-    # Also handles concatenated: "W3042BUTT" → "W3042BD"
+    # Suffix Bridge: convert drawing suffixes to catalog suffixes.
+    # Handles both spaced ("B30 BUTT" → "B30BD") and concatenated ("W3624BUTT" → "W3624BD").
+    bridged = None
     suffix_m = re.search(r'\s+(BUTT DOOR|BUTT|BD|LH|RH|L|R)$', clean_target)
     if suffix_m:
         suffix_token = suffix_m.group(1).strip()
-        base_sku     = clean_target[:suffix_m.start()].strip()
-        mapped       = DRAWING_SUFFIX_TO_CATALOG.get(suffix_token)
+        base_sku = clean_target[:suffix_m.start()].strip()
+        mapped = DRAWING_SUFFIX_TO_CATALOG.get(suffix_token)
         if mapped:
-            bridged = base_sku + mapped           # e.g. "B30" + "BD" → "B30BD"
-            log_match(f"TRYING TIER 2.5 (Suffix Bridge): {bridged}")
-            match = try_match(bridged, "BRIDGED")
-            if match: return match
+            bridged = base_sku + mapped
+    else:
+        # Concatenated form: "W3624BUTT" → "W3624BD", "B30BD" → already BD
+        conc_m = re.match(r'^([A-Z]+\d+)(BUTT DOOR|BUTT|LH|RH)$', clean_target)
+        if conc_m:
+            mapped = DRAWING_SUFFIX_TO_CATALOG.get(conc_m.group(2).strip())
+            if mapped:
+                bridged = conc_m.group(1) + mapped
 
-    # TIER 2.6: CONCATENATED SUFFIX BRIDGE — handles "W3042BUTT" (no space)
-    # Strip concatenated drawing suffixes and probe with catalog suffixes
     stripped_drawing = strip_drawing_suffix(clean_target)
-    if stripped_drawing != clean_target:
-        log_match(f"TRYING TIER 2.6 (Strip Drawing Suffix): {stripped_drawing}")
-        # Try with common Integrity catalog suffixes: BD, MDBD, SD
-        for cat_sfx in ['BD', 'MDBD', 'SD', '']:
-            probe = stripped_drawing + cat_sfx
-            result = try_match(probe, f"DRAW_SFX_{cat_sfx or 'BARE'}")
-            if result:
-                log_match(f"TIER 2.6 HIT: {probe}")
-                return result
-    # TIER 3: REMOVE NKBA SUFFIXES
     no_suffix_target = re.sub(r'\s*(BUTT|H|L|R|FL|S|D)$', '', clean_target).strip()
-    if no_suffix_target != clean_target:
-        log_match(f"TRYING TIER 3 (No Suffix): {no_suffix_target}")
-        match = try_match(no_suffix_target, "NO_SUFFIX")
-        if match: return match
-
-    # TIER 3.5: MANUFACTURER CATALOG SUFFIX STRIPPING
-    # Integrity appends finish/door variants as part of the SKU: BLD, BD, SD, MD, MDBD
-    # Drawings add descriptors: DW (dishwasher side), DWR (right), VENTBOX, VENT, BOX
-    # e.g. OCM8BLD → OCM8, UF3DW → UF3, BACKB48VENTBOX → BACKB48, UF642DWR → UF642
-    _MFG_SUFFIX_RE = re.compile(r'(VENTBOX|VENT|BOX|MDBD|BLD|DWR|DW|BD|SD|MD)$')
+    
+    _MFG_SUFFIX_RE = re.compile(r'(VENTBOX|VENT|BOX|MDBD|BLD|DWR|DW|BD|SD|MD|AS|A|EST|EST\.)$')
     mfg_stripped = _MFG_SUFFIX_RE.sub('', clean_target).strip()
-    if mfg_stripped and mfg_stripped != clean_target:
-        log_match(f"TRYING TIER 3.5 (Mfg Suffix Strip): {mfg_stripped}")
-        result = try_match(mfg_stripped, "MFG_STRIPPED")
-        if result: return result
-        # Also try with no-suffix applied on top of the stripped form
-        mfg_no_sfx = re.sub(r'\s*(BUTT|H|L|R|FL|S|D)$', '', mfg_stripped).strip()
-        if mfg_no_sfx != mfg_stripped:
-            result = try_match(mfg_no_sfx, "MFG_STRIPPED_CLEAN")
-            if result: return result
-    # TIER 4: COMPRESSED (NEW)
+    
+    variants = [
+        (target, "ORIGINAL"),
+        (bridged, "BRIDGED") if bridged else (None, ""),
+        (clean_target, "CLEANED") if clean_target != target else (None, ""),
+        (stripped_drawing, "STRIPPED") if stripped_drawing != clean_target else (None, ""),
+        (no_suffix_target, "NO_SUFFIX") if no_suffix_target != clean_target else (None, ""),
+        (mfg_stripped, "MFG_STRIPPED") if mfg_stripped != clean_target else (None, ""),
+    ]
+    
+    # TIER 1-3: Try LOCAL match for all variants
+    norm_col = normalize_collection_name(col)
+    for var, label in variants:
+        if not var: continue
+        # Try raw collection first
+        res = try_match(var, label, include_global=False)
+        if res: return res
+        # Try normalized collection second
+        if norm_col and norm_col != col:
+            res = try_match(var, f"{label}_NORMCOL", include_global=False, override_col=norm_col)
+            if res: return res
+
+    # NEW: Try SPACED variants specifically (e.g. W3624BUTT -> W3624 BUTT)
+    if "BUTT" in clean_target and " " not in clean_target:
+        spaced = clean_target.replace("BUTT", " BUTT")
+        res = try_match(spaced, "SPACED", include_global=False)
+        if res: return res
+
+    # NEW: Try SBN variant for Sink Bases
+    if clean_target.startswith("SB") and not clean_target.startswith("SBN"):
+        sbn_variant = clean_target.replace("SB", "SBN", 1)
+        res = try_match(sbn_variant, "SBN_PROBE", include_global=False)
+        if res: return res
+
+    # TIER 4: Compressed match (handles W3624BUTT vs W3624 BUTT)
     comp_target = compress_sku(clean_target)
     if comp_target in compressed_map:
-        log_match(f"MATCH: {comp_target} (Compressed)")
         return compressed_map[comp_target], "COMPRESSED"
+    
+    comp_stripped = compress_sku(stripped_drawing)
+    if comp_stripped and comp_stripped != comp_target and comp_stripped in compressed_map:
+        return compressed_map[comp_stripped], "COMPRESSED_STRIPPED"
 
-    # TIER 4.5: MOLDING / TRIM ALIAS PROBING
-    # Drawing PDFs use NKBA-standard prefixes; Integrity catalog may use their own.
-    # Also probe common catalog suffix variants (BLD, BD, SD) for molding codes.
-    # e.g. BTK8 → BTK8BLD, TK8, TK8BLD; FL48 → LR48, LR48BLD; OCM8 → OCM8BLD
+    # TIER 4.5: Molding/Alias Probing (Local and Global)
     _MOLDING_ALIASES = {
         'BTK': ['BTK', 'TK', 'BK'],      # Base Toe Kick
         'TK':  ['TK', 'BTK'],
         'FL':  ['FL', 'LR', 'FLR'],      # Filler Light Rail
         'LR':  ['LR', 'FL', 'FLR'],      # Light Rail
-        'OCM': ['OCM', 'CM', 'OCORNER'], # Outside Corner Molding
-        'SCM': ['SCM', 'SM', 'SCRIBE'],  # Scribe Molding
-        'CM':  ['CM', 'OCM', 'CROWN'],   # Crown Molding
+        'OCM': ['OCM', 'OC', 'CM', 'OCORNER', 'OUTSIDE'], # Outside Corner Molding
+        'OC':  ['OC', 'OCM', 'OCORNER'],
+        'ICM': ['ICM', 'IC', 'ICORNER'],  # Inside Corner Molding
+        'IC':  ['IC', 'ICM'],
+        'SCM': ['SCM', 'SM', 'SCRIBE', 'SC'],  # Scribe Molding
+        'SM':  ['SM', 'SCM', 'SHOE'],
+        'SHM': ['SHM', 'SHAKER'],
+        'CM':  ['CM', 'OCM', 'CROWN', 'CRN'],   # Crown Molding
+        'QM':  ['QM', 'QR', 'QUARTER'],          # Quarter Round
         'RR':  ['RR', 'LR'],             # Return Rail
+        'REF': ['REP', 'REFP', 'REF'],   # Refrigerator End Panel
+        'REP': ['REF', 'REFP', 'REP'],
     }
-    _CATALOG_VARIANTS = ['BLD', 'BD', 'SD', 'MD', 'MDBD', '']
+    _CATALOG_VARIANTS = ['BLD', 'BD', 'SD', 'MD', 'MDBD', 'AS', 'A', 'S', '']
     _alias_prefix_m = re.match(r'^([A-Z]+)(\d+.*)$', clean_target)
     if _alias_prefix_m:
         ap, adigits = _alias_prefix_m.group(1), _alias_prefix_m.group(2)
-        # Strip any mfg suffix already on the digits part so we can add clean variants
         adigits_clean = _MFG_SUFFIX_RE.sub('', adigits).strip()
         if ap in _MOLDING_ALIASES:
             for alias in _MOLDING_ALIASES[ap]:
                 for variant in _CATALOG_VARIANTS:
                     probe = f"{alias}{adigits_clean}{variant}"
                     if probe != clean_target:
-                        result = try_match(probe, f"ALIAS_{alias}_{variant or 'BARE'}")
-                        if result:
-                            log_match(f"TIER 4.5 HIT: {probe}")
-                            return result
+                        # Enable include_global=True so moldings in UNIVERSAL are found
+                        res = try_match(probe, f"ALIAS_{alias}", include_global=True)
+                        if res: return res
 
-    # TIER 5: FUZZY — try against all collection SKUs (normalized collection name)
-    # Also try fuzzy match against normalized collection names to handle encoding issues
+    # TIER 5: GLOBAL FALLBACK for exact/bridged/spaced variants
+    for var, label in variants:
+        if not var: continue
+        if var in global_map:
+            return global_map[var], f"EXACT_GLOBAL_{label}"
+    
+    if "BUTT" in clean_target and " " not in clean_target:
+        spaced = clean_target.replace("BUTT", " BUTT")
+        if spaced in global_map:
+            return global_map[spaced], "EXACT_GLOBAL_SPACED"
+
+    # TIER 6: FUZZY COLLECTION-BOUND MATCHING
+    # Normalize collection for matching
     norm_col = normalize_collection_name(col)
-    # Find the best matching collection key using normalized names
-    fuzzy_col_key = col
-    if norm_col and col not in lookup_maps.get('col_skus', {}):
-        for catalog_col in lookup_maps.get('col_skus', {}).keys():
-            if normalize_collection_name(catalog_col) == norm_col:
-                fuzzy_col_key = catalog_col
-                break
-            # Also try contains-match
-            if norm_col in normalize_collection_name(catalog_col) or normalize_collection_name(catalog_col) in norm_col:
-                fuzzy_col_key = catalog_col
-                break
+    col_candidates = []
+    for catalog_col in lookup_maps.get('col_skus', {}).keys():
+        cat_norm = normalize_collection_name(catalog_col)
+        if norm_col == cat_norm or (norm_col and (norm_col in cat_norm or cat_norm in norm_col)):
+            col_candidates.append(catalog_col)
+            
+    if col in lookup_maps.get('col_skus', {}) and col not in col_candidates:
+        col_candidates.append(col)
 
-    if fuzzy_col_key in lookup_maps.get('col_skus', {}):
-        choices = lookup_maps['col_skus'][fuzzy_col_key]
-        if choices:
-            # Use the stripped drawing target for fuzzy matching
-            fuzzy_target = strip_drawing_suffix(clean_target)
-            best_sku, score = process.extractOne(fuzzy_target, choices, scorer=fuzz.ratio)
-            if score > 80:  # Slightly lower threshold since we've stripped suffixes
-                log_match(f"MATCH: {best_sku} (Fuzzy {score}% via normalized col)")
-                key = f"{best_sku}|{fuzzy_col_key}"
-                match = local_map.get(key) or local_map.get(f"{best_sku}|{fuzzy_col_key}|{style}") or global_map.get(best_sku)
-                if match: return match, f"FUZZY_{score}"
+    fuzzy_target = compress_sku(clean_target)
 
-    # TIER 5.5: INTELLIGENT NEAREST-CABINET DIMENSION MATCH
-    # ─────────────────────────────────────────────────────────────────────
-    # When no exact / fuzzy match is found, classify the cabinet type from
-    # the drawing code (Wall, Base, Sink Base, Vanity, Tall, Molding, etc.)
-    # and find the geometrically closest same-type cabinet in the catalog.
-    # This gives a REAL price (not a category average) and is especially
-    # critical for Integrity Cabinets where the catalog uses different SKU
-    # conventions but contains the corresponding size cabinet.
-    # ─────────────────────────────────────────────────────────────────────
+    # TIER 5.5: SUPER FUZZY (Handles extreme formatting diffs)
+    # Uses token_set_ratio which ignores duplicates and word order
+    for fuzzy_col_key in col_candidates:
+        choices = lookup_maps['col_skus'].get(fuzzy_col_key, [])
+        if not choices: continue
+        best_sku, score = process.extractOne(fuzzy_target, choices, scorer=fuzz.token_set_ratio)
+        if score >= 95:
+            key = f"{best_sku}|{fuzzy_col_key}"
+            match = local_map.get(key)
+            if match: return match, f"SMART_FUZZY_{score}"
+
+    # TIER 5.7: BASE CODE PROBE (W3624BUTT -> W3624)
+    # Use a more aggressive base-code extractor
+    smart_base = re.sub(r'[^A-Z0-9]', '', clean_target)
+    smart_base = re.sub(r'(BUTT|BD|SD|MD|H|L|R)$', '', smart_base)
+    if smart_base != clean_target:
+        res = try_match(smart_base, "SMART_BASE", include_global=False)
+        if res: return res
+        # Also try spaced variant of smart base
+        for fuzzy_col_key in col_candidates:
+            choices = lookup_maps['col_skus'].get(fuzzy_col_key, [])
+            if smart_base in choices:
+                return local_map.get(f"{smart_base}|{fuzzy_col_key}"), "SMART_BASE_LOCAL"
+
+    # TIER 6: GLOBAL FUZZY MATCH
+    global_choices = list(global_map.keys())
+    if global_choices:
+        # Use WRatio which is the most advanced fuzzy matcher in thefuzz
+        best_sku, score = process.extractOne(fuzzy_target, global_choices, scorer=fuzz.WRatio)
+        if score >= 95:
+            return global_map[best_sku], f"FUZZY_GLOBAL_{score}"
+
+    # TIER 6.5: SMART DIMENSION IDENTITY (Handles SKU variations like W3624BT vs W3624BUTT)
+    # If we find exactly ONE item in the collection with the same category and dimensions,
+    # it's almost certainly the right item even if the SKU strings differ.
+    target_dims = parse_sku_dimensions(clean_target)
+    from app.utils.cabinet_utils import get_cabinet_section
+    target_section = get_cabinet_section(clean_target)
+    if target_dims.get('width') and target_section:
+        dim_candidates = []
+        tw, th = target_dims['width'], target_dims.get('height')
+        for c_key in col_candidates:
+            sec_items = lookup_maps.get('section_rows', {}).get(target_section, [])
+            for item in sec_items:
+                # Normalize collection check
+                item_ncol = item.get('ncol') or normalize_collection_name(str(item.get('collection_name', '')))
+                if item_ncol == c_key or item.get('collection_name') == c_key:
+                    if item.get('w') == tw and item.get('h') == th:
+                        dim_candidates.append(item)
+        if len(dim_candidates) == 1:
+            return dim_candidates[0], "SMART_DIM_IDENTITY"
+
+    # TIER 7: DIMENSION MATCH (Collection-Bound)
+    dims = parse_sku_dimensions(clean_target)
+    if dims.get('prefix') and dims.get('width'):
+        dim_key = f"{dims['prefix']}|{dims['width']}|{dims.get('height') or ''}"
+        dim_map = lookup_maps.get('dim', {})
+        for c_cand in col_candidates:
+            if f"{dim_key}|{c_cand}" in dim_map:
+                return dim_map[f"{dim_key}|{c_cand}"], "DIMENSION_COL"
+
+    # TIER 8: INTELLIGENT NEAREST-CABINET (DIM)
     cabinet_type = classify_cabinet_type(clean_target)
-    catalog_rows = lookup_maps.get('all_catalog_rows', [])
-    if cabinet_type and catalog_rows:
-        # Pass lookup_maps instead of just catalog_rows to enable FAST PATH (section-indexed search)
+    if cabinet_type and lookup_maps.get('all_catalog_rows'):
         nearest = find_nearest_cabinet_match(
             target_sku=clean_target,
             catalog_skus=lookup_maps, 
@@ -400,93 +648,42 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
             manufacturer_hint=manufacturer_hint,
         )
         if nearest:
-            delta_w = ""
-            # Try to log what size we landed on
             from app.utils.cabinet_utils import parse_sku_dimensions as _psd
-            t_dims = _psd(clean_target)
-            n_dims = _psd(str(nearest.get('sku', '')))
-
-            tw = t_dims.get('width') or 0
-            nw = n_dims.get('width') or 0
-            th = t_dims.get('height') or 0
-            nh = n_dims.get('height') or 0
-            delta_w = f" Δw={abs(tw - nw)}" if (tw and nw) else ""
-            # Build a clear price reference string for the frontend
-            ref_sku = nearest.get('sku', '')
-            ref_col = nearest.get('collection_name', '')
+            t_dims, n_dims = _psd(clean_target), _psd(str(nearest.get('sku', '')))
+            tw, nw, th, nh = t_dims.get('width') or 0, n_dims.get('width') or 0, t_dims.get('height') or 0, n_dims.get('height') or 0
             size_note = ""
-            if tw and nw and tw == nw and th and nh and th == nh:
-                size_note = ""  # perfect match — no annotation needed
-            elif tw and nw and tw != nw:
-                size_note = f" (nearest {nw}\" wide)"
-            elif th and nh and th != nh:
-                size_note = f" (nearest {nh}\" tall)"
+            if tw and nw and tw != nw: size_note = f" (nearest {nw}\" wide)"
+            elif th and nh and th != nh: size_note = f" (nearest {nh}\" tall)"
+            ref_sku, ref_col = nearest.get('sku', ''), nearest.get('collection_name', '')
             nearest['price_ref'] = f"Ref: {ref_sku}{size_note} [{ref_col}]"
-            log_match(f"MATCH: {nearest['sku']} (NearestDim type={cabinet_type}{delta_w})")
-            return nearest, f"NEAREST_DIM_{cabinet_type.replace(' ', '_').upper()}"
+            
+            # Use 'EXACT' if dimensions match perfectly even if SKU differs
+            m_type = f"NEAREST_DIM_{cabinet_type.replace(' ', '_').upper()}"
+            if tw == nw and (th == nh or not th or not nh):
+                m_type = f"DIMENSION_MATCH_{cabinet_type.replace(' ', '_').upper()}"
+            return nearest, m_type
 
-    # TIER 6: DIMENSION MATCH (Cross-Manufacturer)
-    dims = parse_sku_dimensions(clean_target)
-    if dims.get('prefix') and dims.get('width'):
-        dim_key = f"{dims['prefix']}|{dims['width']}|{dims.get('height') or ''}"
-        # Try finding a match in the same collection
-        dim_map = lookup_maps.get('dim', {})
-        if f"{dim_key}|{col}" in dim_map:
-            match = dim_map[f"{dim_key}|{col}"]
-            log_match(f"MATCH: {dim_key} (Dimension Col)")
-            return match, "DIMENSION_COL"
-        
-        # Try global dimension match (any collection)
-        if dim_key in dim_map:
-            match = dim_map[dim_key]
-            log_match(f"MATCH: {dim_key} (Dimension Global)")
-            return match, "DIMENSION_GLOBAL"
-
-    # TIER 7: CATEGORY FALLBACK  (Better than $0)
-    # Even in the avg-price fallback, we resolve the NEAREST real catalog SKU
-    # so the designer always sees an actual manufacturer code as the reference.
+    # TIER 9: CATEGORY FALLBACK
     cat_sums = lookup_maps.get('category_sums', {})
     if category in cat_sums:
         total_price, count = cat_sums[category]
         if count > 0:
             avg_price = total_price / count
-
             cat_items = lookup_maps.get('category_items', {}).get(category, [])
-            nearest_ref_sku = None
-            nearest_ref_col = None
+            ref_msg = f"Avg of {count} {category} items"
             if cat_items:
-                _nearest = find_nearest_cabinet_match(
-                    target_sku=clean_target,
-                    catalog_skus=cat_items, # This is a filtered list, but small enough for fallback
-                    collection_filter=col or None,
-                    manufacturer_hint=manufacturer_hint,
-                )
-                if _nearest:
-                    nearest_ref_sku = _nearest.get('sku', '')
-                    nearest_ref_col = _nearest.get('collection_name', '')
-
-            # Use real catalog SKU as matched label; fall back to synthetic only if none found
-            matched_label = nearest_ref_sku or f"{target} (Est. {category})"
-            if nearest_ref_sku:
-                ref_text = f"Catalog Ref: {nearest_ref_sku} [{nearest_ref_col}] (avg. of {count} {category} items)"
-            else:
-                ref_text = f"Avg. of {count} {category} items in catalog"
-
-            log_match(f"MATCH: {category} (Category Average — catalog ref: {nearest_ref_sku})")
+                best_item = cat_items[0]
+                ref_msg += f" (e.g. {best_item.get('sku')} in {best_item.get('collection_name')})"
+            
             return {
-                "sku": matched_label,
+                "sku": f"{category}_AVG",
                 "price": avg_price,
-                "collection_name": col or "N/A",
-                "price_ref": ref_text
+                "collection_name": col or "Unknown",
+                "door_style": style or "Unknown",
+                "price_ref": ref_msg
             }, "CATEGORY_AVERAGE"
 
-    log_match(f"FAIL: {target} (Required review)")
-    return {
-        "sku": f"{target} (Review)",
-        "price": 0.0,
-        "collection_name": col or "N/A",
-        "price_ref": "No catalog match found — manual pricing required"
-    }, "MANUAL_PRICING_REQUIRED"
+    return {"sku": f"{target} (Review)", "price": 0.0, "collection_name": col or "Unknown", "price_ref": "No catalog match found"}, "MANUAL_PRICING_REQUIRED"
 
 @router.post("/generate-bom")
 async def generate_bom(project_id: str, manufacturer_id: str):
@@ -504,7 +701,13 @@ async def generate_bom(project_id: str, manufacturer_id: str):
         
         for room in rooms:
             room_col = str(room.get('collection') or '').upper().strip()
-            if room_col: required_cols.add(room_col)
+            if room_col:
+                required_cols.add(room_col)
+                # Split combined collection names (e.g. "PRIME / PREMIUM") to ensure targeted fetch catches components
+                for part in re.split(r'[/\-|]', room_col):
+                    p = part.strip()
+                    if p and len(p) > 2:
+                        required_cols.add(p)
             
             # For Integrity, we also need to fetch the combined Series-Wood collection
             wood = str(room.get('wood_species') or '').upper().strip()
@@ -526,9 +729,15 @@ async def generate_bom(project_id: str, manufacturer_id: str):
                         no_suffix = re.sub(r'\s*(BUTT|H|L|R|FL|S|D)$', '', clean).strip()
                         if no_suffix:
                             project_skus.add(no_suffix)
-        
-        print(f"DEBUG: Project SKUs (Targeted): {len(project_skus)}")
+                        
+                        # Add spaced variants for fetch (e.g. SB36BUTT -> SB36 BUTT)
+                        if "BUTT" in clean and " " not in clean:
+                            project_skus.add(clean.replace("BUTT", " BUTT"))
+                        if clean.startswith("SB") and not clean.startswith("SBN"):
+                            project_skus.add(clean.replace("SB", "SBN", 1))
 
+        print(f"DEBUG: Project SKUs (Targeted): {len(project_skus)}")
+        print(f"DEBUG: Project Collections: {required_cols}")
 
         # Determine manufacturer hint (for Integrity-specific logic)
         project_mfg_name = str(project.get('metadata', {}).get('mfg_name', '')).lower()
@@ -538,9 +747,9 @@ async def generate_bom(project_id: str, manufacturer_id: str):
         )
         mfg_hint = "integrity" if is_integrity else project_mfg_name
 
-        # 3. GET PRICING MAPS (with CACHE)
+        # 3. GET PRICING MAPS (with CACHE & Targeted optimization)
         start_t = datetime.datetime.now()
-        lookup_maps = get_manufacturer_pricing_maps(supabase, manufacturer_id, mfg_hint)
+        lookup_maps = get_manufacturer_pricing_maps(supabase, manufacturer_id, mfg_hint, project_skus, required_cols)
         print(f"DEBUG: Lookup maps ready in {(datetime.datetime.now() - start_t).total_seconds():.2f}s")
         
         # 4. Generate BOM Items using optimized helper
@@ -674,15 +883,15 @@ def _classify_cabinet_full(sku: str) -> dict:
     elif 'LS' in p or p in ('BC', 'BBC', 'LBC', 'WLS'):
         ctx = 'Corner unit — designed to maximize storage in 90-degree corner transitions'
         
-    elif 'F' in p or p == 'UF':
+    elif (p.startswith('F') and p != 'FBP') or p == 'UF':
         w_s = f"{width}\" " if width else ""
         ctx = f"{w_s}filler strip — closes gap between cabinet and wall or appliance"
         
     elif p in ('CM', 'LR', 'OCM', 'SCM', 'TK', 'BTK'):
         ctx = f'Decorative trim/molding — used for finishing and closing gaps'
         
-    elif p in ('T', 'P', 'UTIL', 'OVD'):
-        ctx = 'Tall pantry/utility cabinet — full floor-to-ceiling storage column'
+    elif p in ('T', 'P', 'UTIL', 'OVD', 'REF'):
+        ctx = 'Tall pantry/utility/refrigerator cabinet — full floor-to-ceiling storage column'
 
     return {'cat': cat, 'ctx': ctx, 'suffix': suffix_note}
 
@@ -857,15 +1066,21 @@ def _price_rooms(rooms: list, lookup_maps: dict, manufacturer_id: str, mfg_hint:
             )
             if match:
                 qty   = int(float(item.get('quantity', item.get('qty', 1))))
-                price = round(float(match['price']))
+                price = round(float(match['price']), 2)
                 raw_code = item['code']
+                # Attach labor points if available
+                l_points = lookup_maps.get('labor', {}).get(match['sku'], 0)
+                if not l_points and match.get('csku'):
+                    l_points = lookup_maps.get('labor', {}).get(match['csku'], 0)
+
                 bom_items.append({
                     "project_id":      project_id,
                     "sku":             raw_code,
                     "matched_sku":     match.get('price_ref') or match['sku'],
                     "qty":             qty,
                     "unit_price":      price,
-                    "line_total":      round(price * qty),
+                    "line_total":      round(price * qty, 2),
+                    "install_points":  l_points,
                     "room":            room['room_name'],
                     "collection":      room.get('collection') or match.get('collection_name'),
                     "door_style":      room.get('door_style') or 'UNIVERSAL',
@@ -999,80 +1214,163 @@ async def compare_bom(body: dict):
 @router.post("/upload-pricing")
 async def upload_pricing(manufacturer_id: str, file: UploadFile = File(...)):
     """
-    Handles Multi-Sheet Excel Upload and Extraction for Manufacturers.
+    Upload and extract an Excel/CSV pricing file for a manufacturer.
+    Returns a detailed extraction report including collection breakdown,
+    SKU counts, price ranges, and sample data.
     """
+    import tempfile
+    from collections import defaultdict
+
     file_id = str(uuid.uuid4())
-    temp_path = f"/tmp/{file_id}_{file.filename}"
-    os.makedirs("/tmp", exist_ok=True)
-    
+    # Use Python's tempfile for cross-platform compatibility (Linux /tmp and Windows %TEMP%)
+    tmp_dir = tempfile.gettempdir()
+    safe_name = re.sub(r'[^\w.\-]', '_', file.filename or "upload")
+    temp_path = os.path.join(tmp_dir, f"{file_id}_{safe_name}")
+
     with open(temp_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-        
+
     try:
-        # Read file bytes for parser
         with open(temp_path, "rb") as f:
             file_bytes = f.read()
-            
+
         supabase = get_supabase()
-        
-        # 1. Register file in manufacturer_files to satisfy FK constraint
+
+        # Look up manufacturer name so the parser can apply brand-specific logic
+        # (e.g. Wellborn column mapping)
+
+        mfg_name = ""
+        try:
+            mfg_row = supabase.table("manufacturers").select("name").eq("id", manufacturer_id).single().execute()
+            mfg_name = (mfg_row.data or {}).get("name", "")
+        except Exception:
+            pass
+        print(f"DEBUG: Manufacturer name resolved: '{mfg_name}'")
+
+        # 1. Register file record (file_url is a placeholder — no cloud storage needed for admin use)
         supabase.table("manufacturer_files").insert({
-            "id": file_id,
+            "id":              file_id,
             "manufacturer_id": manufacturer_id,
-            "file_type": "pricing",
-            "file_name": file.filename,
-            "file_url": "#", # Placeholder until real storage is used
-            "file_format": file.filename.split('.')[-1] if '.' in file.filename else None
+            "file_type":       "pricing",
+            "file_name":       file.filename,
+            "file_url":        "#",
+            "file_format":     file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else None
         }).execute()
-        
-        file_ext = file.filename.split('.')[-1].lower() if '.' in file.filename else ""
-        
-        print(f"DEBUG: Starting pricing extraction for {file.filename} (Ext: {file_ext})")
+
+        file_ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ""
+        print(f"DEBUG: Pricing extraction starting — {file.filename} ({file_ext})")
+
         if file_ext == "pdf":
             pricing = await parse_pricing_pdf(file_bytes, manufacturer_id, file_id)
         else:
-            pricing = await parse_specifications_python(file_bytes, manufacturer_id, file_id)
-        
+            pricing = await parse_specifications_python(file_bytes, manufacturer_id, file_id, mfg_name)
+
         count = len(pricing)
-        print(f"DEBUG: Extraction complete. Found {count} pricing records.")
-        
+        print(f"DEBUG: Extracted {count} pricing records.")
+
+        # ── Build extraction report ────────────────────────────────────────────
+        col_stats = defaultdict(lambda: {"skus": set(), "price_min": float("inf"), "price_max": 0.0, "rows": 0})
+        style_set = set()
+
+        for rec in pricing:
+            col  = str(rec.get("collection_name") or "UNIVERSAL").strip()
+            styl = str(rec.get("door_style") or "UNIVERSAL").strip()
+            sku  = str(rec.get("sku") or "").strip()
+            price = float(rec.get("price") or 0)
+
+            col_stats[col]["skus"].add(sku)
+            col_stats[col]["rows"] += 1
+            if price > 0:
+                col_stats[col]["price_min"] = min(col_stats[col]["price_min"], price)
+                col_stats[col]["price_max"] = max(col_stats[col]["price_max"], price)
+            style_set.add(styl)
+
+        report_collections = []
+        all_skus = set()
+        for col_name, st in sorted(col_stats.items(), key=lambda x: -len(x[1]["skus"])):
+            all_skus |= st["skus"]
+            report_collections.append({
+                "name":      col_name,
+                "sku_count": len(st["skus"]),
+                "rows":      st["rows"],
+                "price_min": round(st["price_min"]) if st["price_min"] != float("inf") else 0,
+                "price_max": round(st["price_max"]),
+            })
+
+        report = {
+            "collections":  report_collections,
+            "door_styles":  sorted(style_set),
+            "total_skus":   len(all_skus),
+            "total_rows":   count,
+        }
+        # ── End report ────────────────────────────────────────────────────────
+
         if count > 0:
-            # Chunked insert to handle 50,000+ records safely
-            chunk_size = 1000
-            for i in range(0, len(pricing), chunk_size):
-                chunk = pricing[i : i + chunk_size]
-                supabase.table("manufacturer_pricing").insert(chunk).execute()
-                # Optional: Log progress
-                if (i // chunk_size) % 10 == 0:
-                    print(f"DEBUG: Inserted {i + len(chunk)} / {len(pricing)} records...")
-            
-            # Clear any existing local cache for this manufacturer so it rebuilds on next fetch
+            # Deduplicate: keep highest price per (sku, collection_name, door_style) combo.
+            # Prevents duplicate rows when the same SKU appears in multiple sheets.
+            dedup: dict[tuple, dict] = {}
+            for rec in pricing:
+                key = (rec['sku'], rec.get('collection_name', ''), rec.get('door_style', ''))
+                existing = dedup.get(key)
+                if existing is None or float(rec.get('price', 0)) > float(existing.get('price', 0)):
+                    dedup[key] = rec
+            pricing = list(dedup.values())
+            count = len(pricing)
+            print(f"DEBUG: After dedup: {count} unique pricing records")
+
+            print(f"DEBUG: Replacing old pricing rows for {manufacturer_id}…")
+            supabase.table("manufacturer_pricing").delete().eq("manufacturer_id", manufacturer_id).execute()
+
+            # Sequential chunked insertion — parallel ThreadPoolExecutor silently swallows
+            # per-thread exceptions, leaving only the first 1,000 rows saved.
+            chunk_size = 500
+            chunks = [pricing[i:i + chunk_size] for i in range(0, count, chunk_size)]
+            inserted = 0
+            failed_chunks = 0
+            print(f"DEBUG: Inserting {count} rows in {len(chunks)} chunks of {chunk_size}…")
+            for idx, chunk in enumerate(chunks):
+                try:
+                    supabase.table("manufacturer_pricing").insert(chunk).execute()
+                    inserted += len(chunk)
+                    if (idx + 1) % 10 == 0 or idx == len(chunks) - 1:
+                        print(f"DEBUG: Inserted chunk {idx + 1}/{len(chunks)} — {inserted}/{count} rows done")
+                except Exception as chunk_err:
+                    failed_chunks += 1
+                    print(f"ERROR: Chunk {idx + 1} failed ({len(chunk)} rows): {chunk_err}")
+
+            if failed_chunks:
+                print(f"WARNING: {failed_chunks} chunk(s) failed — {inserted}/{count} rows saved")
+            else:
+                print(f"DEBUG: All {count} rows inserted successfully.")
+
+            # Bust all in-memory and disk caches so next pricing run uses fresh data
             global _CONFIG_CACHE, _MFG_DB_CACHE, GLOBAL_LOOKUP_CACHE
             _CONFIG_CACHE.pop(manufacturer_id, None)
             GLOBAL_LOOKUP_CACHE.pop(manufacturer_id, None)
-            
-            # Wipe item match cache to ensure new prices are used
-            to_delete_sku = [k for k in _MFG_DB_CACHE['sku'] if k.startswith(f"{manufacturer_id}:")]
-            for k in to_delete_sku: del _MFG_DB_CACHE['sku'][k]
-            
-            to_delete_col = [k for k in _MFG_DB_CACHE['col'] if k.startswith(f"{manufacturer_id}:")]
-            for k in to_delete_col: del _MFG_DB_CACHE['col'][k]
-
+            for k in [k for k in _MFG_DB_CACHE['sku'] if k.startswith(f"{manufacturer_id}:")]:
+                del _MFG_DB_CACHE['sku'][k]
+            for k in [k for k in _MFG_DB_CACHE['col'] if k.startswith(f"{manufacturer_id}:")]:
+                del _MFG_DB_CACHE['col'][k]
             cpath = get_cache_path(manufacturer_id)
             if os.path.exists(cpath):
-                try:
-                    os.remove(cpath)
-                except:
-                    pass
-            
-        return {"success": True, "count": len(pricing), "fileName": file.filename}
-        
+                try: os.remove(cpath)
+                except: pass
+
+        return {
+            "success":  True,
+            "count":    count,
+            "fileName": file.filename,
+            "report":   report,
+        }
+
     except Exception as e:
-        print(f"Pricing Upload Error: {str(e)}")
+        print(f"Pricing Upload Error: {e}")
+        traceback.print_exc()
         return {"success": False, "error": str(e)}
     finally:
         if os.path.exists(temp_path):
-            os.remove(temp_path)
+            try: os.remove(temp_path)
+            except: pass
 
 def _process_spec_book_bg(job_id: str, file_bytes: bytes, manufacturer_id: str,
                            file_id: str):
@@ -1090,12 +1388,18 @@ def _process_spec_book_bg(job_id: str, file_bytes: bytes, manufacturer_id: str,
 
         if count > 0:
             supabase = get_supabase()
-            chunk_size = 1000
-            for i in range(0, count, chunk_size):
-                chunk = pricing[i: i + chunk_size]
-                supabase.table("manufacturer_pricing").insert(chunk).execute()
-                pct = 70 + int((i + len(chunk)) / count * 25)
+            chunk_size = 500
+            chunks = [pricing[i: i + chunk_size] for i in range(0, count, chunk_size)]
+            inserted = 0
+            for idx, chunk in enumerate(chunks):
+                try:
+                    supabase.table("manufacturer_pricing").insert(chunk).execute()
+                    inserted += len(chunk)
+                except Exception as chunk_err:
+                    print(f"ERROR: Spec-book chunk {idx + 1} failed: {chunk_err}")
+                pct = 70 + int((idx + 1) / len(chunks) * 25)
                 SPEC_UPLOAD_JOBS[job_id]['progress'] = pct
+            SPEC_UPLOAD_JOBS[job_id]['message'] = f'Inserted {inserted}/{count} pricing records.'
 
             # Bust caches
             global _CONFIG_CACHE, _MFG_DB_CACHE, GLOBAL_LOOKUP_CACHE
@@ -1187,6 +1491,21 @@ async def get_manufacturer_config(id: str):
     Optimized: uses targeted DISTINCT-like query and aggressively caches results.
     """
     try:
+        supabase = get_supabase()
+        
+        # Check if this is Wellborn/1951 to return the structured hierarchy
+        WELLBORN_IDS = ["3be07931-596a-4fa3-8d39-8d04c36cf4bb", "4afa4d4e-ff56-4a76-851d-73541f8a58ec"]
+        mfr_res = supabase.table("manufacturers").select("name").eq("id", id).single().execute()
+        mfr_name = (mfr_res.data.get("name", "") if (mfr_res and mfr_res.data) else "").upper()
+        
+        if id in WELLBORN_IDS or "WELLBORN" in mfr_name or "1951" in mfr_name:
+            print(f"DEBUG: Returning STRUCTURED Wellborn config for {id}")
+            return {
+                "success": True,
+                "mapping": WELLBORN_STRUCTURE,
+                "debug": {"source": "hardcoded_wellborn_v2", "mfr_name": mfr_name}
+            }
+
         global _CONFIG_CACHE
         if id in _CONFIG_CACHE:
             print("DEBUG: Returning manufacturer config from IN-MEMORY cache")
@@ -1273,12 +1592,26 @@ async def get_manufacturer_config(id: str):
             
         final_mapping = {}
         exclude = {'UNIVERSAL', 'B1', 'C1', 'D1', 'E1', 'F1', 'G1', 'COL B', 'COL C', 'COL D', 'COL E', 'COL F', 'COL G'}
-        
+
         for c, styles in mapping.items():
             if c not in exclude:
                 final_mapping[c] = sorted(list(styles))
             else:
                 print(f"DEBUG: Excluded collection: '{c}'")
+
+        # Also expose individual Tier+Wood component variants as selectable keys.
+        # e.g. "PRIME MAPLE / PAINTED / DURAFORM" → adds "PRIME MAPLE", "PRIME PAINTED",
+        # "PRIME DURAFORM" so the AI-extracted short name matches the dropdown.
+        extra = {}
+        for c_full, styles in final_mapping.items():
+            tiers = [t for t in _TIER_KEYS if t in c_full]
+            woods = [w for w in _WOOD_KEYS if w in c_full]
+            for t in tiers:
+                for w in woods:
+                    variant = f"{t} {w}"
+                    if variant not in final_mapping and variant not in extra:
+                        extra[variant] = styles
+        final_mapping.update(extra)
                 
         result_data = {
             "mapping": final_mapping,

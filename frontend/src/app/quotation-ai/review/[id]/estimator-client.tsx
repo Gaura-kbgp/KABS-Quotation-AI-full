@@ -53,6 +53,7 @@ import { MANUFACTURER_CONFIG } from '@/lib/manufacturer-config';
 interface Item {
   code: string;
   quantity: number;
+  _assignedCategory?: string;
 }
 
 interface Room {
@@ -114,51 +115,62 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
   const [agentResult, setAgentResult] = useState<{ corrected_rooms: any[], explanations: string[] } | null>(null);
   const [isRescanning, setIsRescanning] = useState(false);
 
-  useEffect(() => {
-    if (initialSyncRef.current) return;
-    if (project.extracted_data?.rooms) {
-      const enrichedRooms = project.extracted_data.rooms.map((r: any) => {
-        // Normalize categories: ensure they are arrays of objects with quantity
-        const normalized: any = { ...r, room_name: r.room_name || r.name || "Unknown Room" };
-        
-        const categories = ['cabinets', 'perimeter', 'island', 'hardware', 'island_hardware', 'bump', 'island_bump', 'opt_crown', 'opt_light_rail', 'vent_chase_material'];
-        
-        categories.forEach(cat => {
-          normalized[cat] = (r[cat] || []).map((item: any) => {
-            if (typeof item === 'string') {
-              return { code: item, quantity: 1 };
-            }
-            return {
-              ...item,
-              code: item.code || item.sku || '',
-              quantity: typeof item.quantity === 'number' ? item.quantity : 1
-            };
-          });
+  const normalizeRooms = (rawRooms: any[]) => {
+    return rawRooms.map((r: any) => {
+      const normalized: any = { ...r, room_name: r.room_name || r.name || "Unknown Room" };
+      const categories = ['cabinets', 'perimeter', 'island', 'hardware', 'island_hardware', 'bump', 'island_bump', 'opt_crown', 'opt_light_rail', 'vent_chase_material'];
+      
+      categories.forEach(cat => {
+        normalized[cat] = (r[cat] || []).map((item: any) => {
+          if (typeof item === 'string') return { code: item, quantity: 1 };
+          return {
+            ...item,
+            code: item.code || item.sku || '',
+            quantity: typeof item.quantity === 'number' ? item.quantity : 1
+          };
         });
-
-        // Add internal category mapping for UI grouping
-        normalized.cabinets = normalized.cabinets.map((c: any) => ({
-          ...c,
-          _assignedCategory: c._assignedCategory || detectCategory(c.code)
-        }));
-
-        return normalized;
       });
-      setRooms(enrichedRooms);
+
+      normalized.cabinets = normalized.cabinets.map((c: any) => ({
+        ...c,
+        _assignedCategory: c._assignedCategory || detectCategory(c.code)
+      }));
+
+      return normalized;
+    });
+  };
+
+  useEffect(() => {
+    if (project.extracted_data?.rooms) {
+      // Only sync if we don't have rooms yet OR if the server data is definitively different/newer
+      // For now, we sync once or on re-scan (handled by setRooms)
+      if (rooms.length === 0 || initialSyncRef.current === false) {
+        setRooms(normalizeRooms(project.extracted_data.rooms));
+        initialSyncRef.current = true;
+      }
     }
-    initialSyncRef.current = true;
-  }, [project]);
+  }, [project, rooms.length]);
 
   const totals = useMemo(() => {
-    let cabs = 0;
+    let cabinets = 0;
     let accs = 0;
     rooms.forEach(r => {
-      cabs += (r.cabinets || []).reduce((sum, i) => sum + (Number(i?.quantity) || 0), 0);
+      (r.cabinets || []).forEach(item => {
+        const cat = item._assignedCategory || detectCategory(item.code);
+        const isFiller = cat === 'Universal Fillers' || item.code.startsWith('UF');
+        const isPanel = cat === 'Panels' || item.code.includes('EP') || item.code.includes('PNL');
+        
+        if (isPrimaryCabinet(item.code) && !isFiller && !isPanel) {
+          cabinets += (Number(item.quantity) || 0);
+        } else {
+          accs += (Number(item.quantity) || 0);
+        }
+      });
       CATEGORIES.slice(1).forEach(cat => {
         accs += (r[cat.key] || []).reduce((sum: number, i: any) => sum + (Number(i?.quantity) || 0), 0);
       });
     });
-    return { cabinets: cabs, accessories: accs };
+    return { cabinets, accessories: accs };
   }, [rooms]);
 
   const allCollections = useMemo(() => Object.keys(manMapping).sort(), [manMapping]);
@@ -321,18 +333,29 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
       }
       const mapping: Record<string, string[]> = data.mapping || {};
 
-      // Merge static config as fallback for manufacturers with missing door styles in DB
+      // For manufacturers with a static config (1951, Wellborn), use the static list as the
+      // authoritative collection names shown in the dropdown — this prevents raw DB artifacts
+      // like "SCB/S" or "(DURAFROM TEXTURED)" variants from appearing as separate entries.
+      // DB door styles are still used when available for each canonical collection.
       const manName = manufacturers.find(m => m.id === id)?.name || '';
       const staticCfg = MANUFACTURER_CONFIG[manName];
       if (staticCfg) {
+        const filteredMapping: Record<string, string[]> = {};
         staticCfg.collections.forEach(col => {
-          if (!mapping[col.name] || mapping[col.name].length === 0) {
-            mapping[col.name] = col.styles;
-          }
+          // Look for this collection in the DB response (case-insensitive, also try contains match)
+          const dbKey = Object.keys(mapping).find(k =>
+            k.toUpperCase() === col.name.toUpperCase() ||
+            k.toUpperCase().includes(col.name.toUpperCase()) ||
+            col.name.toUpperCase().includes(k.toUpperCase())
+          );
+          const dbStyles = dbKey ? mapping[dbKey] : [];
+          // Prefer DB door styles; fall back to static config styles
+          filteredMapping[col.name] = dbStyles.length > 0 ? dbStyles : col.styles;
         });
+        setManMapping(filteredMapping);
+      } else {
+        setManMapping(mapping);
       }
-
-      setManMapping(mapping);
     } catch (err: any) {
       console.error('[Client] Load config error:', err);
       toast({ 
@@ -358,7 +381,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
   };
 
   const handleRescan = async () => {
-    if (!confirm('Re-scan will re-extract all rooms from the original PDF and overwrite current edits. Continue?')) return;
+    if (!confirm('Re-scan will search the PDF for any missing rooms and add them to your list. Existing rooms with the same names will be preserved. Continue?')) return;
     setIsRescanning(true);
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/agent/rescan-project`, {
@@ -368,7 +391,40 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
       });
       const data = await res.json();
       if (data.success) {
-        toast({ title: `Re-scan complete — ${data.rooms_count} rooms found. Reloading…` });
+        const newRooms = normalizeRooms(data.rooms || []);
+        
+        // --- Merge Logic: Proper Patch ---
+        const mergedRooms = [...rooms];
+        let addedCount = 0;
+        
+        newRooms.forEach(nr => {
+          const exists = mergedRooms.some(r => r.room_name.toUpperCase() === nr.room_name.toUpperCase());
+          if (!exists) {
+            mergedRooms.push(nr);
+            addedCount++;
+          }
+        });
+
+        setRooms(mergedRooms);
+
+        // Persist the merge back to the DB immediately so it's not lost on refresh
+        await updateProjectAction(project.id, {
+          extracted_data: { 
+            rooms: mergedRooms,
+            smart_agent_explanations: [
+              ...(project.extracted_data?.smart_agent_explanations || []),
+              `Re-scanned PDF. Found ${newRooms.length} rooms. Added ${addedCount} new rooms to existing set.`
+            ]
+          }
+        });
+
+        toast({ 
+          title: 'Re-scan Complete', 
+          description: addedCount > 0 
+            ? `Added ${addedCount} new rooms. Total rooms: ${mergedRooms.length}.` 
+            : `No new rooms found. Your current ${mergedRooms.length} rooms are already up to date.`
+        });
+        
         router.refresh();
       } else {
         throw new Error(data.error || 'Re-scan failed');
@@ -463,7 +519,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
 
                          const cabOrder = [
                            'Wall Cabinets', 'Base Cabinets', 'Tall Cabinets',
-                           'Vanity Cabinets', 'Universal Fillers',
+                           'Vanity Cabinets', 'Universal Fillers', 'Panels',
                            'Molding & Trim', 'Hardwares', 'Accessories'
                          ];
                          const extraCats = Object.keys(groupedCabs).filter(c => !cabOrder.includes(c));
@@ -608,9 +664,13 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                        <div className="flex justify-end pt-2">
                           <div className="bg-white px-8 py-5 rounded-3xl border border-slate-100 shadow-sm flex gap-12 items-center">
                              <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Room Cabinets</span>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Cabinets</span>
                                 <div className="flex items-center gap-3">
-                                   <span className="text-2xl font-black text-slate-900">{(room.cabinets || []).reduce((sum, i) => sum + (Number(i?.quantity) || 0), 0)}</span>
+                                   <span className="text-2xl font-black text-slate-900">
+                                      {(room.cabinets || []).reduce((sum, item) => {
+                                        return sum + (Number(item.quantity) || 0);
+                                      }, 0)}
+                                   </span>
                                    <Box className="w-5 h-5 text-sky-500" />
                                 </div>
                              </div>
