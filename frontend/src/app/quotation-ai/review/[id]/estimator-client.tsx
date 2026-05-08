@@ -173,7 +173,10 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
     return { cabinets, accessories: accs };
   }, [rooms]);
 
-  const allCollections = useMemo(() => Object.keys(manMapping).sort(), [manMapping]);
+  // Preserve the key insertion order from fetchManConfig (spreadsheet column order for
+  // Wellborn/1951 Cabinetry; sorted DB order for Integrity and other manufacturers).
+  // DO NOT sort here — sorting overrides the predefined pricing-guide column order.
+  const allCollections = useMemo(() => Object.keys(manMapping), [manMapping]);
 
   const isIntegrity = useMemo(
     () => manufacturers.find(m => m.id === selectedManId)?.name === 'Integrity Cabinets',
@@ -340,17 +343,12 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
       const manName = manufacturers.find(m => m.id === id)?.name || '';
       const staticCfg = MANUFACTURER_CONFIG[manName];
       if (staticCfg) {
+        // Wellborn / 1951 Cabinetry: use ONLY the static config.
+        // The static config is the complete, correctly-ordered pricing-guide source of truth.
+        // DB data can contain partial, re-ordered, or cross-collection noise — ignore it entirely.
         const filteredMapping: Record<string, string[]> = {};
         staticCfg.collections.forEach(col => {
-          // Look for this collection in the DB response (case-insensitive, also try contains match)
-          const dbKey = Object.keys(mapping).find(k =>
-            k.toUpperCase() === col.name.toUpperCase() ||
-            k.toUpperCase().includes(col.name.toUpperCase()) ||
-            col.name.toUpperCase().includes(k.toUpperCase())
-          );
-          const dbStyles = dbKey ? mapping[dbKey] : [];
-          // Prefer DB door styles; fall back to static config styles
-          filteredMapping[col.name] = dbStyles.length > 0 ? dbStyles : col.styles;
+          filteredMapping[col.name] = col.styles;
         });
         setManMapping(filteredMapping);
       } else {

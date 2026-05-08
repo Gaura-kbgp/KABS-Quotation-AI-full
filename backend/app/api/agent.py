@@ -1014,7 +1014,7 @@ KITCHEN (any variant — Standard, Gourmet, Extended, etc.):
   ✅ cabinets: Wall (W*), Base (B*/SB*), Tall (T*/P*/O*/OVD*), Fillers (UF*)
   ✅ perimeter: BTK8, SM8, FL48
   ✅ island: BTK8, SM8 (island section)
-  ✅ hardware: DWR3 (if dishwasher present), SHM8, OCM8BLD
+  ✅ hardware: DWR3 (ONLY if explicitly listed with a quantity in the BOM — do NOT infer from (DW) labels), SHM8, OCM8BLD
   ✅ island_hardware: DOORS count, DRAWERS count
   ✅ bump: SHM8, OCM8BLD (bump/boxing section)
   ✅ vent_chase_material: B48/BACK-B48, WTEP84, SM8, OCM8BLD, QM8

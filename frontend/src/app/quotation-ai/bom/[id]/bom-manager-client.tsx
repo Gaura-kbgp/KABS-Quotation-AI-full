@@ -114,12 +114,20 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
   const { toast } = useToast();
   const router = useRouter();
   
-  const [bom, setBom] = useState<BomItem[]>(() => 
+  const [bom, setBom] = useState<BomItem[]>(() =>
     initialBom.map(item => ({
       ...item,
       is_billable: item.is_billable ?? true
     }))
   );
+
+  // Sync bom state when initialBom prop updates (e.g. after router.refresh() post-reprice)
+  useEffect(() => {
+    setBom(initialBom.map(item => ({
+      ...item,
+      is_billable: item.is_billable ?? true
+    })));
+  }, [initialBom]);
 
   const [mfgConfig, setMfgConfig] = useState<Record<string, string[]>>({});
   const [roomConfigs, setRoomConfigs] = useState<any>(() => {
@@ -358,8 +366,10 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
   // Returns colour-coded badge config for each pricing tier
   const getPrecisionBadge = (precision: string) => {
     const p = (precision || '').toUpperCase();
-    if (p.startsWith('EXACT') || p === 'COMPRESSED' || p.startsWith('FUZZY') || p.startsWith('DIMENSION'))
+    if (p.startsWith('EXACT') || p === 'COMPRESSED' || p.startsWith('FUZZY'))
       return { label: 'Exact Match', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    if (p.startsWith('DIMENSION'))
+      return { label: 'Dim Match', cls: 'bg-sky-50 text-sky-700 border-sky-200' };
     if (p.startsWith('NEAREST_DIM'))
       return { label: 'Nearest Size', cls: 'bg-amber-50 text-amber-700 border-amber-200' };
     if (p === 'CATEGORY_AVERAGE')
@@ -1330,6 +1340,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                  {isInstallManufacturer && (
                                    <>
                                      <TableHead className="text-right text-[10px] uppercase font-bold text-slate-400">PTS</TableHead>
+                                     <TableHead className="text-center text-[10px] uppercase font-bold text-blue-400" title="Included in 3PL delivery count">3PL</TableHead>
                                      <TableHead className="text-right text-[10px] uppercase font-black text-emerald-600 tracking-tighter">Install ($)</TableHead>
                                    </>
                                  )}
@@ -1410,27 +1421,34 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                       <TableCell className="pt-4 text-right">
                                         <div className="flex items-center justify-end gap-1">
                                            <span className="text-slate-400 font-mono text-xs">$</span>
-                                           <Input type="number" value={item.unit_price} onChange={e => handleUpdateItem(idx, { unit_price: parseFloat(e.target.value) || 0 })} className="w-24 text-right h-9 font-bold bg-slate-50 border-none font-mono" />
+                                           <Input type="number" value={Math.round(item.unit_price)} onChange={e => handleUpdateItem(idx, { unit_price: parseFloat(e.target.value) || 0 })} className="w-24 text-right h-9 font-bold bg-slate-50 border-none font-mono" />
                                         </div>
                                       </TableCell>
                                       <TableCell className="pt-4 text-right font-black font-mono text-slate-900 text-sm">
-                                        ${(item.unit_price * item.qty).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                        ${(Math.round(item.unit_price) * item.qty).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                                       </TableCell>
                                       {isInstallManufacturer && (() => {
                                         const calc = installCalculations.itemCalcs[item.id];
                                         const totalPoints = calc ? calc.installUnits : 0;
                                         const pointFactor = calc ? calc.factor : 0;
+                                        const tplIncluded = calc ? calc.tplUnits > 0 : false;
                                         const dollarVal = Math.round(totalPoints * installRate);
                                         return (
                                           <>
                                             <TableCell className="pt-4 text-right font-mono text-[11px] text-slate-500 font-bold">
-                                              <input 
+                                              <input
                                                 type="number"
                                                 step="0.1"
                                                 className="w-16 text-right font-mono text-[11px] text-slate-500 font-bold bg-transparent border-none outline-none focus:bg-white focus:px-1 focus:rounded-md focus:border focus:border-sky-200 transition-all"
-                                                value={pointFactor > 0 ? pointFactor : 0} 
+                                                value={pointFactor > 0 ? pointFactor : 0}
                                                 onChange={e => handleUpdateItem(idx, { install_points: parseFloat(e.target.value) || 0 })}
                                               />
+                                            </TableCell>
+                                            <TableCell className="pt-4 text-center font-mono text-[11px] font-black">
+                                              {tplIncluded
+                                                ? <span className="text-blue-600" title="Included in 3PL delivery count">✓</span>
+                                                : <span className="text-slate-300" title="Excluded from 3PL delivery">—</span>
+                                              }
                                             </TableCell>
                                             <TableCell className="pt-4 text-right font-mono text-[11px] text-emerald-700 font-black">
                                               {dollarVal > 0 ? `$${dollarVal}` : '—'}
@@ -1492,11 +1510,11 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                         <TableCell className="pt-2 text-right">
                                           <div className="flex items-center justify-end gap-1">
                                             <span className="text-slate-400 font-mono text-xs">$</span>
-                                            <Input type="number" value={item.unit_price} onChange={e => handleUpdateItem(idx, { unit_price: parseFloat(e.target.value) || 0 })} className="w-20 text-right h-8 text-xs font-bold bg-slate-50 border-none font-mono" />
+                                            <Input type="number" value={Math.round(item.unit_price)} onChange={e => handleUpdateItem(idx, { unit_price: parseFloat(e.target.value) || 0 })} className="w-20 text-right h-8 text-xs font-bold bg-slate-50 border-none font-mono" />
                                           </div>
                                         </TableCell>
                                         <TableCell className="pt-3 text-right font-mono text-xs font-bold text-slate-900">
-                                          ${(getEffectiveUnitPrice(item) * item.qty).toFixed(2)}
+                                          ${(Math.round(getEffectiveUnitPrice(item)) * item.qty).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                                         </TableCell>
                                       </TableRow>
                                     );
@@ -1947,10 +1965,32 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                <div className="text-xs font-semibold text-[#002060]">$0</div>
                              </div>
                            </div>
-                           {/* Installation and delivery breakdown — internal view only.
-                               In client PDF these are baked into the TOTAL and not shown separately. */}
-
+                           {/* Pricing breakdown so client knows exactly what each component is */}
                            <div className="h-3 bg-[#000040] w-full"></div>
+                           <div className="bg-slate-50 border-b border-slate-200">
+                             <div className="flex justify-between items-center px-8 py-1.5 border-b border-slate-100">
+                               <span className="text-[10px] font-semibold text-[#002060] uppercase tracking-wide">Cabinet Materials</span>
+                               <span className="text-[10px] font-semibold text-[#002060] font-mono">${financials.netTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                             </div>
+                             {financials.totalInstallSell > 0 && (
+                               <div className="flex justify-between items-center px-8 py-1.5 border-b border-slate-100">
+                                 <span className="text-[10px] font-semibold text-[#002060] uppercase tracking-wide">Installation Labor</span>
+                                 <span className="text-[10px] font-semibold text-[#002060] font-mono">${financials.totalInstallSell.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                               </div>
+                             )}
+                             {financials.totalDeliverySell > 0 && (
+                               <div className="flex justify-between items-center px-8 py-1.5 border-b border-slate-100">
+                                 <span className="text-[10px] font-semibold text-[#002060] uppercase tracking-wide">Delivery (3PL)</span>
+                                 <span className="text-[10px] font-semibold text-[#002060] font-mono">${financials.totalDeliverySell.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                               </div>
+                             )}
+                             {financials.taxes > 0 && (
+                               <div className="flex justify-between items-center px-8 py-1.5 border-b border-slate-100">
+                                 <span className="text-[10px] font-semibold text-[#002060] uppercase tracking-wide">Sales Tax ({taxRate}%)</span>
+                                 <span className="text-[10px] font-semibold text-[#002060] font-mono">${financials.taxes.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                               </div>
+                             )}
+                           </div>
                            <div className="flex items-center px-16 py-2 bg-slate-50 relative">
                              <div className="flex-grow text-center text-xs font-bold text-[#002060] uppercase">TOTAL</div>
                              <div className="text-xs font-bold text-[#002060]">${financials.grandTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
@@ -2375,7 +2415,13 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                     {includeDelivery && (
                       <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100 space-y-3">
                         <p className="text-[9px] text-slate-400 font-semibold">
-                          3PL units: {installCalculations.total3PLUnits.toFixed(0)} items
+                          {installCalculations.total3PLUnits.toFixed(0)} full cabinet boxes × rate = charge
+                        </p>
+                        <p className="text-[9px] text-amber-600 font-bold">
+                          ⚠ Rates are manually entered — not sourced from the pricing sheet.
+                        </p>
+                        <p className="text-[9px] text-slate-400">
+                          Fillers, panels, molding &amp; accessories are excluded from delivery count.
                         </p>
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">

@@ -23,7 +23,13 @@ import { generateBOMAction } from '../../actions';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MANUFACTURER_CONFIG } from '@/lib/manufacturer-config';
+import { detectCategory } from '@/lib/utils';
 // INTEGRITY_SERIES removed — series derived dynamically from DB mapping
+
+const CABINET_SECTION_ORDER = [
+  'Wall Cabinets', 'Base Cabinets', 'Tall Cabinets', 'Vanity Cabinets',
+  'Universal Fillers', 'Panels', 'Molding & Trim', 'Accessories',
+];
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
 
@@ -67,19 +73,27 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
       const data = await res.json();
       const mapping: Record<string, string[]> = data.mapping || {};
 
-      // Merge static config as fallback for manufacturers with missing door styles in DB
+      // Wellborn / 1951 Cabinetry: replace the entire mapping with the static config.
+      // Static config is the complete, correctly-ordered pricing-guide source of truth.
+      // DB data can contain partial, re-ordered, or cross-collection noise — ignore it entirely.
       const manName = manufacturers.find(m => m.id === manId)?.name || '';
       const staticCfg = MANUFACTURER_CONFIG[manName];
       if (staticCfg) {
         staticCfg.collections.forEach(col => {
-          if (!mapping[col.name] || mapping[col.name].length === 0) {
-            mapping[col.name] = col.styles;
-          }
+          mapping[col.name] = col.styles;
         });
       }
 
       setAvailableMapping(mapping);
-      setAvailableCollections(Object.keys(mapping).sort());
+      // Preserve spreadsheet column order for manufacturers with static config;
+      // fall back to sorted keys for dynamic/DB-only manufacturers (e.g. Integrity).
+      if (staticCfg) {
+        const ordered = staticCfg.collections.map(c => c.name).filter(n => mapping[n] !== undefined);
+        const extra = Object.keys(mapping).filter(k => !ordered.includes(k)).sort();
+        setAvailableCollections([...ordered, ...extra]);
+      } else {
+        setAvailableCollections(Object.keys(mapping).sort());
+      }
       setAvailableStyles([]);
       // Derive series from whatever is in the DB: "SERIES - COLLECTION" → take part before " - "
       const seriesSet = new Set<string>();
@@ -186,25 +200,36 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-slate-100">
-                {/* PRIMARY CABINETS SECTION */}
-                <div className="bg-white">
-                  <div className="px-6 py-3 bg-slate-50/50 border-b border-slate-100">
-                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Primary Cabinets</span>
-                  </div>
-                  {room.cabinets?.map((cab: any, cIdx: number) => (
-                    <div key={cIdx} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center font-bold text-sky-600 border border-sky-100">
-                          {cab.quantity}
+                {/* CABINETS — grouped by type (Wall, Base, Tall, etc.) */}
+                {(() => {
+                  const grouped: Record<string, any[]> = {};
+                  (room.cabinets || []).forEach((cab: any) => {
+                    const cat = detectCategory(cab.code);
+                    if (!grouped[cat]) grouped[cat] = [];
+                    grouped[cat].push(cab);
+                  });
+                  return CABINET_SECTION_ORDER.map(sectionName => {
+                    const items = grouped[sectionName];
+                    if (!items || items.length === 0) return null;
+                    return (
+                      <div key={sectionName} className="bg-white">
+                        <div className="px-6 py-2 bg-slate-50/50 border-b border-slate-100">
+                          <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">{sectionName}</span>
                         </div>
-                        <div>
-                          <p className="font-bold text-lg tracking-tight text-slate-900">{cab.code}</p>
-                          <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest leading-none mt-1">Cabinet Unit</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2">
+                          {items.map((cab: any, cIdx: number) => (
+                            <div key={cIdx} className="px-6 py-3 flex items-center gap-4 border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                              <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center font-bold text-sky-600 border border-sky-100 text-sm flex-shrink-0">
+                                {cab.quantity}
+                              </div>
+                              <p className="font-bold text-sm tracking-tight text-slate-900">{cab.code}</p>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    );
+                  });
+                })()}
 
                 {/* ACCESSORIES & HARDWARE SECTIONS */}
                 {[

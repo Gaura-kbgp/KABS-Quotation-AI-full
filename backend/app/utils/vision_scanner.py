@@ -52,8 +52,10 @@ ADDITIONAL RULES:
 2. **BATHROOMS**: Extract BTK8 and SM8 from perimeter only if they are explicitly visible in the drawing. Do NOT add them if they are not shown.
 3. **TOUCHUP**: Preserve format like "2KIT+1SPRAY". Do NOT sum them as a number.
 4. **NO DOUBLE COUNTING**: If an item appears in both drawing and list, use trim list qty.
-5. **ISLAND**: Items labeled (DW) or (DWR) belong in "island".
+5. **ISLAND**: Items labeled (DW) or (DWR) belong in "island". Do NOT add DWR3 to hardware because of a (DW) label — (DW) is a note meaning dishwasher location, not a DWR3 code.
 6. **ALL PAGES**: Extract everything regardless of page number.
+7. **NEVER EXTRACT**: "CLEAT" as a standalone item — it is a parenthetical note "(CROWN CLEAT)", not an ordered cabinet code. Ignore it completely.
+8. **NEVER EXTRACT**: RANGE* codes (RANGE130, RANGE30, etc.) — these are appliance openings on floor plans, not ordered cabinet items. Do NOT add them.
 
 OUTPUT FORMAT (strict JSON, no markdown):
 {
@@ -138,6 +140,9 @@ ADDITIONAL RULES:
 11. **BATHROOMS**: Extract BTK8 and SM8 from perimeter only if explicitly listed. Do NOT infer or add items not shown.
 12. **TOUCHUP**: Preserve format like "2KIT+1SPRAY". Do NOT sum them as a number.
 13. **FALSE CODES**: Ignore singular "DRAWER", "DOOR", "CABINET".
+14. **NEVER EXTRACT "CLEAT"** as a standalone code — "(CROWN CLEAT)" is a descriptor note for HWC 1X2X94, not an ordered item. Ignore it completely.
+15. **NEVER EXTRACT RANGE* codes** (RANGE130, RANGE30, etc.) — these are appliance opening labels, not cabinet items. Do NOT add them.
+16. **DWR3**: Only extract DWR3 if it appears explicitly as "1-DWR3" or "DWR3" with a quantity in the printed BOM list. Do NOT infer DWR3 from (DW) dishwasher location labels.
 
 OUTPUT FORMAT (strict JSON, no markdown):
 {
@@ -197,6 +202,9 @@ ADDITIONAL RULES:
 - Format "3-BTK8" means quantity=3, code="BTK8".
 - Use the room name from the drawing header (e.g. "STD BATH 2", "OPT LAUNDRY").
   If no room name is visible, use "ADDITIONAL PAGE".
+- **NEVER EXTRACT "CLEAT"** as a standalone item — it is only a note "(CROWN CLEAT)", not an ordered code.
+- **NEVER EXTRACT RANGE* codes** (RANGE130, etc.) — these are appliance openings, not ordered items.
+- **DWR3**: Only extract if explicitly printed as "1-DWR3" with a quantity. Never infer from (DW) labels.
 
 OUTPUT FORMAT (strict JSON, no markdown):
 {
@@ -323,7 +331,7 @@ def _classify_code_to_key(code: str) -> str:
         return "opt_light_rail"
     if any(c.startswith(p) for p in ["BTK", "TK", "SM", "QR", "SCM", "EP", "TEP"]):
         return "perimeter"
-    if any(c.startswith(p) for p in ["DWR", "SHM"]):
+    if any(c.startswith(p) for p in ["SHM"]):
         return "hardware"
     if c.startswith("HW") or any(kw in c for kw in ["DOOR", "DRAW", "HINGE", "KNOB", "PULL"]):
         return "hardware"

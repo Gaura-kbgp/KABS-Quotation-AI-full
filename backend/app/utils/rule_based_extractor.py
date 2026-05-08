@@ -205,6 +205,7 @@ TRIM_LIST_SECTIONS = [
     'OPTIONAL CROWN',
     'BUMP/BOXING',
     'BUMP BOXING',
+    'BUMP',
     'OPT LIGHT RAIL',
     'OPTIONAL LIGHT RAIL',
     'LIGHT RAIL',
@@ -240,6 +241,7 @@ SECTION_TO_BUCKET = {
     'OPTIONAL CROWN':          'opt_crown',
     'BUMP/BOXING':             'bump',
     'BUMP BOXING':             'bump',
+    'BUMP':                    'bump',
     'OPT LIGHT RAIL':          'opt_light_rail',
     'OPTIONAL LIGHT RAIL':     'opt_light_rail',
     'LIGHT RAIL':              'opt_light_rail',
@@ -264,11 +266,11 @@ HARDWARE_KEYWORDS = re.compile(
     r'^(DOORS?|DRAWERS?|HINGES?|PULLS?|KNOBS?|TRAY|ROLLOUT|LAZY|POTS?|TRASH|TILT|WASTE|CUTTING|BREAD|IRONING|SHELF|SHELVES)\b',
     re.I
 )
-HARDWARE_PREFIXES  = re.compile(r'^(HWC|DWR\d|REFPANEL|PANEL|HDW)', re.I)
+HARDWARE_PREFIXES  = re.compile(r'^(HWC|REFPANEL|PANEL|HDW)', re.I)
 OPT_CROWN_RE       = re.compile(r'^(CM|OCM|SCM|QM|CROWN)', re.I)
 OPT_LIGHT_RAIL_RE  = re.compile(r'^(LR|LRM|LIGHT)', re.I)
 BUMP_RE            = re.compile(r'^SHM', re.I)
-PERIMETER_RE       = re.compile(r'^(BTK|SM\d|FL\d|BACK|WTEP|CLEAT|TOEKICK|MSW|MQR|TOUCHUP|TUKIT|TUPSPRAY)', re.I)
+PERIMETER_RE       = re.compile(r'^(BTK|SM\d|FL\d|BACK|WTEP|TOEKICK|MSW|MQR|TOUCHUP|TUKIT|TUPSPRAY)', re.I)
 
 WALL_CABINET    = re.compile(r'^W\d', re.I)
 BASE_CABINET    = re.compile(r'^(B\d|SB\d)', re.I)
@@ -277,7 +279,7 @@ VANITY_CABINET  = re.compile(r'^(V\d|VSB\d)', re.I)
 FILLER_CABINET  = re.compile(r'^(UF\d|F\d)', re.I)
 
 REJECT_PATTERNS = re.compile(
-    r'^(\d+$|MIH|SARASOTA|MAGNOLIA|STANDARD|OPTIONAL|ELITE|BUILDING|SOLUTIONS|DESIGNER|BLUEPRINT|CEILING|INSTALLATION|PRINTED|DESIGNED|DRAWING|ALL|LAYOUT|ROOM|PROJECT|CLIENT|DATE|PAGE|SECTION|SM58|SM18|OCMBLD18|FL124)',
+    r'^(\d+$|MIH|SARASOTA|MAGNOLIA|STANDARD|OPTIONAL|ELITE|BUILDING|SOLUTIONS|DESIGNER|BLUEPRINT|CEILING|INSTALLATION|PRINTED|DESIGNED|DRAWING|ALL|LAYOUT|ROOM|PROJECT|CLIENT|DATE|PAGE|SECTION|SM58|SM18|OCMBLD18|FL124|CLEAT|RANGE\d)',
     re.I
 )
 
@@ -323,6 +325,11 @@ def categorize_code(code: str, section_context: str = None) -> Optional[str]:
     if bucket == 'opt_crown':
         return 'opt_crown'
     if bucket == 'opt_light_rail':
+        # Perimeter codes (BTK, SM, FL) can appear after an OPT LIGHT RAIL section header
+        # due to multi-column PDF text ordering (laundry bases trim list follows uppers trim list).
+        # Keep them in perimeter rather than incorrectly routing to opt_light_rail.
+        if PERIMETER_RE.match(c):
+            return 'perimeter'
         return 'opt_light_rail'
     if bucket == 'bump':
         return 'bump'
@@ -567,6 +574,31 @@ def extract_page_items(text: str, pdf_type: str = PDF_TYPE_UNKNOWN) -> List[Dict
         last_end = m.end()
     segments.append((current_section, text[last_end:]))
 
+    # Upgrade HARDWARE/BUMP sub-sections that appear inside an island block
+    # to ISLAND HARDWARE / ISLAND BUMP so they route to the correct buckets.
+    # In the PDF, the island column has: ISLAND → items → HARDWARE → BUMP
+    # (no "ISLAND HARDWARE" header is printed — it's implied by position).
+    _ISLAND_ENTER = {'ISLAND', 'ISLAND SPECS'}
+    _ISLAND_SUB   = {'HARDWARE', 'BUMP'}
+    _ISLAND_EXIT  = {
+        'PERIMETER', 'PERIMETER SPECS', 'OPT CROWN', 'OPTIONAL CROWN',
+        'OPT LIGHT RAIL', 'OPTIONAL LIGHT RAIL', 'OPT VENT CHASE MATERIAL',
+        'VENT CHASE MATERIAL', 'WALL CABINETS', 'BASE CABINETS', 'TALL CABINETS',
+        'ACCESSORIES', 'ACCESSORIES SPECS',
+    }
+    in_island_block = False
+    upgraded: List[Tuple[str, str]] = []
+    for sname, stext in segments:
+        sn = sname.upper()
+        if sn in _ISLAND_ENTER:
+            in_island_block = True
+        elif sn in _ISLAND_EXIT:
+            in_island_block = False
+        elif in_island_block and sn in _ISLAND_SUB:
+            sname = f"ISLAND {sname}"  # "HARDWARE" → "ISLAND HARDWARE", "BUMP" → "ISLAND BUMP"
+        upgraded.append((sname, stext))
+    segments = upgraded
+
     for section_name, section_text in segments:
         seen_codes: Dict[str, int] = {}
 
@@ -779,9 +811,15 @@ def extract_rooms_rule_based(pdf_bytes: bytes) -> Dict[str, Any]:
             items = extract_page_items(text, pdf_type=pdf_type)
             print(f"[rule-extract] Page {page_num + 1} ({room_name}): {len(items)} items")
 
-            # ── Page-level accumulator: MAX within a page ──────────────────────
-            # Same code can appear in multiple sections on one page (e.g. SHM8 in
-            # HARDWARE and BUMP). We take the MAX to avoid intra-page duplication.
+            is_kitchen = any(k in room_name.upper()
+                             for k in ('KITCHEN', 'KIT', 'GOURMET', 'GMT'))
+
+            # ── Page-level accumulator ─────────────────────────────────────────
+            # Kitchen: use MAX so the same trim-list code repeated across sections
+            # on one page (e.g. SHM8 in HARDWARE and BUMP) is not doubled.
+            # Non-kitchen (laundry, bath): use SUM so that separate cabinet groups
+            # on the same page (e.g. laundry over-W/D, across-uppers, bases) each
+            # contribute their hardware/perimeter counts independently.
             page_cats: Dict[str, Dict[str, int]] = {cat: {} for cat in _ALL_CATS}
 
             for item in items:
@@ -791,7 +829,10 @@ def extract_rooms_rule_based(pdf_bytes: bytes) -> Dict[str, Any]:
                 category = categorize_code(code, section_context=section)
                 if category:
                     prev = page_cats[category].get(code, 0)
-                    page_cats[category][code] = max(prev, qty)
+                    if is_kitchen:
+                        page_cats[category][code] = max(prev, qty)
+                    else:
+                        page_cats[category][code] = prev + qty
 
             # ── Merge page totals into room accumulator ────────────────────────
             # Kitchen rooms: the trim list is printed once per plan view, so
@@ -799,9 +840,6 @@ def extract_rooms_rule_based(pdf_bytes: bytes) -> Dict[str, Any]:
             # don't multiply across pages (e.g. trim list shows DOORS:24 twice).
             # Laundry/Bath/other rooms: each page shows a DIFFERENT physical
             # section (left wall, right wall), so all codes are genuinely additive.
-            # Intra-page MAX (above) already handles within-page section duplicates.
-            is_kitchen = any(k in room_name.upper()
-                             for k in ('KITCHEN', 'KIT', 'GOURMET', 'GMT'))
 
             for cat, code_qty in page_cats.items():
                 cat_dict = rooms_qty[room_name][cat]
