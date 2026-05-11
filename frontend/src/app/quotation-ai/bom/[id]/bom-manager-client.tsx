@@ -107,7 +107,7 @@ interface BomManagerClientProps {
   manufacturerName: string;
 }
 
-type WorkflowStep = 'pricing' | 'preview' | 'config' | 'compare';
+type WorkflowStep = 'pricing' | 'breakdown' | 'preview' | 'config' | 'compare';
 type ViewMode = 'client' | 'internal';
 
 export function BomManagerClient({ id, project, initialBom, manufacturerName }: BomManagerClientProps) {
@@ -999,7 +999,8 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between print:hidden">
         <div className="flex items-center gap-6">
           <Button variant="ghost" size="icon" className="rounded-full" onClick={() => {
-            if (step === 'preview') setStep('pricing');
+            if (step === 'preview') setStep('breakdown');
+            else if (step === 'breakdown') setStep('pricing');
             else if (step === 'pricing' && manufacturerName === "Integrity Cabinets") setStep('config');
             else router.back();
           }}>
@@ -1007,7 +1008,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
           </Button>
           <div>
             <h1 className="text-xl font-bold tracking-tight">
-              {step === 'pricing' ? 'Bill of Materials' : step === 'config' ? 'Manufacturer Configuration' : step === 'compare' ? 'Compare Cabinet Lines' : 'Proposal Preview'}
+              {step === 'pricing' ? 'Bill of Materials' : step === 'config' ? 'Manufacturer Configuration' : step === 'compare' ? 'Compare Cabinet Lines' : step === 'breakdown' ? 'Calculation Breakdown' : 'Proposal Preview'}
             </h1>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
               Project: {project.project_name} • {manufacturerName} {step === 'config' && '— Integrity Cabinets Multi-Select'}{step === 'compare' && '— Side-by-Side Pricing'}
@@ -1034,10 +1035,11 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
           <Button className="rounded-xl h-11 px-6 gradient-button" onClick={() => {
               if (step === 'config') setStep('pricing');
               else if (step === 'compare') setStep('pricing');
-              else if (step === 'pricing') setStep('preview');
+              else if (step === 'pricing') setStep('breakdown');
+              else if (step === 'breakdown') setStep('preview');
               else setStep('pricing');
           }}>
-             {step === 'config' ? 'Proceed to BOM' : step === 'compare' ? 'Back to BOM' : step === 'pricing' ? 'Next: Preview Proposal' : 'Back to BOM List'}
+             {step === 'config' ? 'Proceed to BOM' : step === 'compare' ? 'Back to BOM' : step === 'pricing' ? 'Next: Review Calculations →' : step === 'breakdown' ? 'Next: Preview Proposal →' : 'Back to BOM List'}
              <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
@@ -1340,8 +1342,9 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                  {isInstallManufacturer && (
                                    <>
                                      <TableHead className="text-right text-[10px] uppercase font-bold text-slate-400">PTS</TableHead>
-                                     <TableHead className="text-center text-[10px] uppercase font-bold text-blue-400" title="Included in 3PL delivery count">3PL</TableHead>
+                                     <TableHead className="text-right text-[10px] uppercase font-bold text-blue-400" title="Delivery charge: qty × sell rate">3PL ($)</TableHead>
                                      <TableHead className="text-right text-[10px] uppercase font-black text-emerald-600 tracking-tighter">Install ($)</TableHead>
+                                     <TableHead className="text-right text-[10px] uppercase font-black text-[#002060] tracking-tighter bg-slate-50" title="Cabinet + Install + Delivery">All-In Total</TableHead>
                                    </>
                                  )}
                                </TableRow>
@@ -1432,7 +1435,10 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                         const totalPoints = calc ? calc.installUnits : 0;
                                         const pointFactor = calc ? calc.factor : 0;
                                         const tplIncluded = calc ? calc.tplUnits > 0 : false;
-                                        const dollarVal = Math.round(totalPoints * installRate);
+                                        const cabinetTotal = Math.round(item.unit_price) * item.qty;
+                                        const installCharge = includeInstall ? Math.round(totalPoints * installRate) : 0;
+                                        const deliveryCharge = (includeDelivery && tplIncluded && deliverySellRate > 0) ? item.qty * deliverySellRate : 0;
+                                        const allInTotal = cabinetTotal + installCharge + deliveryCharge;
                                         return (
                                           <>
                                             <TableCell className="pt-4 text-right font-mono text-[11px] text-slate-500 font-bold">
@@ -1444,14 +1450,26 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                                 onChange={e => handleUpdateItem(idx, { install_points: parseFloat(e.target.value) || 0 })}
                                               />
                                             </TableCell>
-                                            <TableCell className="pt-4 text-center font-mono text-[11px] font-black">
-                                              {tplIncluded
-                                                ? <span className="text-blue-600" title="Included in 3PL delivery count">✓</span>
-                                                : <span className="text-slate-300" title="Excluded from 3PL delivery">—</span>
+                                            <TableCell className="pt-4 text-right font-mono text-[11px] text-blue-700 font-black">
+                                              {tplIncluded && deliverySellRate > 0
+                                                ? `$${(item.qty * deliverySellRate).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+                                                : <span className="text-slate-300">—</span>
                                               }
                                             </TableCell>
                                             <TableCell className="pt-4 text-right font-mono text-[11px] text-emerald-700 font-black">
-                                              {dollarVal > 0 ? `$${dollarVal}` : '—'}
+                                              {Math.round(totalPoints * installRate) > 0 ? `$${Math.round(totalPoints * installRate)}` : '—'}
+                                            </TableCell>
+                                            <TableCell className="pt-4 text-right bg-slate-50/80">
+                                              <div className="font-mono font-black text-sm text-[#002060]">
+                                                ${allInTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                              </div>
+                                              {(installCharge > 0 || deliveryCharge > 0) && (
+                                                <div className="text-[9px] text-slate-400 font-semibold mt-0.5 space-y-0.5">
+                                                  <div>cab ${cabinetTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                                                  {installCharge > 0 && <div className="text-emerald-600">+ inst ${installCharge.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>}
+                                                  {deliveryCharge > 0 && <div className="text-blue-600">+ del ${deliveryCharge.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>}
+                                                </div>
+                                              )}
                                             </TableCell>
                                           </>
                                         );
@@ -1768,6 +1786,289 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
             </div>
           )}
 
+          {/* ── CALCULATION BREAKDOWN STEP ─────────────────────────────────────── */}
+          {step === 'breakdown' && (() => {
+            // Build per-type summary from installCalculations
+            const typeMap: Record<string, { label: string; items: { sku: string; description: string; qty: number; installFactor: number; installUnits: number; tplUnits: number }[] }> = {};
+            const activeItems = bom.filter(item => item.is_billable && selectedRooms.includes(item.room));
+            activeItems.forEach(item => {
+              const calc = installCalculations.itemCalcs[item.id];
+              const category = detectCategory(item.sku);
+              const cabType = (item.cabinet_type || '').toLowerCase();
+              const skuKey = (item.sku || '').toUpperCase().trim();
+              const isFiller = category === 'Universal Fillers' || cabType.includes('filler') || skuKey.startsWith('UF') || skuKey.startsWith('WF') || skuKey.startsWith('BF');
+              const isPanel = category === 'Panels' || cabType.includes('panel');
+              const isMolding = category === 'Molding & Trim' || cabType.includes('molding');
+              let typeKey = category || 'Other';
+              if (isFiller) typeKey = 'Fillers';
+              else if (isPanel) typeKey = 'Panels';
+              else if (isMolding) typeKey = 'Molding & Trim';
+              if (!typeMap[typeKey]) typeMap[typeKey] = { label: typeKey, items: [] };
+              typeMap[typeKey].items.push({
+                sku: item.sku,
+                description: item.description || item.sku,
+                qty: Number(item.qty),
+                installFactor: calc ? calc.factor : 0,
+                installUnits: calc ? calc.installUnits : 0,
+                tplUnits: calc ? calc.tplUnits : 0,
+              });
+            });
+
+            const totalInstall = installCalculations.totalInstallUnits;
+            const totalTPL = installCalculations.total3PLUnits;
+            const installTotal = totalInstall * Number(installRate);
+            const deliveryTotal = totalTPL * Number(deliverySellRate);
+
+            // Cabinet material totals per room
+            const roomMaterialTotals = (() => {
+              const roomMap: Record<string, number> = {};
+              activeItems.forEach(item => {
+                const room = item.room || 'Unknown';
+                const lineTotal = Math.round(item.unit_price) * item.qty;
+                roomMap[room] = (roomMap[room] || 0) + lineTotal;
+              });
+              return roomMap;
+            })();
+            const grandCabMaterial = Object.values(roomMaterialTotals).reduce((a, b) => a + b, 0);
+
+            return (
+              <div className="animate-in fade-in duration-500 max-w-5xl mx-auto space-y-6 pb-16">
+                {/* Step indicator */}
+                <div className="flex items-center gap-3 px-1">
+                  <div className="flex items-center gap-2 text-xs text-slate-400 font-bold uppercase tracking-widest">
+                    <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-xs font-black">1</span> BOM Review
+                    <span className="w-12 h-px bg-slate-200" />
+                    <span className="w-6 h-6 rounded-full bg-[#002060] text-white flex items-center justify-center text-xs font-black">2</span>
+                    <span className="text-[#002060]">Calculation Breakdown</span>
+                    <span className="w-12 h-px bg-slate-200" />
+                    <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-xs font-black">3</span> Proposal Preview
+                  </div>
+                </div>
+
+                {/* ── SECTION 1: Cabinet Material ── */}
+                <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                  <div className="bg-[#002060] px-6 py-3 flex items-center justify-between">
+                    <span className="text-white font-black uppercase tracking-widest text-xs">Cabinet Materials</span>
+                    <span className="text-white font-black text-sm font-mono">${grandCabMaterial.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                  </div>
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-100">
+                      <tr>
+                        <th className="text-left px-5 py-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">Room</th>
+                        <th className="text-right px-5 py-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">Sell Amount (List × Factor)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(roomMaterialTotals).map(([room, total]) => (
+                        <tr key={room} className="border-b border-slate-50 hover:bg-slate-50/60">
+                          <td className="px-5 py-2 font-semibold text-slate-700">{room}</td>
+                          <td className="px-5 py-2 text-right font-mono font-bold text-slate-900">${total.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+                      <tr>
+                        <td className="px-5 py-2 font-black text-[#002060] uppercase text-[10px] tracking-wider">Total Cabinet Materials</td>
+                        <td className="px-5 py-2 text-right font-black font-mono text-[#002060]">${grandCabMaterial.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* ── SECTION 2: Install Labor ── */}
+                {isInstallManufacturer && (
+                  <div className="rounded-2xl border border-emerald-200 overflow-hidden shadow-sm">
+                    <div className="bg-emerald-700 px-6 py-3 flex items-center justify-between">
+                      <span className="text-white font-black uppercase tracking-widest text-xs">Installation Labor Breakdown</span>
+                      <span className="text-white font-black text-sm font-mono">${installTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                    </div>
+                    {/* Rate row */}
+                    <div className="bg-emerald-50 border-b border-emerald-100 px-5 py-2 flex items-center gap-6 text-xs">
+                      <span className="font-bold text-emerald-800">Install Rate:</span>
+                      <span className="font-mono font-black text-emerald-900">${installRate} / point</span>
+                      <span className="text-slate-400">·</span>
+                      <span className="font-bold text-emerald-800">Total Points:</span>
+                      <span className="font-mono font-black text-emerald-900">{totalInstall.toFixed(2)}</span>
+                      <span className="text-slate-400">·</span>
+                      <span className="font-bold text-emerald-800">Formula:</span>
+                      <span className="font-mono text-slate-600">Points × Rate = Charge</span>
+                    </div>
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-50 border-b border-slate-100">
+                        <tr>
+                          <th className="text-left px-5 py-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">Item Type</th>
+                          <th className="text-left px-5 py-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">SKU / Description</th>
+                          <th className="text-center px-4 py-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">Install Factor</th>
+                          <th className="text-center px-4 py-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">Qty</th>
+                          <th className="text-right px-5 py-2 text-[10px] font-black uppercase text-emerald-600 tracking-wider">Install Points</th>
+                          <th className="text-right px-5 py-2 text-[10px] font-black uppercase text-emerald-600 tracking-wider">Charge ($)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(typeMap).map(([typeKey, group]) => {
+                          const groupInstallUnits = group.items.reduce((s, i) => s + i.installUnits, 0);
+                          const groupCharge = groupInstallUnits * Number(installRate);
+                          return (
+                            <React.Fragment key={typeKey}>
+                              <tr className="bg-slate-50 border-b border-slate-100">
+                                <td colSpan={6} className="px-5 py-1.5 font-black text-[10px] uppercase text-slate-500 tracking-wider">{group.label}</td>
+                              </tr>
+                              {group.items.map((it, idx) => (
+                                <tr key={`${typeKey}-${idx}`} className="border-b border-slate-50 hover:bg-emerald-50/40">
+                                  <td className="px-5 py-2 text-slate-400 text-[10px]"></td>
+                                  <td className="px-5 py-2">
+                                    <span className="font-mono font-bold text-slate-700 text-[10px]">{it.sku}</span>
+                                    {it.description && it.description !== it.sku && (
+                                      <span className="ml-2 text-[10px] text-slate-400">{it.description.slice(0, 50)}</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-2 text-center font-mono text-slate-600">{it.installFactor.toFixed(2)}</td>
+                                  <td className="px-4 py-2 text-center font-bold text-slate-700">{it.qty}</td>
+                                  <td className="px-5 py-2 text-right font-mono text-emerald-700 font-bold">{it.installUnits.toFixed(2)}</td>
+                                  <td className="px-5 py-2 text-right font-mono text-emerald-700">${(it.installUnits * Number(installRate)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                                </tr>
+                              ))}
+                              <tr className="bg-emerald-50/60 border-b border-emerald-100">
+                                <td colSpan={4} className="px-5 py-1.5 text-right text-[10px] font-black text-emerald-700 uppercase tracking-wider">{group.label} Subtotal</td>
+                                <td className="px-5 py-1.5 text-right font-mono font-black text-emerald-800">{groupInstallUnits.toFixed(2)}</td>
+                                <td className="px-5 py-1.5 text-right font-mono font-black text-emerald-800">${groupCharge.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                              </tr>
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="bg-emerald-100 border-t-2 border-emerald-300">
+                        <tr>
+                          <td colSpan={4} className="px-5 py-2.5 font-black text-emerald-900 uppercase text-[10px] tracking-wider">
+                            Total Install Points × ${installRate}/pt
+                          </td>
+                          <td className="px-5 py-2.5 text-right font-black font-mono text-emerald-900">{totalInstall.toFixed(2)}</td>
+                          <td className="px-5 py-2.5 text-right font-black font-mono text-emerald-900">${installTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+
+                {/* ── SECTION 3: Delivery / 3PL ── */}
+                {isInstallManufacturer && (
+                  <div className="rounded-2xl border border-blue-200 overflow-hidden shadow-sm">
+                    <div className="bg-blue-700 px-6 py-3 flex items-center justify-between">
+                      <span className="text-white font-black uppercase tracking-widest text-xs">Delivery / 3PL Breakdown</span>
+                      <span className="text-white font-black text-sm font-mono">${deliveryTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                    </div>
+                    <div className="bg-blue-50 border-b border-blue-100 px-5 py-2 flex items-center gap-6 text-xs">
+                      <span className="font-bold text-blue-800">Delivery Rate:</span>
+                      <span className="font-mono font-black text-blue-900">${deliverySellRate} / box</span>
+                      <span className="text-slate-400">·</span>
+                      <span className="font-bold text-blue-800">Total Boxes:</span>
+                      <span className="font-mono font-black text-blue-900">{totalTPL}</span>
+                      <span className="text-slate-400">·</span>
+                      <span className="font-bold text-blue-800">Formula:</span>
+                      <span className="font-mono text-slate-600">Boxes × Rate = Charge</span>
+                    </div>
+                    <div className="bg-amber-50 border-b border-amber-100 px-5 py-1.5 text-[10px] text-amber-700 font-semibold">
+                      Note: Fillers, panels, molding and accessories are excluded from delivery count (0 boxes). Full cabinets count as 1 box each.
+                    </div>
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-50 border-b border-slate-100">
+                        <tr>
+                          <th className="text-left px-5 py-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">Item Type</th>
+                          <th className="text-left px-5 py-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">SKU</th>
+                          <th className="text-center px-4 py-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">In Delivery?</th>
+                          <th className="text-center px-4 py-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">Qty</th>
+                          <th className="text-right px-5 py-2 text-[10px] font-black uppercase text-blue-600 tracking-wider">Delivery Boxes</th>
+                          <th className="text-right px-5 py-2 text-[10px] font-black uppercase text-blue-600 tracking-wider">Charge ($)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(typeMap).map(([typeKey, group]) => {
+                          const groupTPL = group.items.reduce((s, i) => s + i.tplUnits, 0);
+                          const groupCharge = groupTPL * Number(deliverySellRate);
+                          return (
+                            <React.Fragment key={typeKey}>
+                              <tr className="bg-slate-50 border-b border-slate-100">
+                                <td colSpan={6} className="px-5 py-1.5 font-black text-[10px] uppercase text-slate-500 tracking-wider">{group.label}</td>
+                              </tr>
+                              {group.items.map((it, idx) => (
+                                <tr key={`${typeKey}-d${idx}`} className="border-b border-slate-50 hover:bg-blue-50/40">
+                                  <td className="px-5 py-2 text-slate-400 text-[10px]"></td>
+                                  <td className="px-5 py-2 font-mono font-bold text-slate-700 text-[10px]">{it.sku}</td>
+                                  <td className="px-4 py-2 text-center">
+                                    {it.tplUnits > 0
+                                      ? <span className="inline-flex items-center gap-1 text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">✓ Yes</span>
+                                      : <span className="inline-flex items-center gap-1 text-[10px] text-slate-300 bg-slate-50 px-2 py-0.5 rounded-full">— No</span>
+                                    }
+                                  </td>
+                                  <td className="px-4 py-2 text-center font-bold text-slate-700">{it.qty}</td>
+                                  <td className="px-5 py-2 text-right font-mono text-blue-700 font-bold">{it.tplUnits}</td>
+                                  <td className="px-5 py-2 text-right font-mono text-blue-700">{it.tplUnits > 0 ? `$${(it.tplUnits * Number(deliverySellRate)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'}</td>
+                                </tr>
+                              ))}
+                              <tr className="bg-blue-50/60 border-b border-blue-100">
+                                <td colSpan={4} className="px-5 py-1.5 text-right text-[10px] font-black text-blue-700 uppercase tracking-wider">{group.label} Subtotal</td>
+                                <td className="px-5 py-1.5 text-right font-mono font-black text-blue-800">{groupTPL}</td>
+                                <td className="px-5 py-1.5 text-right font-mono font-black text-blue-800">${groupCharge.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                              </tr>
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="bg-blue-100 border-t-2 border-blue-300">
+                        <tr>
+                          <td colSpan={4} className="px-5 py-2.5 font-black text-blue-900 uppercase text-[10px] tracking-wider">
+                            Total Delivery Boxes × ${deliverySellRate}/box
+                          </td>
+                          <td className="px-5 py-2.5 text-right font-black font-mono text-blue-900">{totalTPL}</td>
+                          <td className="px-5 py-2.5 text-right font-black font-mono text-blue-900">${deliveryTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+
+                {/* ── SECTION 4: Grand Total Summary ── */}
+                <div className="rounded-2xl border-2 border-[#002060] overflow-hidden shadow-md">
+                  <div className="bg-[#002060] px-6 py-3">
+                    <span className="text-white font-black uppercase tracking-widest text-xs">Grand Total Summary</span>
+                  </div>
+                  <div className="bg-white">
+                    <div className="flex justify-between items-center px-6 py-3 border-b border-slate-100">
+                      <span className="text-xs font-semibold text-slate-600">Cabinet Materials</span>
+                      <span className="font-mono font-bold text-slate-900 text-sm">${grandCabMaterial.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                    </div>
+                    {isInstallManufacturer && includeInstall && (
+                      <div className="flex justify-between items-center px-6 py-3 border-b border-slate-100">
+                        <span className="text-xs font-semibold text-slate-600">Installation Labor <span className="text-slate-400 font-normal">({totalInstall.toFixed(2)} pts × ${installRate})</span></span>
+                        <span className="font-mono font-bold text-emerald-700 text-sm">${installTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                      </div>
+                    )}
+                    {isInstallManufacturer && includeDelivery && (
+                      <div className="flex justify-between items-center px-6 py-3 border-b border-slate-100">
+                        <span className="text-xs font-semibold text-slate-600">Delivery / 3PL <span className="text-slate-400 font-normal">({totalTPL} boxes × ${deliverySellRate})</span></span>
+                        <span className="font-mono font-bold text-blue-700 text-sm">${deliveryTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                      </div>
+                    )}
+                    {financials.taxes > 0 && (
+                      <div className="flex justify-between items-center px-6 py-3 border-b border-slate-100">
+                        <span className="text-xs font-semibold text-slate-600">Sales Tax <span className="text-slate-400 font-normal">({taxRate}%)</span></span>
+                        <span className="font-mono font-bold text-slate-900 text-sm">${financials.taxes.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center px-6 py-4 bg-[#002060]/5">
+                      <span className="text-sm font-black text-[#002060] uppercase tracking-wider">Total Amount</span>
+                      <span className="font-mono font-black text-[#002060] text-xl">${financials.grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-center text-[10px] text-slate-400 font-semibold pb-4">
+                  All calculations verified — click <span className="font-black text-[#002060]">Next: Preview Proposal</span> to continue
+                </p>
+              </div>
+            );
+          })()}
+
           {step === 'preview' && (
             <div className="animate-in fade-in duration-500 space-y-12">
                <Card className="rounded-3xl border-slate-200 shadow-sm bg-white overflow-hidden print:hidden">
@@ -1965,32 +2266,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                <div className="text-xs font-semibold text-[#002060]">$0</div>
                              </div>
                            </div>
-                           {/* Pricing breakdown so client knows exactly what each component is */}
                            <div className="h-3 bg-[#000040] w-full"></div>
-                           <div className="bg-slate-50 border-b border-slate-200">
-                             <div className="flex justify-between items-center px-8 py-1.5 border-b border-slate-100">
-                               <span className="text-[10px] font-semibold text-[#002060] uppercase tracking-wide">Cabinet Materials</span>
-                               <span className="text-[10px] font-semibold text-[#002060] font-mono">${financials.netTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                             </div>
-                             {financials.totalInstallSell > 0 && (
-                               <div className="flex justify-between items-center px-8 py-1.5 border-b border-slate-100">
-                                 <span className="text-[10px] font-semibold text-[#002060] uppercase tracking-wide">Installation Labor</span>
-                                 <span className="text-[10px] font-semibold text-[#002060] font-mono">${financials.totalInstallSell.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                               </div>
-                             )}
-                             {financials.totalDeliverySell > 0 && (
-                               <div className="flex justify-between items-center px-8 py-1.5 border-b border-slate-100">
-                                 <span className="text-[10px] font-semibold text-[#002060] uppercase tracking-wide">Delivery (3PL)</span>
-                                 <span className="text-[10px] font-semibold text-[#002060] font-mono">${financials.totalDeliverySell.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                               </div>
-                             )}
-                             {financials.taxes > 0 && (
-                               <div className="flex justify-between items-center px-8 py-1.5 border-b border-slate-100">
-                                 <span className="text-[10px] font-semibold text-[#002060] uppercase tracking-wide">Sales Tax ({taxRate}%)</span>
-                                 <span className="text-[10px] font-semibold text-[#002060] font-mono">${financials.taxes.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                               </div>
-                             )}
-                           </div>
                            <div className="flex items-center px-16 py-2 bg-slate-50 relative">
                              <div className="flex-grow text-center text-xs font-bold text-[#002060] uppercase">TOTAL</div>
                              <div className="text-xs font-bold text-[#002060]">${financials.grandTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
@@ -2344,15 +2620,22 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                         <Wrench className="w-3.5 h-3.5 text-orange-500" />
                         <p className="text-[10px] font-black uppercase text-orange-600 tracking-widest">Installation Charges</p>
                       </div>
-                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={includeInstall}
-                          onChange={e => setIncludeInstall(e.target.checked)}
-                          className="w-3.5 h-3.5 accent-orange-500"
-                        />
-                        <span className="text-[9px] font-black uppercase text-orange-600">Include</span>
-                      </label>
+                      <div className="flex items-center gap-2">
+                        {installRate > 0 && installCalculations.totalInstallUnits > 0 && (
+                          <span className="text-[10px] font-black font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                            ${(installCalculations.totalInstallUnits * installRate).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </span>
+                        )}
+                        <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={includeInstall}
+                            onChange={e => setIncludeInstall(e.target.checked)}
+                            className="w-3.5 h-3.5 accent-orange-500"
+                          />
+                          <span className="text-[9px] font-black uppercase text-orange-600">Include</span>
+                        </label>
+                      </div>
                     </div>
                     {includeInstall && (
                       <div className="p-3 bg-orange-50/60 rounded-xl border border-orange-100 space-y-3">
@@ -2402,15 +2685,22 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                         <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 16l4-4m0 0l4 4m-4-4v9M9 3h6a2 2 0 012 2v7M3 16h18" /></svg>
                         <p className="text-[10px] font-black uppercase text-blue-600 tracking-widest">Delivery (3PL) Charges</p>
                       </div>
-                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={includeDelivery}
-                          onChange={e => setIncludeDelivery(e.target.checked)}
-                          className="w-3.5 h-3.5 accent-blue-500"
-                        />
-                        <span className="text-[9px] font-black uppercase text-blue-600">Include</span>
-                      </label>
+                      <div className="flex items-center gap-2">
+                        {deliverySellRate > 0 && installCalculations.total3PLUnits > 0 && (
+                          <span className="text-[10px] font-black font-mono text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                            ${(installCalculations.total3PLUnits * deliverySellRate).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </span>
+                        )}
+                        <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={includeDelivery}
+                            onChange={e => setIncludeDelivery(e.target.checked)}
+                            className="w-3.5 h-3.5 accent-blue-500"
+                          />
+                          <span className="text-[9px] font-black uppercase text-blue-600">Include</span>
+                        </label>
+                      </div>
                     </div>
                     {includeDelivery && (
                       <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100 space-y-3">
