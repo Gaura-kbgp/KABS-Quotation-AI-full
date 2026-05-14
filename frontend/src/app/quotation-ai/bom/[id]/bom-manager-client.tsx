@@ -110,6 +110,11 @@ interface BomManagerClientProps {
 type WorkflowStep = 'pricing' | 'breakdown' | 'preview' | 'config' | 'compare';
 type ViewMode = 'client' | 'internal';
 
+// Module-level constants shared by the BOM render and the Calculation Breakdown step
+const SECTION_ORDER = ['cabinets','perimeter','hardware','bump','opt_crown','opt_light_rail','island','island_hardware','island_bump','vent_chase_material'];
+const SECTION_LABELS: Record<string,string> = {cabinets:'Cabinets',perimeter:'Perimeter',hardware:'Hardware',bump:'Bump / Boxing',opt_crown:'Opt Crown',opt_light_rail:'Opt Light Rail',island:'Island',island_hardware:'Island Hardware',island_bump:'Island Bump',vent_chase_material:'Vent Chase Material'};
+const CAB_SUB_CATS = ['Wall Cabinets','Base Cabinets','Tall Cabinets','Vanity Cabinets','Universal Fillers','Panels','Molding & Trim','Hardwares'];
+
 export function BomManagerClient({ id, project, initialBom, manufacturerName }: BomManagerClientProps) {
   const { toast } = useToast();
   const router = useRouter();
@@ -460,42 +465,73 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
         let tplInclude = false;
         
         const category = detectCategory(item.sku);
-        const cabType = (item.cabinet_type || "").toLowerCase();
-        const isFiller = category === 'Universal Fillers' || cabType.includes('filler') || skuKey.startsWith('UF') || skuKey.startsWith('WF') || skuKey.startsWith('BF');
-        const isPanel = category === 'Panels' || cabType.includes('panel') || skuKey.includes('EP') || skuKey.includes('PNL');
-        const isMolding = category === 'Molding & Trim' || cabType.includes('molding');
-        const isAccessory = category === 'Accessories' || cabType.includes('accessory');
-        
-        // Full cabinets are items in cabinet categories that aren't fillers or panels
-        const isFullCabinet = category.toLowerCase().includes('cabinets') && !isFiller && !isPanel;
-        
-        // Smart Factor Assignment
+        const isFullCabinet = category.includes('Cabinets');
+
+        // Box count schedule per Install Pay Worksheets (1951 Cabinetry + MI Homes)
+        const getBoxCount = (): { factor: number; tpl: boolean } => {
+          const s = skuKey;
+          // ── Cabinets — special types override the 1.0 default ────────────
+          if (isFullCabinet) {
+            if (s.startsWith('OVD') || s.includes('OVEN'))
+              return { factor: 2.0, tpl: true };                    // Oven Cabinet w/ cutout
+            if (/^(UC|ULC|UL)\d/.test(s) || s.includes('LINEN'))
+              return { factor: 2.0, tpl: true };                    // Utility / Linen Cabinet
+            if (s.startsWith('FSB') || s.startsWith('FSDB') || s.startsWith('SFDB'))
+              return { factor: 3.0, tpl: true };                    // Farm Sink / Angle Sink Front
+            if (s.startsWith('SK') || s.includes('STACK'))
+              return { factor: 1.5, tpl: true };                    // Stacked Cab Adder
+            return { factor: 1.0, tpl: true };                      // Wall / Base / Vanity / Hood / Legs
+          }
+          // ── Molding & Trim ────────────────────────────────────────────────
+          if (category === 'Molding & Trim') {
+            if (s.startsWith('CM')  || s.startsWith('CCM')  || s.startsWith('LPLR') || s.startsWith('CLR') ||
+                s.startsWith('LR')  || s.startsWith('VL')   || s.startsWith('VLC')  ||
+                s.startsWith('SRM') || s.startsWith('SBM')  || s.startsWith('OCM')  ||
+                s.includes('CROWN') || s.includes('RAIL')   || s.includes('VALANCE'))
+              return { factor: 1.0, tpl: false };                   // Crown / Light Rail / Valence
+            if (s.startsWith('FBM') || /^SM\d/.test(s) || s.startsWith('BAT') || s.startsWith('WSS'))
+              return { factor: 0.5, tpl: false };                   // Furniture Base / Furniture Trim
+            return { factor: 0.12, tpl: false };                    // Toe Kick / Shoe / Scribe / Outside Corner
+          }
+          // ── Panels ────────────────────────────────────────────────────────
+          if (category === 'Panels') {
+            if (s.startsWith('FHP') || s.startsWith('EF') || s.startsWith('REP') || s.includes('FRIDGE'))
+              return { factor: 1.0, tpl: false };                   // Fridge / Refrig End Panel
+            if (s.startsWith('GP') || s.startsWith('BACKB') || s.startsWith('BACKF') || s.startsWith('FBP'))
+              return { factor: 1.0, tpl: false };                   // Back Panel (Island / Peninsula per sheet)
+            if (s.startsWith('DWR') || s.startsWith('SAD') || s.startsWith('SADW'))
+              return { factor: 0.5, tpl: false };                   // DWR / Deco End Panel (tall > 24")
+            return { factor: 0.25, tpl: false };                    // Wall or Base End Panel
+          }
+          // ── Fillers ───────────────────────────────────────────────────────
+          if (category === 'Universal Fillers')
+            return { factor: 0.25, tpl: false };
+          // ── Hardware / Accessories ────────────────────────────────────────
+          if (s.startsWith('BTK') || s.startsWith('WBD') || s.includes('TRAY'))
+            return { factor: 0.5, tpl: false };                     // Base Tray Kit / Sliding Shelves
+          if (s.startsWith('VOID'))
+            return { factor: 0.5, tpl: false };                     // Voids (Sink Floor)
+          if (s.startsWith('OSP'))
+            return { factor: 0.5, tpl: false };                     // OSP / 2x4 Support
+          if (s.startsWith('LEG') || s.startsWith('DSK'))
+            return { factor: 1.0, tpl: false };                     // Desk Leg
+          return { factor: 0, tpl: false };
+        };
+
+        // Smart Factor Assignment — priority: manual override > catalog points > install rule > worksheet default
         if (override) {
-          // 1. Explicit Manual Override always wins
           factor = Number(override.install_factor);
           tplInclude = override.include_in_3pl;
-        } else if (isFiller || isPanel || isMolding) {
-          // 2. Accessories strictly follow the point system regardless of catalog/prefix defaults
-          const digits = skuKey.match(/\d+/g);
-          const height = digits && digits.length > 0 ? parseInt(digits[digits.length - 1], 10) : 0;
-          
-          if (isFiller) factor = height >= 80 ? 0.3 : 0.1;
-          else if (isPanel) factor = height >= 80 ? 1.0 : 0.5;
-          else if (isMolding) factor = 0.1;
-          
-          tplInclude = isFullCabinet; // Usually false for these
         } else if (item.install_points !== undefined && Number(item.install_points) > 0) {
-          // 3. Backend Catalog points (for cabinets)
           factor = Number(item.install_points);
-          tplInclude = rule ? rule.include_in_3pl : isFullCabinet;
-        } else if (rule) {
-          // 4. Prefix-based rules (for cabinets)
-          factor = Number(rule.install_factor);
-          tplInclude = rule.include_in_3pl;
+          tplInclude = isFullCabinet;
+        } else if (defRule) {
+          factor = Number(defRule.install_factor);
+          tplInclude = defRule.include_in_3pl;
         } else {
-          // 5. Global Fallback
-          factor = isFullCabinet ? 1.0 : 0;
-          tplInclude = isFullCabinet; 
+          const bc = getBoxCount();
+          factor = bc.factor;
+          tplInclude = bc.tpl;
         }
         totalInstallUnitsInline += Number(item.qty) * factor;
         if (tplInclude) total3PLUnitsInline += Number(item.qty);
@@ -1159,8 +1195,6 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
               {roomsList.map(roomName => {
                 const roomItems = bom.filter(i => i.room === roomName);
                       const isSelected = selectedRooms.includes(roomName);
-                const categories = ['Wall Cabinets', 'Base Cabinets', 'Tall Cabinets', 'Vanity Cabinets', 'Universal Fillers', 'Panels', 'Molding & Trim', 'Hardwares'];
-                
                 // Calculate cabinet count (excluding fillers)
                 const roomPoints = roomItems.filter(i => i.is_billable).reduce((sum, item) => {
                   return sum + (installCalculations.itemCalcs[item.id]?.installUnits || 0);
@@ -1321,14 +1355,16 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                        </div>
                     </div>
 
-                    {categories.map(cat => {
-                      const items = roomItems.filter(i => detectCategory(i.sku) === cat);
-                      if (items.length === 0) return null;
-
-                      return (
-                        <div key={cat} className="space-y-2 mb-8">
+                    {SECTION_ORDER.flatMap(sKey => {
+                      const sItems = roomItems.filter(i => (i.cabinet_type || '') === sKey);
+                      if (sItems.length === 0) return [];
+                      const subsections = sKey === 'cabinets'
+                        ? CAB_SUB_CATS.map(sub => ({ label: sub, items: sItems.filter(i => detectCategory(i.sku) === sub) })).filter(s => s.items.length > 0)
+                        : [{ label: SECTION_LABELS[sKey], items: sItems }];
+                      return subsections.flatMap(({ label, items }) => items.length === 0 ? [] : [(
+                        <div key={`${sKey}-${label}`} className="space-y-2 mb-8">
                            <div className="px-4 py-2 bg-slate-100/50 rounded-lg flex items-center gap-2">
-                              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{cat}</span>
+                              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</span>
                            </div>
                            <Table>
                              <TableHeader>
@@ -1480,10 +1516,10 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                              </TableBody>
                            </Table>
                         </div>
-                      )
+                      )]);
                     })}
 
-                    {roomItems.filter(i => !categories.includes(detectCategory(i.sku))).length > 0 && (
+                    {roomItems.filter(i => !SECTION_ORDER.includes(i.cabinet_type || '')).length > 0 && (
                       <Accordion type="single" collapsible className="w-full">
                         <AccordionItem value="acc" className="border-none">
                           <AccordionTrigger className="px-4 py-2 bg-slate-50 rounded-xl hover:no-underline">
@@ -1501,7 +1537,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                                 </TableRow>
                               </TableHeader>
                                <TableBody>
-                                  {roomItems.filter(i => !categories.includes(detectCategory(i.sku))).map(item => {
+                                  {roomItems.filter(i => !SECTION_ORDER.includes(i.cabinet_type || '')).map(item => {
                                     const idx = bom.findIndex(b => b.id === item.id);
                                     return (
                                       <TableRow key={item.id} className="border-b border-slate-100 align-top hover:bg-white">
@@ -1788,9 +1824,44 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
 
           {/* ── CALCULATION BREAKDOWN STEP ─────────────────────────────────────── */}
           {step === 'breakdown' && (() => {
-            // Build per-type summary from installCalculations
-            const typeMap: Record<string, { label: string; items: { sku: string; description: string; qty: number; installFactor: number; installUnits: number; tplUnits: number }[] }> = {};
+            // Remove trailing zeros from point numbers: 0.10 → 0.1, 1.00 → 1
+            const fmtPts = (n: number): string => parseFloat(n.toFixed(2)).toString();
+
+            // Build section-wise install data matching the BOM page layout
+            type BDItem = { sku: string; description: string; qty: number; installFactor: number; installUnits: number; tplUnits: number };
+            type BDSubSec = { subLabel: string; items: BDItem[] };
             const activeItems = bom.filter(item => item.is_billable && selectedRooms.includes(item.room));
+
+            const toBDItem = (item: typeof activeItems[0]): BDItem => {
+              const calc = installCalculations.itemCalcs[item.id];
+              return {
+                sku: item.sku,
+                description: item.description || item.sku,
+                qty: Number(item.qty),
+                installFactor: calc ? calc.factor : 0,
+                installUnits: calc ? calc.installUnits : 0,
+                tplUnits: calc ? calc.tplUnits : 0,
+              };
+            };
+
+            const sectionInstallData: { sKey: string; sLabel: string; subSections: BDSubSec[] }[] =
+              SECTION_ORDER.flatMap(sKey => {
+                const sItems = activeItems.filter(i => (i.cabinet_type || '') === sKey);
+                if (sItems.length === 0) return [];
+                const subSections: BDSubSec[] = sKey === 'cabinets'
+                  ? CAB_SUB_CATS
+                      .map(sub => ({ subLabel: sub, items: sItems.filter(i => detectCategory(i.sku) === sub).map(toBDItem) }))
+                      .filter(s => s.items.length > 0)
+                  : [{ subLabel: SECTION_LABELS[sKey] || sKey, items: sItems.map(toBDItem) }];
+                return [{ sKey, sLabel: SECTION_LABELS[sKey] || sKey, subSections }];
+              });
+
+            const totalInstall = installCalculations.totalInstallUnits;
+            const totalTPL = installCalculations.total3PLUnits;
+            const installTotal = totalInstall * Number(installRate);
+            const deliveryTotal = totalTPL * Number(deliverySellRate);
+
+            const typeMap: Record<string, { label: string; items: BDItem[] }> = {};
             activeItems.forEach(item => {
               const calc = installCalculations.itemCalcs[item.id];
               const category = detectCategory(item.sku);
@@ -1813,11 +1884,6 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                 tplUnits: calc ? calc.tplUnits : 0,
               });
             });
-
-            const totalInstall = installCalculations.totalInstallUnits;
-            const totalTPL = installCalculations.total3PLUnits;
-            const installTotal = totalInstall * Number(installRate);
-            const deliveryTotal = totalTPL * Number(deliverySellRate);
 
             // Cabinet material totals per room
             const roomMaterialTotals = (() => {
@@ -1888,7 +1954,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                       <span className="font-mono font-black text-emerald-900">${installRate} / point</span>
                       <span className="text-slate-400">·</span>
                       <span className="font-bold text-emerald-800">Total Points:</span>
-                      <span className="font-mono font-black text-emerald-900">{totalInstall.toFixed(2)}</span>
+                      <span className="font-mono font-black text-emerald-900">{fmtPts(totalInstall)}</span>
                       <span className="text-slate-400">·</span>
                       <span className="font-bold text-emerald-800">Formula:</span>
                       <span className="font-mono text-slate-600">Points × Rate = Charge</span>
@@ -1905,44 +1971,46 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                         </tr>
                       </thead>
                       <tbody>
-                        {Object.entries(typeMap).map(([typeKey, group]) => {
-                          const groupInstallUnits = group.items.reduce((s, i) => s + i.installUnits, 0);
-                          const groupCharge = groupInstallUnits * Number(installRate);
-                          return (
-                            <React.Fragment key={typeKey}>
-                              <tr className="bg-slate-50 border-b border-slate-100">
-                                <td colSpan={6} className="px-5 py-1.5 font-black text-[10px] uppercase text-slate-500 tracking-wider">{group.label}</td>
-                              </tr>
-                              {group.items.map((it, idx) => (
-                                <tr key={`${typeKey}-${idx}`} className="border-b border-slate-50 hover:bg-emerald-50/40">
-                                  <td className="px-5 py-2 text-slate-400 text-[10px]"></td>
-                                  <td className="px-5 py-2">
-                                    <span className="font-mono font-bold text-slate-700 text-[10px]">{it.sku}</span>
-                                    {it.description && it.description !== it.sku && (
-                                      <span className="ml-2 text-[10px] text-slate-400">{it.description.slice(0, 50)}</span>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-2 text-center font-mono text-slate-600">{it.installFactor.toFixed(2)}</td>
-                                  <td className="px-4 py-2 text-center font-bold text-slate-700">{it.qty}</td>
-                                  <td className="px-5 py-2 text-right font-mono text-emerald-700 font-bold">{it.installUnits.toFixed(2)}</td>
-                                  <td className="px-5 py-2 text-right font-mono text-emerald-700">${(it.installUnits * Number(installRate)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                        {sectionInstallData.flatMap(({ sKey, subSections }) =>
+                          subSections.map(({ subLabel, items }) => {
+                            const groupInstallUnits = items.reduce((s, i) => s + i.installUnits, 0);
+                            const groupCharge = groupInstallUnits * Number(installRate);
+                            return (
+                              <React.Fragment key={`${sKey}-${subLabel}`}>
+                                <tr className="bg-slate-50 border-b border-slate-100">
+                                  <td colSpan={6} className="px-5 py-1.5 font-black text-[10px] uppercase text-slate-500 tracking-wider">{subLabel}</td>
                                 </tr>
-                              ))}
-                              <tr className="bg-emerald-50/60 border-b border-emerald-100">
-                                <td colSpan={4} className="px-5 py-1.5 text-right text-[10px] font-black text-emerald-700 uppercase tracking-wider">{group.label} Subtotal</td>
-                                <td className="px-5 py-1.5 text-right font-mono font-black text-emerald-800">{groupInstallUnits.toFixed(2)}</td>
-                                <td className="px-5 py-1.5 text-right font-mono font-black text-emerald-800">${groupCharge.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
-                              </tr>
-                            </React.Fragment>
-                          );
-                        })}
+                                {items.map((it, idx) => (
+                                  <tr key={`${sKey}-${subLabel}-${idx}`} className="border-b border-slate-50 hover:bg-emerald-50/40">
+                                    <td className="px-5 py-2 text-slate-400 text-[10px]"></td>
+                                    <td className="px-5 py-2">
+                                      <span className="font-mono font-bold text-slate-700 text-[10px]">{it.sku}</span>
+                                      {it.description && it.description !== it.sku && (
+                                        <span className="ml-2 text-[10px] text-slate-400">{it.description.slice(0, 50)}</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-2 text-center font-mono text-slate-600">{fmtPts(it.installFactor)}</td>
+                                    <td className="px-4 py-2 text-center font-bold text-slate-700">{it.qty}</td>
+                                    <td className="px-5 py-2 text-right font-mono text-emerald-700 font-bold">{fmtPts(it.installUnits)}</td>
+                                    <td className="px-5 py-2 text-right font-mono text-emerald-700">${(it.installUnits * Number(installRate)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                                  </tr>
+                                ))}
+                                <tr className="bg-emerald-50/60 border-b border-emerald-100">
+                                  <td colSpan={4} className="px-5 py-1.5 text-right text-[10px] font-black text-emerald-700 uppercase tracking-wider">{subLabel} Subtotal</td>
+                                  <td className="px-5 py-1.5 text-right font-mono font-black text-emerald-800">{fmtPts(groupInstallUnits)}</td>
+                                  <td className="px-5 py-1.5 text-right font-mono font-black text-emerald-800">${groupCharge.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                                </tr>
+                              </React.Fragment>
+                            );
+                          })
+                        )}
                       </tbody>
                       <tfoot className="bg-emerald-100 border-t-2 border-emerald-300">
                         <tr>
                           <td colSpan={4} className="px-5 py-2.5 font-black text-emerald-900 uppercase text-[10px] tracking-wider">
                             Total Install Points × ${installRate}/pt
                           </td>
-                          <td className="px-5 py-2.5 text-right font-black font-mono text-emerald-900">{totalInstall.toFixed(2)}</td>
+                          <td className="px-5 py-2.5 text-right font-black font-mono text-emerald-900">{fmtPts(totalInstall)}</td>
                           <td className="px-5 py-2.5 text-right font-black font-mono text-emerald-900">${installTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
                         </tr>
                       </tfoot>
@@ -2247,14 +2315,20 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                              {(activePrintRoom ? [activePrintRoom] : selectedRooms).map(roomName => {
                                const roomItems = bom.filter(i => i.room === roomName && i.is_billable && i.unit_price > 0);
                                if (roomItems.length === 0) return null;
-                               const roomTotal = roomItems.reduce((s, i) => s + (i.unit_price * i.qty), 0) * (1 - (roomDiscounts[roomName] || 0) / 100) * (financials.scalingFactor || 1);
+                               const roomCabTotal = roomItems.reduce((s, i) => s + (i.unit_price * i.qty), 0) * (1 - (roomDiscounts[roomName] || 0) / 100) * (financials.scalingFactor || 1);
+                               const allRoomItems = bom.filter(i => i.room === roomName && i.is_billable);
+                               const roomInstallPoints = allRoomItems.reduce((s, i) => s + (installCalculations.itemCalcs[i.id]?.installUnits || 0), 0);
+                               const roomTPLBoxes = allRoomItems.reduce((s, i) => s + (installCalculations.itemCalcs[i.id]?.tplUnits || 0), 0);
+                               const roomInstallTotal = (isInstallManufacturer && includeInstall) ? Math.round(roomInstallPoints * Number(installRate)) : 0;
+                               const roomTPLTotal = (isInstallManufacturer && includeDelivery) ? Math.round(roomTPLBoxes * Number(deliverySellRate)) : 0;
+                               const roomGrandTotal = roomCabTotal + roomInstallTotal + roomTPLTotal;
                                return (
                                  <div key={roomName} className="flex justify-between items-center px-8 py-2 border-b border-slate-100 bg-[#E8EDF2]/40 relative">
                                    <div className="absolute top-2 left-1.5 w-1 h-1 bg-green-500"></div>
                                    <div className="flex items-center text-xs font-bold text-[#002060] uppercase">
                                      <span className="ml-2">STD {roomName}</span>
                                    </div>
-                                   <div className="text-xs font-semibold text-[#002060]">${roomTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                                   <div className="text-xs font-semibold text-[#002060]">${roomGrandTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
                                  </div>
                                );
                              })}

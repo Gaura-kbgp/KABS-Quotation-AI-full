@@ -435,6 +435,11 @@ def detect_category(sku: str) -> str:
     if s.startswith('SB') or 'SINK' in s:
         return 'Base Cabinets'
 
+    # 5.5. Back panels — MUST be checked before Base Cabinets because "BACKB48"
+    # starts with "BAC" which is also a base-cabinet prefix, causing a false positive.
+    if s.startswith(('BACKB', 'BACKF', 'BACK-B', 'BACK-F', 'FBP')):
+        return 'Hardwares'
+
     # 6. Base Cabinets (Standard)
     # Using regex ^B\d to avoid matching BTK
     if s.startswith(('B', 'LS', 'BLS', 'LBC', 'BAC', 'BC', 'BBC', 'BDC', 'BFH', 'B3S', 'B4S', 'DB', 'DWR', 'DR')) and (len(s) <= 2 or s[1].isdigit() or s[2].isdigit() or s.startswith(('LS', 'BLS', 'LBC', 'BAC'))):

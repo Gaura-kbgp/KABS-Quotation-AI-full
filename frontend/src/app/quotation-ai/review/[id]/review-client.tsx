@@ -239,6 +239,9 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
                   { key: 'island_hardware', label: 'Island Hardware', icon: Package },
                   { key: 'bump', label: 'Bump / Boxing', icon: Layers },
                   { key: 'island_bump', label: 'Island Bump / Boxing', icon: Layers },
+                  { key: 'opt_crown', label: 'Opt Crown', icon: Layers },
+                  { key: 'opt_light_rail', label: 'Opt Light Rail', icon: Layers },
+                  { key: 'vent_chase_material', label: 'Vent Chase Material', icon: Package },
                 ].map((section) => {
                   const items = room[section.key] || [];
                   if (items.length === 0) return null;

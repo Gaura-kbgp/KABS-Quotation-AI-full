@@ -128,11 +128,12 @@ SECTION → CATEGORY MAPPING (for non-cabinet items):
 ADDITIONAL RULES:
 1. The room name is at the top (e.g. "STANDARD 42 KITCHEN").
 2. Format: "3-BTK8" means quantity=3, code="BTK8".
-3. **STRIP PARENTHESES**: (VOIDS), (DW), (CROWN CLEAT) are notes, not code.
+3. **STRIP PARENTHESES**: (VOIDS), (DW), (CROWN CLEAT), (VAR OPTS), (VENT BOX) are notes, not part of the code.
 4. **KEEP MODIFIERS**: BLD, BD, BUTT are part of the code (e.g. OCM8BLD).
-5. BACK-B48 → code="BACKB48", category="vent_chase_material".
+5. BACK-B48 → code="BACKB48", category="vent_chase_material". Text "1-BACK-B48 (VENT BOX)" → quantity=1, code="BACKB48". NEVER output "-BACK-B48" with a leading hyphen.
 6. Combine quantities for the same code across all sections.
-7. **IGNORE**: TOUCHUP KIT, TOUCHUP SPRAY, CROWN (VAR OPTS), LIGHT RAIL (VAR OPTS).
+7. **IGNORE**: TOUCHUP KIT, TOUCHUP SPRAY. Section header labels "OPT LIGHT RAIL" and "OPT CROWN" are headers only — do NOT extract them as codes.
+   **DO EXTRACT items under those sections**: "4-LIGHT RAIL (VAR OPTS)" → quantity=4, code="LIGHTRAIL", category="opt_light_rail". "4-CROWN (VAR OPTS)" → quantity=4, code="CROWN", category="opt_crown". Strip "(VAR OPTS)" — it is a note.
 8. "48 SHELF ADJ" → code="SHELFADJ48", category="vent_chase_material".
 9. HWC codes → "opt_crown" if near OPT CROWN section, else "perimeter".
 10. **HARDWARE COMPLETENESS**: Extract EVERY hardware item — DOORS count, DRAWERS count,
@@ -196,9 +197,12 @@ CRITICAL RULE — DESIGNER NAME IS NOT A CABINET CODE:
   Ignore all footer and title-block text completely.
 
 ADDITIONAL RULES:
-- Strip parenthetical notes (VOIDS), (DW), (CROWN CLEAT) — not part of the code.
+- Strip parenthetical notes (VOIDS), (DW), (CROWN CLEAT), (VAR OPTS), (VENT BOX) — not part of the code.
 - Keep modifiers: BUTT, BD, BLD are PART of the code (e.g. W3042BUTT, OCM8BLD).
-- BACK-B48 → code="BACKB48", category="vent_chase_material".
+- BACK-B48 → code="BACKB48", category="vent_chase_material". Text "1-BACK-B48 (VENT BOX)" → quantity=1, code="BACKB48". NEVER output "-BACK-B48" with a leading hyphen.
+- Section headers "OPT LIGHT RAIL" and "OPT CROWN" are labels only — do NOT extract them as codes.
+  DO EXTRACT items under those headers: "4-LIGHT RAIL (VAR OPTS)" → quantity=4, code="LIGHTRAIL", category="opt_light_rail". "4-CROWN (VAR OPTS)" → quantity=4, code="CROWN", category="opt_crown".
+- IGNORE: TOUCHUP KIT, TOUCHUP SPRAY.
 - Format "3-BTK8" means quantity=3, code="BTK8".
 - Use the room name from the drawing header (e.g. "STD BATH 2", "OPT LAUNDRY").
   If no room name is visible, use "ADDITIONAL PAGE".
@@ -234,7 +238,7 @@ _CABINET_CODE_RE = re.compile(
 _KNOWN_FALSE_POSITIVES = {
     "WMCCULLOUGH", "WSMITH", "WJONES", "WBROWN", "WDAVIS",
     "WJOHNSON", "WWILSON", "WMOORE", "WTAYLOR", "WANDERSON",
-    "DRAWER", "DOOR", "CABINET", "VOIDS", "CROWN", "LIGHT", "RAIL",
+    "DRAWER", "DOOR", "CABINET", "VOIDS", "CROWN",
 }
 
 ACCESSORY_KEYS = [
@@ -302,7 +306,17 @@ def _extract_codes_from_text(page_text: str) -> list[dict]:
     {"code": str, "quantity": int} dicts for any recognised cabinet/hardware codes.
     Quantities default to 1 since the text layer rarely carries explicit counts.
     """
+    # ── Pre-normalise multi-word / hyphenated codes so the regex can catch them ──
+    # BACK-B48 → BACKB48  (hyphen fuses "BACK" and "B48" so the BACKB prefix matches)
+    page_text = re.sub(r'\bBACK-B(\d+)\b', r'BACKB\1', page_text, flags=re.IGNORECASE)
+
     found = {}
+
+    # ── Supplemental: extract "N-LIGHT RAIL" patterns (multi-word, not caught by main RE) ──
+    for lr_m in re.finditer(r'(?<!\d)(\d+)\s*-\s*LIGHT\s+RAIL\b', page_text, re.IGNORECASE):
+        qty = int(lr_m.group(1))
+        found['LIGHTRAIL'] = found.get('LIGHTRAIL', 0) + qty
+
     for m in _CABINET_CODE_RE.finditer(page_text):
         code = m.group(1).upper().strip()
         if code in _KNOWN_FALSE_POSITIVES:
@@ -325,9 +339,12 @@ def _classify_code_to_key(code: str) -> str:
     c = code.upper()
     if any(c.startswith(p) for p in ["BACKB", "BACKF", "BACK-B", "WTEP", "QM"]):
         return "vent_chase_material"
+    # B48 is always the BACK-B48 vent panel — never a base cabinet
+    if c == "B48" or c.endswith("B48"):
+        return "vent_chase_material"
     if any(c.startswith(p) for p in ["OCM", "CM", "HWC"]):
         return "opt_crown"
-    if any(c.startswith(p) for p in ["LR", "RR", "FL"]):
+    if any(c.startswith(p) for p in ["LR", "RR", "FL"]) or c == "LIGHTRAIL":
         return "opt_light_rail"
     if any(c.startswith(p) for p in ["BTK", "TK", "SM", "QR", "SCM", "EP", "TEP"]):
         return "perimeter"

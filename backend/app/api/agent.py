@@ -12,7 +12,7 @@ from app.utils.vision_scanner import analyze_drawing_vision
 from app.utils.ai_client import nvidia_generate
 from app.utils.rule_based_extractor import extract_rooms_rule_based
 from dotenv import load_dotenv
-import os, json, re, uuid, traceback, asyncio, datetime
+import os, json, re, uuid, traceback, asyncio
 from urllib.parse import unquote
 
 load_dotenv()
@@ -209,7 +209,7 @@ MANUFACTURER PDF TYPES & FORMATS:
    - Parts list on floor plan itself. Extract from elevation views.
 
 SPECIAL EXTRACTION RULES:
-- BACK-B48 or B48 labeled as "(VENT BOX)" in the Opt Vent Chase Material section must NEVER be classified as a Base Cabinet.
+- "1-BACK-B48 (VENT BOX)" in the Opt Vent Chase Material section → code="BACKB48", NEVER "B48" or "BACK-B48". NEVER classified as a Base Cabinet.
 - Appliances (RANGE, DISH, MW.HOOD, REF) go under "Accessories" or "Perimeter".
 - Count -L and -R variants as separate line items.
 - Universal Fillers (UF) found in the ISLAND section must be categorized as 'island' items, not general cabinets.
@@ -992,9 +992,17 @@ NEVER combine their quantities. Store as two separate arrays:
   opt_light_rail: [SM8=1, FL24=1, BTK8=1]
 
 RULE G — VENT CHASE MUST ALWAYS BE EXTRACTED
-When a Vent Chase section exists, extract ALL 5 items:
-  B48 or BACK-B48 (vent box), WTEP84, SM8, OCM8BLD, QM8
+When a Vent Chase section exists, extract ALL items exactly:
+  "1-BACK-B48 (VENT BOX)" → code="BACKB48", qty=1, category="vent_chase_material"
+  WTEP84, SM8, OCM8BLD, QM8 → each in "vent_chase_material"
+  NEVER use code "B48" — the correct code is always "BACKB48".
   These are SEPARATE from Perimeter SM8 and Bump OCM8BLD.
+
+RULE G2 — OPT LIGHT RAIL MUST ALWAYS BE EXTRACTED
+When an OPT LIGHT RAIL section exists, extract ALL items exactly:
+  "4-LIGHT RAIL (VAR OPTS)" → code="LIGHTRAIL", qty=4, category="opt_light_rail"
+  Strip "(VAR OPTS)" — it is a note, not part of the code.
+  NEVER skip this section. Store in "opt_light_rail" array only.
 
 RULE H — OCM8BLD APPEARS IN MULTIPLE SECTIONS
 OCM8BLD can be in Bump/Boxing AND OPT CROWN AND Vent Chase.
@@ -1017,7 +1025,8 @@ KITCHEN (any variant — Standard, Gourmet, Extended, etc.):
   ✅ hardware: DWR3 (ONLY if explicitly listed with a quantity in the BOM — do NOT infer from (DW) labels), SHM8, OCM8BLD
   ✅ island_hardware: DOORS count, DRAWERS count
   ✅ bump: SHM8, OCM8BLD (bump/boxing section)
-  ✅ vent_chase_material: B48/BACK-B48, WTEP84, SM8, OCM8BLD, QM8
+  ✅ opt_light_rail: LIGHTRAIL (from "OPT LIGHT RAIL" section — e.g. "4-LIGHT RAIL (VAR OPTS)" → code=LIGHTRAIL qty=4)
+  ✅ vent_chase_material: BACKB48 (NOT B48), WTEP84, SM8, OCM8BLD, QM8
   ✅ opt_crown: OCM8BLD, QM8 (crown section if present)
 
 BATHROOM:
@@ -1051,7 +1060,7 @@ PHASE 5: CODE RULES
 
 5. QUANTITY — if Trim List exists, use Trim List qty. Flag floor plan vs. trim list mismatches.
 
-6. VENT BOX — BACK-B48 or B48 "(VENT BOX)" → "vent_chase_material" NEVER "cabinets".
+6. VENT BOX — "BACK-B48 (VENT BOX)" → code="BACKB48", category="vent_chase_material" NEVER "cabinets". NEVER use raw code "B48".
 
 7. DRH EXPRESS — W2436-L and W2436-R = separate items. F331/F342/PEPR335 = not cabinets.
    TOEKICK8 → BTK8, MQR8 → SM8.
@@ -1059,7 +1068,8 @@ PHASE 5: CODE RULES
 8. WELLBORN BINDER — return room names only with empty arrays + flag.
 
 9. NON-CABINET ITEMS (never classify as cabinets):
-   F331, F342, PEPR335, BEP-*, WAINSCOT, FIN END, BACK-B48, CR-W34, FALSE
+   F331, F342, PEPR335, BEP-*, WAINSCOT, FIN END, CR-W34, FALSE
+   (BACKB48 is vent_chase_material — it IS extracted, just NOT as a cabinet)
 
 10. CATEGORIZATION: "cabinets" (W,B,SB,T,P,O,REF,OVD), "perimeter" (BTK,SM,FL,RANGE,DISH,MW,TOUCHUP), "island" (UF,BTK,SM), "hardware" (DOORS,DRAWERS,DWR,SHM,OCM).
 11. SPECIAL RULES:
@@ -1292,7 +1302,7 @@ async def analyze_drawing_fast(payload: dict):
             6. **KEEP MODIFIERS**: BUTT, MD, BLD, BD, AS are PART of the SKU (e.g. W3042BUTT).
             7. **VALID SKU PATTERNS**: SKUs start with letters followed by numbers (W30, B24, SB36, UF3, BTK8, SM8, DOORS, DRAWERS). Reject anything that looks like a title or sentence.
             8. **SECTION RULES**:
-               - BACK-B48 or B48 labeled as "(VENT BOX)" in "Opt Vent Chase Material" section = Vent Chase (NOT Base Cabinet).
+               - "BACK-B48 (VENT BOX)" in "Opt Vent Chase Material" section → code="BACKB48", category=vent_chase_material (NOT Base Cabinet, NEVER code "B48").
                - B/SB codes under "Vent Chase", "Accessories", or "Opt" = Accessories/Vent Chase.
             9. **QUANTITY**: Cross-reference floor plan AND trim list (page 2).
             10. quantity is always an integer ≥ 1.
@@ -1517,10 +1527,6 @@ async def rescan_project(payload: dict):
         # 4. Save to database
         supabase.table("quotation_projects").update({
             "extracted_data": {"rooms": rooms},
-            "metadata": {
-                "last_scan_method": method,
-                "last_scan_date": datetime.datetime.now().isoformat()
-            }
         }).eq("id", project_id).execute()
         
         return {"success": True, "rooms_count": len(rooms), "rooms": rooms, "method": method}

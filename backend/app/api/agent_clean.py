@@ -184,7 +184,7 @@ MANUFACTURER PDF TYPES & FORMATS:
    - Parts list on floor plan itself. Extract from elevation views.
 
 SPECIAL EXTRACTION RULES:
-- BACK-B48 or B48 labeled as "(VENT BOX)" in the Opt Vent Chase Material section must NEVER be classified as a Base Cabinet.
+- "1-BACK-B48 (VENT BOX)" in the Opt Vent Chase Material section → code="BACKB48", NEVER "B48" or "BACK-B48". NEVER classified as a Base Cabinet.
 - Appliances (RANGE, DISH, MW.HOOD, REF) go under "Accessories".
 - Count -L and -R variants as separate line items.
 - Flag any unknown or malformed codes.
@@ -961,7 +961,7 @@ PHASE 5: CODE RULES
     "hardware"             DOORS, DRAWERS (perimeter), SHM8, OCM8BLD, DWR3
     "island_hardware"      DOORS, DRAWERS from island section
     "opt_crown"            CROWN, HWC, OCM8BLD, QM8 from crown section
-    "vent_chase_material"  BACK-B48, WTEP84, B48, SM8, OCM8BLD from vent chase
+    "vent_chase_material"  BACKB48 (from "BACK-B48 (VENT BOX)"), WTEP84, SM8, OCM8BLD, QM8 from vent chase. NEVER use code "B48".
 
 1. ROOM NAMES  canonical forms:
    - "STANDARD 42 KITCHEN", "STD 42 KITCHEN"  "STANDARD 42 KITCHEN"
@@ -979,7 +979,7 @@ PHASE 5: CODE RULES
 
 5. QUANTITY  if Trim List exists, use Trim List qty. Flag floor plan vs. trim list mismatches.
 
-6. VENT BOX  BACK-B48 or B48 "(VENT BOX)"  "vent_chase_material" NEVER "cabinets".
+6. VENT BOX  "BACK-B48 (VENT BOX)" → code="BACKB48", category="vent_chase_material" NEVER "cabinets". NEVER use raw code "B48".
 
 7. DRH EXPRESS  W2436-L and W2436-R = separate items. F331/F342/PEPR335 = not cabinets.
    TOEKICK8  BTK8, MQR8  SM8.
@@ -987,7 +987,8 @@ PHASE 5: CODE RULES
 8. WELLBORN BINDER  return room names only with empty arrays + flag.
 
 9. NON-CABINET ITEMS (never classify as cabinets):
-   F331, F342, PEPR335, BEP-*, WAINSCOT, FIN END, BACK-B48, CR-W34, FALSE
+   F331, F342, PEPR335, BEP-*, WAINSCOT, FIN END, CR-W34, FALSE
+   (BACKB48 is vent_chase_material — it IS extracted, just NOT as a cabinet)
 
 10. CATEGORIZATION: "cabinets" (W,B,SB,T,P,O,REF,OVD), "perimeter" (BTK,SM,FL,RANGE,DISH,MW), "island" (UF,BTK,SM), "hardware" (DOORS,DRAWERS,DWR,SHM,OCM).
 Return ONLY valid JSON in this format:
@@ -1173,7 +1174,7 @@ async def analyze_drawing_fast(payload: dict):
             6. **KEEP MODIFIERS**: BUTT, MD, BLD, BD, AS are PART of the SKU (e.g. W3042BUTT).
             7. **VALID SKU PATTERNS**: SKUs start with letters followed by numbers (W30, B24, SB36, UF3, BTK8, SM8, DOORS, DRAWERS). Reject anything that looks like a title or sentence.
             8. **SECTION RULES**:
-               - BACK-B48 or B48 labeled as "(VENT BOX)" in "Opt Vent Chase Material" section = Vent Chase (NOT Base Cabinet).
+               - "BACK-B48 (VENT BOX)" in "Opt Vent Chase Material" section → code="BACKB48", category=vent_chase_material (NOT Base Cabinet, NEVER code "B48").
                - B/SB codes under "Vent Chase", "Accessories", or "Opt" = Accessories/Vent Chase.
             9. **QUANTITY**: Cross-reference floor plan AND trim list (page 2).
             10. quantity is always an integer  1.

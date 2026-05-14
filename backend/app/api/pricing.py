@@ -529,6 +529,91 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
     if comp_stripped and comp_stripped != comp_target and comp_stripped in compressed_map:
         return compressed_map[comp_stripped], "COMPRESSED_STRIPPED"
 
+    # TIER 4.4: SKU-exact pre-aliases for items with non-standard formats
+    _NO_DIGIT_ALIASES: dict = {
+        'TOUCHUPSPRAY':  ['TOUCHUP SPRAY', 'TOUCH-UP SPRAY', 'SPRAY', 'TOUCHUPSPRAY', 'TOUCHUP',
+                          'TOUCHUP KIT', 'TOUCH UP SPRAY', 'TUSP', 'TS', 'SPRAY KIT',
+                          'TOUCHUP SPRAY KIT', 'SPRAY TOUCH', 'TOUCH UP KIT'],
+        'TOUCHUPKIT':    ['TOUCHUP KIT', 'TOUCH-UP KIT', 'TOUCHUPKIT', 'TOUCHUP', 'TOUCH UP KIT'],
+        'TOUCHUP':       ['TOUCHUP KIT', 'TOUCHUP SPRAY', 'TOUCHUP', 'TOUCH-UP KIT'],
+        'LIGHTRAIL':     ['LIGHT RAIL', 'LR', 'LIGHTRAIL'],
+        'SHELFADJ48':    ['SHELF ADJ 48', 'SHELFADJ48', 'SHELF ADJ', 'SHELF 48',
+                          'ADJUSTABLE SHELF 48', 'ADJ SHELF 48', 'ADJSHELF48',
+                          'SHELF-ADJ-48', 'SHELF ADJUST 48', 'ADJSHELF', 'SHELF'],
+        'SHELFADJ36':    ['SHELF ADJ 36', 'SHELFADJ36', 'SHELF 36', 'SHELF ADJ', 'ADJSHELF36', 'SHELF'],
+        'SHELFADJ30':    ['SHELF ADJ 30', 'SHELFADJ30', 'SHELF 30', 'SHELF ADJ', 'ADJSHELF30', 'SHELF'],
+        # BACKB48 = 48" Finished Back Panel / vent chase back board.
+        # Catalog may list this dimensionlessly (FBP), by sheet (GP4896), or as an end panel.
+        'BACKB48':       ['FBP48', 'FBP', 'BACK-B48', 'BACK-B', 'BACK PANEL 48', 'BACK PANEL',
+                          'BACKPANEL48', 'BACKPANEL', 'FINISHED BACK PANEL', 'FINBACK48', 'FINBACK',
+                          'GP4896', 'GP48', 'PANEL48', 'BACKER48', 'BACKER',
+                          'BACKBOARD48', 'BOXBACK48', 'BOXBACK', 'VENTBOX48', 'VENT BACK 48',
+                          'WTEP48', 'TEP48', 'EP48', 'SADW48', 'SAD48',
+                          'WTEP', 'TEP', 'EP', 'SADW', 'SAD'],
+        'BACKB36':       ['FBP36', 'FBP', 'BACK-B36', 'BACK PANEL 36', 'BACK PANEL',
+                          'BACKPANEL36', 'BACKPANEL', 'GP3696', 'GP36', 'PANEL36',
+                          'WTEP36', 'TEP36', 'EP36', 'SADW36', 'WTEP', 'TEP', 'EP'],
+        'BACKB24':       ['FBP24', 'FBP', 'BACK-B24', 'BACK PANEL 24', 'BACK PANEL',
+                          'BACKPANEL24', 'BACKPANEL', 'GP2496', 'GP24', 'PANEL24',
+                          'WTEP24', 'TEP24', 'EP24', 'SADW24', 'WTEP', 'TEP', 'EP'],
+    }
+    # TIER 4.4 keyword partial-scan table — used if exact probes above all miss
+    # Back panels: scan for any end-panel or generic-panel type in catalog (WTEP84 is confirmed present)
+    _NO_DIGIT_SCAN: dict = {
+        'TOUCHUPSPRAY':  ['TOUCH', 'SPRAY', 'TOUCHUP'],
+        'TOUCHUPKIT':    ['TOUCHUP', 'TOUCH', 'KIT'],
+        'TOUCHUP':       ['TOUCHUP', 'TOUCH'],
+        'SHELFADJ48':    ['SHELF', 'SHELFADJ', 'ADJ'],
+        'SHELFADJ36':    ['SHELF', 'SHELFADJ', 'ADJ'],
+        'SHELFADJ30':    ['SHELF', 'SHELFADJ', 'ADJ'],
+        'LIGHTRAIL':     ['RAIL', 'LIGHT', 'LR'],
+        'BACKB48':       ['FBP', 'BACKPANEL', 'BACKER', 'BACK', 'WTEP', 'TEP', 'SADW'],
+        'BACKB36':       ['FBP', 'BACKPANEL', 'BACKER', 'BACK', 'WTEP', 'TEP', 'SADW'],
+        'BACKB24':       ['FBP', 'BACKPANEL', 'BACKER', 'BACK', 'WTEP', 'TEP', 'SADW'],
+    }
+    # SKU prefixes that should return MANUAL ($0) rather than a misleading category average
+    # when no catalog match is found at all
+    _MANUAL_FALLBACK_PREFIXES = ('BACKB', 'BACKF', 'FBP', 'BOXBACK')
+    _is_manual_fallback = any(clean_target.startswith(p) for p in _MANUAL_FALLBACK_PREFIXES)
+    if clean_target in _NO_DIGIT_ALIASES:
+        for probe in _NO_DIGIT_ALIASES[clean_target]:
+            res = try_match(probe, 'DIRECT_ALIAS', include_global=True)
+            if res:
+                return res
+        # TIER 4.45: Partial catalog key scan for these hard-to-match accessories
+        scan_kws = _NO_DIGIT_SCAN.get(clean_target, [])
+        _scan_col_best = None
+        _scan_global_best = None
+        for gsku, gitem in global_map.items():
+            gsku_up = gsku.upper()
+            if gsku_up == clean_target:
+                continue
+            for kw in scan_kws:
+                if kw in gsku_up:
+                    gcol = str(gitem.get('collection_name') or '').upper()
+                    if gcol == col and _scan_col_best is None:
+                        _scan_col_best = (gitem, f"PARTIAL_SCAN_{clean_target}_COL")
+                    elif _scan_global_best is None:
+                        _scan_global_best = (gitem, f"PARTIAL_SCAN_{clean_target}_GLOBAL")
+                    break
+        if _scan_col_best:
+            return _scan_col_best
+        if _scan_global_best:
+            return _scan_global_best
+        # Nothing in catalog at all — for back panels return MANUAL ($0) rather than a
+        # misleading hardware-category average (e.g. $16 avg of hinges/clips).
+        if _is_manual_fallback:
+            return {
+                "sku": f"{clean_target}_MANUAL",
+                "price": 0.0,
+                "collection_name": col or "Unknown",
+                "door_style": style or "Unknown",
+                "price_ref": (
+                    f"Back panel '{clean_target}' not found in catalog — "
+                    f"enter the manufacturer list price per panel manually."
+                )
+            }, "MANUAL_PRICING_REQUIRED"
+
     # TIER 4.5: Molding/Alias Probing (Local and Global)
     _MOLDING_ALIASES = {
         'BTK': ['BTK', 'TK', 'BK'],      # Base Toe Kick
@@ -547,6 +632,9 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
         'RR':  ['RR', 'LR'],             # Return Rail
         'REF': ['REP', 'REFP', 'REF'],   # Refrigerator End Panel
         'REP': ['REF', 'REFP', 'REP'],
+        'BACKB': ['BACKB', 'BACK-B', 'FBP', 'BACKPANEL', 'BOXBACK', 'BACKER', 'FINBACK', 'GP'],  # Back panel / vent chase back
+        'BACKF': ['BACKF', 'BACK-F', 'FBP', 'FINBACK', 'BACKPANEL'],                             # Finished back panel
+        'WTEP':  ['WTEP', 'TEP', 'EP'],                                                           # Wall/toe-end panel
     }
     _CATALOG_VARIANTS = ['BLD', 'BD', 'SD', 'MD', 'MDBD', 'AS', 'A', 'S', '']
     _alias_prefix_m = re.match(r'^([A-Z]+)(\d+.*)$', clean_target)
@@ -673,6 +761,78 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
                 m_type = f"DIMENSION_MATCH_{cabinet_type.replace(' ', '_').upper()}"
             return nearest, m_type
 
+    # TIER 8.5: DOOR / DRAWER — style-specific catalog probe
+    # DOORS/DRAWERS counts arrive with no direct catalog SKU.  We try every plausible
+    # catalog key before falling through. If nothing is found we return MANUAL ($0)
+    # rather than the misleading 2 000+ item average.
+    if target in ('DOORS', 'DRAWERS', 'DOOR', 'DRAWER'):
+        is_drawer = 'DRAWER' in target
+        door_probes = (
+            ['DRAWER', 'DWR', 'DRW', 'DRAWER BOX', 'DRAWERBOX', 'DBX', 'DRW BOX',
+             'DRAWER FRONT', 'DRAWERFRONT', 'DWR FRONT', 'DRAWER FACE', 'DWRFRONT']
+            if is_drawer else
+            ['DOOR', 'DOOR PANEL', 'DOORPANEL', 'DP', 'DR', 'REPLACEMENT DOOR', 'RPDOOR', 'RPD',
+             'DOOR FRONT', 'DOORFRONT', 'DOOR FACE', 'REPL DOOR', 'REPLDOOR', 'REPDOOR',
+             'OVERLAY DOOR', 'INSET DOOR', 'SLAB DOOR', 'PANEL DOOR', 'FRAME DOOR']
+        )
+        for probe in door_probes:
+            res = try_match(probe, 'DOOR_CATALOG', include_global=True)
+            if res:
+                return res
+        # Try the full door-style name as a catalog SKU
+        # (some manufacturers list prices under the style name itself)
+        if style:
+            res = try_match(style, 'STYLE_AS_DOOR', include_global=True)
+            if res:
+                return res
+            # Try every individual word of the door-style name (length > 3 to skip short words)
+            style_words = [w for w in style.split() if len(w) > 3]
+            for word in style_words:
+                res = try_match(word, 'STYLE_WORD', include_global=True)
+                if res:
+                    return res
+            # Try style + DOOR/DRAWER compound probes
+            for door_word in (['DRAWER', 'DWR'] if is_drawer else ['DOOR', 'DP']):
+                res = try_match(f"{style} {door_word}", 'STYLE_COMPOUND', include_global=True)
+                if res:
+                    return res
+                first_word = style.split()[0] if style.split() else ''
+                if first_word:
+                    res = try_match(f"{first_word} {door_word}", 'STYLE_WORD_COMPOUND', include_global=True)
+                    if res:
+                        return res
+        # TIER 8.6: Partial scan — walk global catalog keys for any SKU containing DOOR/DRAWER keywords.
+        # Prefer items in the same collection; fall back to any matching catalog entry.
+        # Skip exact keyword matches (e.g. sku == "DOOR") — those were already tried above.
+        _scan_terms = ['DRAWER', 'DWR', 'DRAW'] if is_drawer else ['DOOR', 'DP']
+        _scan_skip  = {'DOOR', 'DRAWER', 'DOORS', 'DRAWERS', 'DWR', 'DP', 'DR', 'DRW'}
+        _found_global = None
+        for gsku, gitem in global_map.items():
+            gsku_up = gsku.upper()
+            if gsku_up in _scan_skip:
+                continue
+            for term in _scan_terms:
+                if term in gsku_up:
+                    gcol = str(gitem.get('collection_name') or '').upper()
+                    if gcol == col:
+                        return gitem, f"PARTIAL_SCAN_LOCAL_{term}"
+                    if _found_global is None:
+                        _found_global = gitem  # keep first global candidate
+                    break
+        if _found_global is not None:
+            return _found_global, "PARTIAL_SCAN_GLOBAL"
+
+        # Nothing in catalog — return $0 so the user knows to enter the price manually
+        label = 'Drawer' if is_drawer else 'Door'
+        style_label = style if style else 'selected door style'
+        return {
+            "sku": f"{target}_MANUAL",
+            "price": 0.0,
+            "collection_name": col or "Unknown",
+            "door_style": style or "Unknown",
+            "price_ref": f"{label} price not found in catalog for {style_label} — enter unit price manually"
+        }, "MANUAL_PRICING_REQUIRED"
+
     # TIER 9: CATEGORY FALLBACK
     cat_sums = lookup_maps.get('category_sums', {})
     if category in cat_sums:
@@ -684,7 +844,7 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
             if cat_items:
                 best_item = cat_items[0]
                 ref_msg += f" (e.g. {best_item.get('sku')} in {best_item.get('collection_name')})"
-            
+
             return {
                 "sku": f"{category}_AVG",
                 "price": avg_price,
@@ -1017,6 +1177,24 @@ def _quick_match_explanation(drawing_sku: str, catalog_ref: str, match_type: str
         )
 
     if 'MANUAL' in mt:
+        # Special message for door/drawer counts — tell the user exactly what to enter
+        sku_up = drawing_sku.upper()
+        if sku_up in ('DOORS', 'DOOR'):
+            door_style_hint = col_name or cat_sku or 'your selected door style'
+            return (
+                f'DOOR PRICE NOT IN CATALOG: No per-door price found for the selected finish/style '
+                f'({door_style_hint}). '
+                f'Enter the manufacturer\'s list price per door in the Unit Price column above. '
+                f'Multiply by quantity to get total door cost.'
+            )
+        if sku_up in ('DRAWERS', 'DRAWER'):
+            door_style_hint = col_name or cat_sku or 'your selected door style'
+            return (
+                f'DRAWER PRICE NOT IN CATALOG: No per-drawer price found for the selected finish/style '
+                f'({door_style_hint}). '
+                f'Enter the manufacturer\'s list price per drawer box in the Unit Price column above. '
+                f'Multiply by quantity to get total drawer cost.'
+            )
         return (
             f'MANUAL PRICING REQUIRED: {dsku} was not found in the catalog. '
             f'Set price manually after contacting manufacturer for current list pricing.'
@@ -1065,43 +1243,40 @@ def _price_rooms(rooms: list, lookup_maps: dict, manufacturer_id: str, mfg_hint:
             if wood and room_col and " - " not in room_col:
                 effective_col = f"{room_col} - {wood}"
 
-        flat_items = []
         for cat in categories_to_flatten:
-            flat_items.extend(room.get(cat, []))
+            for item in room.get(cat, []):
+                match, match_type = find_best_match(
+                    item['code'], effective_col, room.get('door_style', ''),
+                    lookup_maps, manufacturer_hint=mfg_hint
+                )
+                if match:
+                    qty   = int(float(item.get('quantity', item.get('qty', 1))))
+                    price = round(float(match['price']), 2)
+                    raw_code = item['code']
+                    # Attach labor points if available
+                    l_points = lookup_maps.get('labor', {}).get(match['sku'], 0)
+                    if not l_points and match.get('csku'):
+                        l_points = lookup_maps.get('labor', {}).get(match['csku'], 0)
 
-        for item in flat_items:
-            match, match_type = find_best_match(
-                item['code'], effective_col, room.get('door_style', ''),
-                lookup_maps, manufacturer_hint=mfg_hint
-            )
-            if match:
-                qty   = int(float(item.get('quantity', item.get('qty', 1))))
-                price = round(float(match['price']), 2)
-                raw_code = item['code']
-                # Attach labor points if available
-                l_points = lookup_maps.get('labor', {}).get(match['sku'], 0)
-                if not l_points and match.get('csku'):
-                    l_points = lookup_maps.get('labor', {}).get(match['csku'], 0)
-
-                bom_items.append({
-                    "project_id":      project_id,
-                    "sku":             raw_code,
-                    "matched_sku":     match.get('price_ref') or match['sku'],
-                    "qty":             qty,
-                    "unit_price":      price,
-                    "line_total":      round(price * qty, 2),
-                    "install_points":  l_points,
-                    "room":            room['room_name'],
-                    "collection":      room.get('collection') or match.get('collection_name'),
-                    "door_style":      room.get('door_style') or 'UNIVERSAL',
-                    "price_source":    f"Python Engine ({match_type})",
-                    "precision_level": match_type,
-                    "description":     _quick_description(raw_code, room['room_name'], match_type),
-                    "cabinet_type":    _quick_cabinet_type(raw_code),
-                    "match_explanation": _quick_match_explanation(raw_code, match.get('price_ref') or match['sku'], match_type),
-                    "match_confidence": _match_type_confidence(match_type),
-                    "created_at":      datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-                })
+                    bom_items.append({
+                        "project_id":      project_id,
+                        "sku":             raw_code,
+                        "matched_sku":     match.get('price_ref') or match['sku'],
+                        "qty":             qty,
+                        "unit_price":      price,
+                        "line_total":      round(price * qty, 2),
+                        "install_points":  l_points,
+                        "room":            room['room_name'],
+                        "collection":      room.get('collection') or match.get('collection_name'),
+                        "door_style":      room.get('door_style') or 'UNIVERSAL',
+                        "price_source":    f"Python Engine ({match_type})",
+                        "precision_level": match_type,
+                        "description":     _quick_description(raw_code, room['room_name'], match_type),
+                        "cabinet_type":    cat,
+                        "match_explanation": _quick_match_explanation(raw_code, match.get('price_ref') or match['sku'], match_type),
+                        "match_confidence": _match_type_confidence(match_type),
+                        "created_at":      datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+                    })
     return bom_items
 
 

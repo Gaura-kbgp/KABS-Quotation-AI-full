@@ -90,7 +90,7 @@ def has_trim_list(full_text: str) -> bool:
 # These codes are NEVER cabinets — they are fillers, end panels, trim, or markers
 NON_CABINET_EXACT = {
     'F331', 'F342', 'F321', 'F333', 'PEPR335', 'PEPR335L', 'PEPR335R',
-    'FALSE', 'BACK-B48', 'BACKB48',
+    'FALSE',
     'WAINSCOT', 'FINENDL', 'FINENDR',
     'CRW34',  # countertop reference
 }
@@ -208,7 +208,6 @@ TRIM_LIST_SECTIONS = [
     'BUMP',
     'OPT LIGHT RAIL',
     'OPTIONAL LIGHT RAIL',
-    'LIGHT RAIL',
     'HARDWARE SPECS',
     'HARDWARE',
     'PERIMETER SPECS',
@@ -244,7 +243,6 @@ SECTION_TO_BUCKET = {
     'BUMP':                    'bump',
     'OPT LIGHT RAIL':          'opt_light_rail',
     'OPTIONAL LIGHT RAIL':     'opt_light_rail',
-    'LIGHT RAIL':              'opt_light_rail',
     'HARDWARE SPECS':          'hardware',
     'HARDWARE':                'hardware',
     'PERIMETER SPECS':         'perimeter',
@@ -346,6 +344,10 @@ def categorize_code(code: str, section_context: str = None) -> Optional[str]:
 
     # Cabinet/Perimeter/Island logic with filler override
     if bucket == 'cabinets':
+        # BACKB48 / B48 must always go to vent_chase_material even if found in a cabinets section
+        normalised_early = c.replace('-', '').replace(' ', '')
+        if normalised_early in ('BACKB48', 'B48') or normalised_early.endswith('B48'):
+            return 'vent_chase_material'
         return 'cabinets'
     if bucket == 'perimeter':
         # Even if in Perimeter section, Universal Fillers (UF) should be counted as cabinets
@@ -355,11 +357,10 @@ def categorize_code(code: str, section_context: str = None) -> Optional[str]:
     if bucket == 'island':
         return 'island'
 
-    # ── Vent box rule: BACK-B48 / B48 anywhere near vent context ──────────────
+    # ── Vent box rule: BACK-B48 / B48 always routes to vent_chase_material ──────
     normalised_c = c.replace('-', '').replace(' ', '')
-    if normalised_c in ('BACKB48', 'B48') or 'B48' in normalised_c:
-        if 'VENT' in ctx or 'ACCESSORIES' in ctx:
-            return 'vent_chase_material'
+    if normalised_c in ('BACKB48', 'B48') or normalised_c.endswith('B48'):
+        return 'vent_chase_material'
 
     # ── ISLAND section: route to island counterparts ─────────────────────────
     in_island = ctx in {k.upper() for k in ISLAND_SECTIONS}
@@ -421,17 +422,17 @@ def sanitize_code(raw: Optional[str], pdf_type: str = PDF_TYPE_UNKNOWN) -> str:
     if raw is None:
         return ""
     c = raw.strip()
-    # Preserve special hardware keywords
+    # Strip leading quantity prefix like "1-", "2-", "12-"
+    c = re.sub(r'^\d+\s*[-]\s*', '', c)
+    # Strip parenthetical notes like (DW), (VOIDS), (DWR), (VAR OPTS), (VENT BOX)
+    c = re.sub(r'\s*\(.*?\)', '', c)
+    # Preserve special hardware keywords (after stripping notes)
     c_upper = c.upper().strip()
     if any(k in c_upper for k in ("DOORS", "DRAWERS", "HINGES", "PULLS", "KNOBS", "CROWN", "LIGHT RAIL")):
         return c_upper
-        
-    # Strip leading quantity prefix like "1-", "2-", "12-"
-    c = re.sub(r'^\d+\s*[-]\s*', '', c)
-    # Strip parenthetical notes like (DW), (VOIDS), (DWR)
-    c = re.sub(r'\s*\(.*?\)', '', c)
 
-    c_upper = c.upper().strip()
+    # Strip leading hyphen that can appear when quantity prefix stripping leaves "-BACK-B48"
+    c_upper = c.upper().strip().lstrip('-').strip()
 
     # DRH Express: preserve -L / -R hinge suffix
     if pdf_type == PDF_TYPE_DRH or re.search(r'-[LR]$', c_upper):
@@ -716,13 +717,19 @@ _ALL_CATS = [
 
 
 def _post_fix_vent_box(rooms_map: Dict[str, dict]) -> None:
-    """Move any BACK-B48 / B48 that landed in cabinets into vent_chase_material."""
+    """Move any BACK-B48 / B48 that landed in cabinets into vent_chase_material (dedup if already there)."""
     for room in rooms_map.values():
         keep = []
         for item in room.get('cabinets', []):
             c = item['code'].upper().replace('-', '')
             if c in ('BACKB48', 'B48') or c.endswith('B48'):
-                room['vent_chase_material'].append(item)
+                # If already in vent_chase_material, keep the max qty rather than duplicating
+                existing = next((v for v in room['vent_chase_material']
+                                 if v['code'].upper().replace('-', '') == c), None)
+                if existing:
+                    existing['quantity'] = max(existing['quantity'], item['quantity'])
+                else:
+                    room['vent_chase_material'].append(item)
             else:
                 keep.append(item)
         room['cabinets'] = keep

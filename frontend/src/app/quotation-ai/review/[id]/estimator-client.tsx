@@ -379,7 +379,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
   };
 
   const handleRescan = async () => {
-    if (!confirm('Re-scan will search the PDF for any missing rooms and add them to your list. Existing rooms with the same names will be preserved. Continue?')) return;
+    if (!confirm('Re-scan will re-extract all rooms from the original PDF, replacing any stale data. Manually-added rooms that are not in the PDF will be kept. Continue?')) return;
     setIsRescanning(true);
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/agent/rescan-project`, {
@@ -390,15 +390,16 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
       const data = await res.json();
       if (data.success) {
         const newRooms = normalizeRooms(data.rooms || []);
-        
-        // --- Merge Logic: Proper Patch ---
-        const mergedRooms = [...rooms];
+
+        // --- Merge Logic: Replace existing rooms with fresh scan data, append any brand-new rooms ---
+        const mergedRooms = newRooms.slice(); // start from fresh scan
         let addedCount = 0;
-        
-        newRooms.forEach(nr => {
-          const exists = mergedRooms.some(r => r.room_name.toUpperCase() === nr.room_name.toUpperCase());
-          if (!exists) {
-            mergedRooms.push(nr);
+
+        // Carry over any manually-added rooms that the PDF scan didn't find
+        rooms.forEach(existing => {
+          const foundInScan = newRooms.some(nr => nr.room_name.toUpperCase() === existing.room_name.toUpperCase());
+          if (!foundInScan) {
+            mergedRooms.push(existing);
             addedCount++;
           }
         });
@@ -407,20 +408,18 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
 
         // Persist the merge back to the DB immediately so it's not lost on refresh
         await updateProjectAction(project.id, {
-          extracted_data: { 
+          extracted_data: {
             rooms: mergedRooms,
             smart_agent_explanations: [
               ...(project.extracted_data?.smart_agent_explanations || []),
-              `Re-scanned PDF. Found ${newRooms.length} rooms. Added ${addedCount} new rooms to existing set.`
+              `Re-scanned PDF. Found ${newRooms.length} rooms from PDF.`
             ]
           }
         });
 
-        toast({ 
-          title: 'Re-scan Complete', 
-          description: addedCount > 0 
-            ? `Added ${addedCount} new rooms. Total rooms: ${mergedRooms.length}.` 
-            : `No new rooms found. Your current ${mergedRooms.length} rooms are already up to date.`
+        toast({
+          title: 'Re-scan Complete',
+          description: `Refreshed ${newRooms.length} rooms from PDF.${addedCount > 0 ? ` Kept ${addedCount} manually-added rooms.` : ''}`
         });
         
         router.refresh();
