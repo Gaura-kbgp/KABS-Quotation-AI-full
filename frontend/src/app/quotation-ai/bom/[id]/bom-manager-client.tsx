@@ -470,6 +470,12 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
         // Box count schedule per Install Pay Worksheets (1951 Cabinetry + MI Homes)
         const getBoxCount = (): { factor: number; tpl: boolean } => {
           const s = skuKey;
+          const cabSection = (item.cabinet_type || '').toLowerCase();
+          // Section-type overrides — reliable even when SKU has no prefix match
+          if (cabSection === 'opt_light_rail' || s === 'LIGHT RAIL' || s === 'LIGHTRAIL')
+            return { factor: 1.0, tpl: false };
+          if (cabSection === 'opt_crown' || s === 'CROWN' || s.startsWith('CROWN'))
+            return { factor: 1.0, tpl: false };
           // ── Cabinets — special types override the 1.0 default ────────────
           if (isFullCabinet) {
             if (s.startsWith('OVD') || s.includes('OVEN'))
@@ -640,22 +646,50 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
       const backendFactor = (item as any).install_points !== undefined ? Number((item as any).install_points) : 0;
       let factor = 0;
 
+      // Shared box-count schedule (mirrors the inline-totals getBoxCount above)
+      const getBoxCountCalc = (): number => {
+        const s = skuKey;
+        // Section-type overrides — reliable even when SKU like "LIGHT RAIL" has no prefix match
+        if (cabType === 'opt_light_rail' || s === 'LIGHT RAIL' || s === 'LIGHTRAIL' || s === 'LIGHTRAI')
+          return 1.0;
+        if (cabType === 'opt_crown' || s === 'CROWN' || s.startsWith('CROWN'))
+          return 1.0;
+        if (isFullCabinet) {
+          if (s.startsWith('OVD') || s.includes('OVEN')) return 2.0;
+          if (/^(UC|ULC|UL)\d/.test(s) || s.includes('LINEN')) return 2.0;
+          if (s.startsWith('FSB') || s.startsWith('FSDB') || s.startsWith('SFDB')) return 3.0;
+          if (s.startsWith('SK') || s.includes('STACK')) return 1.5;
+          return 1.0;
+        }
+        if (isMolding) {
+          if (s.startsWith('CM') || s.startsWith('CCM') || s.startsWith('LPLR') || s.startsWith('CLR') ||
+              s.startsWith('LR') || s.startsWith('VL') || s.startsWith('VLC') ||
+              s.startsWith('SRM') || s.startsWith('SBM') || s.startsWith('OCM') ||
+              s.includes('CROWN') || s.includes('RAIL') || s.includes('VALANCE')) return 1.0;
+          if (s.startsWith('FBM') || /^SM\d/.test(s) || s.startsWith('BAT') || s.startsWith('WSS')) return 0.5;
+          return 0.12;
+        }
+        if (isPanel) {
+          if (s.startsWith('FHP') || s.startsWith('EF') || s.startsWith('REP') || s.includes('FRIDGE')) return 1.0;
+          if (s.startsWith('GP') || s.startsWith('BACKB') || s.startsWith('BACKF') || s.startsWith('FBP')) return 1.0;
+          if (s.startsWith('DWR') || s.startsWith('SAD') || s.startsWith('SADW')) return 0.5;
+          return 0.25;
+        }
+        if (isFiller) return 0.25;
+        if (s.startsWith('BTK') || s.startsWith('WBD') || s.includes('TRAY')) return 0.5;
+        if (s.startsWith('VOID')) return 0.5;
+        if (s.startsWith('OSP')) return 0.5;
+        if (s.startsWith('LEG') || s.startsWith('DSK')) return 1.0;
+        if (s === 'DOORS' || s === 'DOOR') return 0.25;
+        if (s === 'DRAWERS' || s === 'DRAWER') return 0.25;
+        return 0;
+      };
+
       // Unified Factor Logic (Same as financials)
       if (override) {
         factor = Number(override.install_factor);
         itemCalcs[item.id] = { installUnits: Number(item.qty) * factor, tplUnits: override.include_in_3pl ? Number(item.qty) : 0, factor, ruleSource: 'override' };
-      } else if (isFiller || isPanel || isMolding) {
-          const digits = skuKey.match(/\d+/g);
-          const height = digits && digits.length > 0 ? parseInt(digits[digits.length - 1], 10) : 0;
-          
-          if (isFiller) factor = height >= 80 ? 0.3 : 0.1;
-          else if (isPanel) factor = height >= 80 ? 1.0 : 0.5;
-          else if (isMolding) factor = 0.1;
-          
-          const installUnits = Number(item.qty) * factor;
-          const tplUnits = isFullCabinet ? Number(item.qty) : 0;
-          itemCalcs[item.id] = { installUnits, tplUnits, factor, ruleSource: 'default' };
-        } else if (backendFactor > 0) {
+      } else if (backendFactor > 0) {
           factor = backendFactor;
           const installUnits = Number(item.qty) * factor;
           const tplUnits = rule ? (rule.include_in_3pl ? Number(item.qty) : 0) : (isFullCabinet ? Number(item.qty) : 0);
@@ -666,10 +700,10 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
           const tplUnits = rule.include_in_3pl ? Number(item.qty) : 0;
           itemCalcs[item.id] = { installUnits, tplUnits, factor, ruleSource: 'default' };
         } else {
-          factor = isFullCabinet ? 1.0 : 0;
+          factor = getBoxCountCalc();
           const installUnits = Number(item.qty) * factor;
           const tplUnits = isFullCabinet ? Number(item.qty) : 0;
-          itemCalcs[item.id] = { installUnits, tplUnits, factor, ruleSource: 'missing' };
+          itemCalcs[item.id] = { installUnits, tplUnits, factor, ruleSource: factor > 0 ? 'default' : 'missing' };
         }
 
         totalInstallUnits += itemCalcs[item.id].installUnits;
