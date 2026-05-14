@@ -515,6 +515,10 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
             return { factor: 0.5, tpl: false };                     // OSP / 2x4 Support
           if (s.startsWith('LEG') || s.startsWith('DSK'))
             return { factor: 1.0, tpl: false };                     // Desk Leg
+          if (s === 'DOORS' || s === 'DOOR')
+            return { factor: 0.25, tpl: false };                    // Door count — 0.25 pts per door
+          if (s === 'DRAWERS' || s === 'DRAWER')
+            return { factor: 0.25, tpl: false };                    // Drawer count — 0.25 pts per drawer
           return { factor: 0, tpl: false };
         };
 
