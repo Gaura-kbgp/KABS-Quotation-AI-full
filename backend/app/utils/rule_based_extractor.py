@@ -628,11 +628,15 @@ def extract_page_items(text: str, pdf_type: str = PDF_TYPE_UNKNOWN) -> List[Dict
                     seen_codes[code] = qty
 
         # Pass 3: standalone occurrences
+        # Skip any code that is a pure suffix of an already-found code — e.g. "B48"
+        # extracted from within "BACK-B48" (hyphen acts as word-boundary in regex).
         standalone: Dict[str, int] = {}
         for m in RAW_CODE_PATTERN.finditer(section_text):
             raw_code = m.group(1) or m.group(2)
             code = sanitize_code(raw_code, pdf_type)
             if code and len(code) >= 2 and code not in seen_codes and not REJECT_PATTERNS.match(code):
+                if any(existing.endswith(code) and existing != code for existing in seen_codes):
+                    continue  # "B48" already covered by "BACKB48" etc.
                 standalone[code] = standalone.get(code, 0) + 1
         seen_codes.update(standalone)
 
