@@ -1,6 +1,6 @@
 import os
 import sys
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
@@ -20,6 +20,10 @@ os.environ['NO_PROXY'] = '*'
 from app.api.pricing import router as pricing_router
 from app.api.agent import router as agent_router
 from app.api.labor import router as labor_router
+from app.api.catalog import router as catalog_router
+from app.api.elevate import router as elevate_router
+from app.api.blueprint import router as blueprint_router
+from app.core.auth import get_current_user
 
 app = FastAPI(title="KABS Quotation AI Backend")
 # Force reload v3
@@ -27,32 +31,19 @@ app = FastAPI(title="KABS Quotation AI Backend")
 # Setup CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Include routes
-app.include_router(pricing_router, prefix="/api")
-app.include_router(agent_router, prefix="/api")
-app.include_router(labor_router, prefix="/api")
-
-@app.get("/debug/env")
-async def debug_env():
-    import sys
-    import httpx
-    try:
-        import postgrest
-        p_ver = getattr(postgrest, '__version__', 'unknown')
-    except:
-        p_ver = 'not installed'
-    return {
-        "python_version": sys.version,
-        "python_path": sys.path,
-        "httpx_version": httpx.__version__,
-        "postgrest_version": p_ver
-    }
+app.include_router(pricing_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(agent_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(labor_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(catalog_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(elevate_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(blueprint_router, prefix="/api", dependencies=[Depends(get_current_user)])
 
 @app.get("/")
 async def root():

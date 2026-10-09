@@ -102,17 +102,14 @@ export async function refineBomFlow(input: {
     return { corrected_rooms: [], explanations: ['No rooms to refine.'] };
   }
 
-  const apiKey = process.env.NVIDIA_API_KEY || process.env.OPENAI_API_KEY;
-  
+  const apiKey = process.env.OPENAI_API_KEY;
+
   if (!apiKey) {
-    console.warn('[SMART AGENT] No API key found (NVIDIA_API_KEY or OPENAI_API_KEY). Using fallback.');
+    console.warn('[SMART AGENT] OPENAI_API_KEY is not set. Using fallback.');
     return buildFallbackOutput(input.rooms);
   }
 
-  const openai = new OpenAI({
-    apiKey: apiKey,
-    baseURL: process.env.NVIDIA_API_KEY ? 'https://integrate.api.nvidia.com/v1' : undefined,
-  });
+  const openai = new OpenAI({ apiKey });
 
   try {
 
@@ -238,14 +235,14 @@ Return ONLY this JSON, no other text:
 {"corrected_rooms": [...rooms with same structure as input...], "explanations": ["..."]}`;
 
     const response = await openai.chat.completions.create({
-      model: 'meta/llama-3.1-70b-instruct',
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       messages: [
         { role: 'system', content: 'You are a JSON-only response engine. Return ONLY valid JSON with no markdown, no explanations outside the JSON.' },
         { role: 'user', content: prompt }
       ],
       temperature: 0,
       response_format: { type: 'json_object' },
-      timeout: 45000, // 45-second hard limit — fall back to raw data if NVIDIA is slow
+      timeout: 45000, // 45-second hard limit — fall back to raw data if OpenAI is slow
     } as any);
 
     const content = response.choices[0].message.content;

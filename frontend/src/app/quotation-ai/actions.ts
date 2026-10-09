@@ -1,6 +1,7 @@
 'use server';
 
-import { createServerSupabase } from '@/lib/supabase-server';
+import { requireUser, authFetch } from '@/lib/auth';
+import { scopedDb } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 const BACKEND_URL = (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
@@ -29,8 +30,9 @@ export interface InstallOverride {
 }
 
 export async function fetchInstallRulesAction(manufacturerId: string) {
+  await requireUser();
   try {
-    const supabase = createServerSupabase();
+    const supabase = await scopedDb();
     const { data, error } = await supabase
       .from('install_rules')
       .select('*')
@@ -45,8 +47,9 @@ export async function fetchInstallRulesAction(manufacturerId: string) {
 }
 
 export async function upsertInstallRuleAction(rule: Omit<InstallRule, 'id' | 'created_at'> & { id?: string }) {
+  await requireUser();
   try {
-    const supabase = createServerSupabase();
+    const supabase = await scopedDb();
     const payload = {
       ...(rule.id ? { id: rule.id } : {}),
       manufacturer_id: rule.manufacturer_id,
@@ -70,8 +73,9 @@ export async function upsertInstallRuleAction(rule: Omit<InstallRule, 'id' | 'cr
 }
 
 export async function deleteInstallRuleAction(id: string) {
+  await requireUser();
   try {
-    const supabase = createServerSupabase();
+    const supabase = await scopedDb();
     const { error } = await supabase.from('install_rules').delete().eq('id', id);
     if (error) throw error;
     return { success: true };
@@ -81,8 +85,9 @@ export async function deleteInstallRuleAction(id: string) {
 }
 
 export async function fetchInstallOverridesAction(manufacturerId: string, clientName?: string) {
+  await requireUser();
   try {
-    const supabase = createServerSupabase();
+    const supabase = await scopedDb();
     let query = supabase
       .from('install_rule_overrides')
       .select('*')
@@ -100,8 +105,9 @@ export async function fetchInstallOverridesAction(manufacturerId: string, client
 }
 
 export async function upsertInstallOverrideAction(override: Omit<InstallOverride, 'id' | 'created_at'> & { id?: string }) {
+  await requireUser();
   try {
-    const supabase = createServerSupabase();
+    const supabase = await scopedDb();
     const payload = {
       ...(override.id ? { id: override.id } : {}),
       client_name: override.client_name.trim(),
@@ -125,8 +131,9 @@ export async function upsertInstallOverrideAction(override: Omit<InstallOverride
 }
 
 export async function deleteInstallOverrideAction(id: string) {
+  await requireUser();
   try {
-    const supabase = createServerSupabase();
+    const supabase = await scopedDb();
     const { error } = await supabase.from('install_rule_overrides').delete().eq('id', id);
     if (error) throw error;
     return { success: true };
@@ -139,8 +146,9 @@ export async function deleteInstallOverrideAction(id: string) {
  * Generic project update for extracted_data and metadata.
  */
 export async function updateProjectAction(id: string, data: any) {
+  await requireUser();
   try {
-    const supabase = createServerSupabase();
+    const supabase = await scopedDb();
     const { error } = await supabase.from('quotation_projects').update(data).eq('id', id);
     if (error) throw error;
     
@@ -158,8 +166,9 @@ export async function updateProjectAction(id: string, data: any) {
  * Updates an individual BOM line item.
  */
 export async function updateBomItemAction(id: string, updates: any) {
+  await requireUser();
   try {
-    const supabase = createServerSupabase();
+    const supabase = await scopedDb();
     const { error } = await supabase.from('quotation_boms').update(updates).eq('id', id);
     if (error) throw error;
     return { success: true };
@@ -172,8 +181,9 @@ export async function updateBomItemAction(id: string, updates: any) {
  * Triggers the pricing engine after applying global specs.
  */
 export async function generateBOMAction(projectId: string, manufacturerId: string, collection: string, doorStyle: string, allSpecs: any = {}) {
+  await requireUser();
   try {
-    const supabase = createServerSupabase();
+    const supabase = await scopedDb();
     
     // 1. Fetch current project data
     const { data: project } = await supabase
@@ -184,15 +194,21 @@ export async function generateBOMAction(projectId: string, manufacturerId: strin
 
     if (!project) throw new Error('Project not found');
 
-    // 2. Apply global specs to all rooms
+    // 2. Apply global specs to all rooms.
+    // IMPORTANT: a room's own door_style/collection/finish — set during PDF
+    // extraction for multi-display manufacturer catalogs where each display
+    // has its own style (see backend/app/utils/display_catalog_extractor.py)
+    // — takes priority over the single project-wide dropdown value. Ordinary
+    // single-style drawings never populate these on the room, so they fall
+    // through to the global value exactly as before.
     const updatedRooms = (project.extracted_data?.rooms || []).map((room: any) => ({
       ...room,
-      collection: collection || room.collection,
-      door_style: doorStyle || room.door_style,
-      box_construction: allSpecs.box_construction || room.box_construction || '',
-      finish: allSpecs.finish || room.finish || '',
-      wood_species: allSpecs.wood_species || room.wood_species || '',
-      drawer_box: allSpecs.drawer_box || room.drawer_box || ''
+      collection: room.collection || collection,
+      door_style: room.door_style || doorStyle,
+      box_construction: room.box_construction || allSpecs.box_construction || '',
+      finish: room.finish || allSpecs.finish || '',
+      wood_species: room.wood_species || allSpecs.wood_species || '',
+      drawer_box: room.drawer_box || allSpecs.drawer_box || ''
     }));
 
     // 3. Update database
@@ -207,7 +223,7 @@ export async function generateBOMAction(projectId: string, manufacturerId: strin
     if (updateError) throw updateError;
 
     // 4. Trigger Python FastAPI Pricing Engine
-    const res = await fetch(`${BACKEND_URL}/api/generate-bom?project_id=${projectId}&manufacturer_id=${manufacturerId}`, {
+    const res = await authFetch(`${BACKEND_URL}/api/generate-bom?project_id=${projectId}&manufacturer_id=${manufacturerId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });

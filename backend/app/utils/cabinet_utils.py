@@ -8,6 +8,8 @@ import re
 CABINET_TYPE_MAP = {
     # Wall Cabinets
     "W":    "Wall Cabinet",
+    "WBB":  "Wall Bridge Cabinet",   # Marsh: WBB = Wall Bridge Base (wide span)
+    "WBBP": "Wall Bridge Cabinet",   # Marsh catalog prefix variant
     "WB":   "Wall Cabinet with Blind",
     "WC":   "Wall Corner Cabinet",
     "WDC":  "Wall Diagonal Corner Cabinet",
@@ -22,6 +24,7 @@ CABINET_TYPE_MAP = {
     "B":    "Base Cabinet",
     "BBC":  "Base Blind Corner Cabinet",
     "BC":   "Base Corner Cabinet",
+    "BLC":  "Base Lazy Corner Cabinet",  # Marsh: BLC = Base Lazy Corner
     "BDC":  "Base Diagonal Corner Cabinet",
     "BFH":  "Base Full Height Cabinet",
     "BLS":  "Base Lazy Susan",
@@ -47,6 +50,9 @@ CABINET_TYPE_MAP = {
     "T":    "Tall Cabinet",
     "P":    "Pantry Cabinet",
     "O":    "Oven Cabinet",
+    "OE":   "Oven End Panel",       # Marsh: OE9323, OE3423 — oven end/side panels
+    "OC":   "Oven Cabinet",         # Marsh: OC2784BP, OC3084BP — oven cabinets
+    "OCS":  "Oven Cabinet",         # Marsh: OCS3696BP
     "OVD":  "Oven Tall Cabinet",
     "UTIL": "Utility Cabinet",
     "UT":   "Utility Cabinet",
@@ -168,6 +174,7 @@ DRAWING_SUFFIX_TO_CATALOG = {
 # ──────────────────────────────────────────────────────────────────────────────
 CABINET_SECTIONS = {
     "Wall Cabinet":             "Wall",
+    "Wall Bridge Cabinet":      "Wall",
     "Wall Cabinet with Blind":  "Wall",
     "Wall Corner Cabinet":      "Wall",
     "Wall Diagonal Corner Cabinet": "Wall",
@@ -181,6 +188,7 @@ CABINET_SECTIONS = {
     "Base Cabinet":             "Base",
     "Base Blind Corner Cabinet":"Base",
     "Base Corner Cabinet":      "Base",
+    "Base Lazy Corner Cabinet": "Base",
     "Base Diagonal Corner Cabinet": "Base",
     "Base Full Height Cabinet": "Base",
     "Base Lazy Susan":          "Base",
@@ -203,6 +211,7 @@ CABINET_SECTIONS = {
     "Tall Cabinet":             "Tall",
     "Pantry Cabinet":           "Tall",
     "Oven Cabinet":             "Tall",
+    "Oven End Panel":           "Tall",
     "Oven Tall Cabinet":        "Tall",
     "Utility Cabinet":          "Tall",
     "Refrigerator Cabinet":     "Tall",
@@ -428,7 +437,7 @@ def detect_category(sku: str) -> str:
         return 'Vanity Cabinets'
 
     # 4. Wall Cabinets
-    if s.startswith(('W', 'WC', 'WB', 'WDC', 'WR', 'WO', 'WLS', 'WAC', 'WANGL', 'WBC')) or 'WALL' in s:
+    if s.startswith(('W', 'WBB', 'WBBP', 'WC', 'WB', 'WDC', 'WR', 'WO', 'WLS', 'WAC', 'WANGL', 'WBC')) or 'WALL' in s:
         return 'Wall Cabinets'
 
     # 5. Sink Bases (Check before generic Base)
@@ -442,7 +451,7 @@ def detect_category(sku: str) -> str:
 
     # 6. Base Cabinets (Standard)
     # Using regex ^B\d to avoid matching BTK
-    if s.startswith(('B', 'LS', 'BLS', 'LBC', 'BAC', 'BC', 'BBC', 'BDC', 'BFH', 'B3S', 'B4S', 'DB', 'DWR', 'DR')) and (len(s) <= 2 or s[1].isdigit() or s[2].isdigit() or s.startswith(('LS', 'BLS', 'LBC', 'BAC'))):
+    if s.startswith(('B', 'BLC', 'LS', 'BLS', 'LBC', 'BAC', 'BC', 'BBC', 'BDC', 'BFH', 'B3S', 'B4S', 'DB', 'DWR', 'DR')) and (len(s) <= 2 or s[1].isdigit() or s[2].isdigit() or s.startswith(('LS', 'BLS', 'LBC', 'BAC', 'BLC'))):
         return 'Base Cabinets'
 
     # 7. Tall Cabinets (Pantry, Oven, Utility, Refrigerator)
@@ -660,12 +669,13 @@ def find_nearest_cabinet_match(
                            "Base Full Height Cabinet", "Base 3-Stack Drawer", "Base 4-Stack Drawer", "Drawer Base"}
     SINK_BASE_TYPES     = {"Sink Base"}
     VANITY_BASE_TYPES   = {"Vanity Base", "Vanity Sink Base", "Vanity Double Base", "Vanity 3-Stack Drawer"}
-    CORNER_CABINET_TYPES = {"Base Corner Cabinet", "Base Blind Corner Cabinet", "Base Diagonal Corner Cabinet", 
+    CORNER_CABINET_TYPES = {"Base Corner Cabinet", "Base Blind Corner Cabinet", "Base Diagonal Corner Cabinet",
+                            "Base Lazy Corner Cabinet",
                             "Wall Corner Cabinet", "Wall Diagonal Corner Cabinet", "Wall Blind Corner Cabinet",
                             "Wall Lazy Susan", "Base Lazy Susan", "Lazy Susan Cabinet", "Lazy Susan Base Corner",
                             "Wall Asymmetric Corner Cabinet", "Base Asymmetric Corner Cabinet", "Wall Angle Cabinet"}
     FILLER_TYPES        = {"Universal Filler", "Filler", "Wall Filler", "Base Filler", "Tall Filler", "Vanity Filler"}
-    TALL_TYPES          = {"Tall Cabinet", "Pantry Cabinet", "Oven Cabinet", "Oven Tall Cabinet", "Utility Cabinet", "Refrigerator Cabinet"}
+    TALL_TYPES          = {"Tall Cabinet", "Pantry Cabinet", "Oven Cabinet", "Oven End Panel", "Oven Tall Cabinet", "Utility Cabinet", "Refrigerator Cabinet"}
 
     # 3. Find same-SECTION candidates in the catalog
     # Use pre-indexed section rows if 'lookup_maps' was provided (faster)
@@ -735,6 +745,11 @@ def find_nearest_cabinet_match(
     if not candidates:
         return None
 
+    # Keep the type-filtered candidates BEFORE collection filter so the two-pass
+    # fallback (step 5+) can broaden across collections without re-admitting
+    # rows that fail the cabinet-type check (e.g. RHMNT60 vs OE6011).
+    type_filtered_candidates = list(candidates)
+
     # 4. Apply collection filter with NORMALIZED fuzzy matching
     # We normalize both the filter and catalog collection names to strip
     # encoding artifacts ("24\ufffd DEEP" → "CLASSIC SERIES") and depth suffixes.
@@ -758,7 +773,7 @@ def find_nearest_cabinet_match(
 
     # 5. Score candidates by dimension proximity
     # Determine primary / secondary dimension by type
-    TALL_TYPES = {"Tall Cabinet", "Pantry Cabinet", "Oven Cabinet",
+    TALL_TYPES = {"Tall Cabinet", "Pantry Cabinet", "Oven Cabinet", "Oven End Panel",
                   "Oven Tall Cabinet", "Utility Cabinet", "Refrigerator Cabinet"}
     MOLDING_TYPES = {"Crown Molding", "Outside Corner Molding", "Scribe Molding",
                      "Base Toe Kick", "Shoe Molding", "Quarter Round Molding",
@@ -840,14 +855,12 @@ def find_nearest_cabinet_match(
     best_row, best_score_val = scored[0]
 
     # ── Two-pass: if collection-filtered best has non-trivial dimension gap,
-    # also check all same-section candidates (without collection filter) and
+    # also check all type-matching candidates (without collection filter) and
     # use the global best if it's significantly better.
-    # This handles the case where CLASSIC SERIES doesn't have W3042MDBD but
-    # DOOR STYLES ELITE SERIES has W3042BD — the correct height match wins.
-    # All same-section candidates are already in section_candidates
-    all_section_candidates = section_candidates
-    if len(all_section_candidates) > len(candidates):
-        all_scored = [(row, score(row)) for row in all_section_candidates]
+    # IMPORTANT: use type_filtered_candidates (not raw section rows) so we never
+    # admit a row that failed the cabinet-type/section check.
+    if len(type_filtered_candidates) > len(candidates):
+        all_scored = [(row, score(row)) for row in type_filtered_candidates]
         all_scored.sort(key=lambda x: x[1])
         global_best_row, global_best_score = all_scored[0]
         # Use global best if it's meaningfully better (at least 2 points improvement)

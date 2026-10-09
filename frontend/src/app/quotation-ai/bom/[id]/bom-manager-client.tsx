@@ -59,6 +59,7 @@ import {
   Upload,
   FlaskConical,
   Columns2,
+  Blocks,
   TrendingDown,
   ArrowUpDown,
 } from 'lucide-react';
@@ -100,12 +101,28 @@ interface BomItem {
   install_points?: number;
 }
 
+/** The signed-in company's profile (from Settings / setup). Printed on every proposal. */
+export interface CompanyProfile {
+  name: string;
+  address: string | null;
+  phone: string | null;
+  logo_url: string | null;
+  proposal_terms: string | null;
+  signature_url: string | null;
+}
+
 interface BomManagerClientProps {
   id: string;
   project: any;
   initialBom: BomItem[];
   manufacturerName: string;
+  company: CompanyProfile;
 }
+
+// Placeholder values an older build saved into projects. They must not override the company profile.
+const LEGACY_DEALER_DEFAULTS = new Set(['Elite Building Solutions', '123 Manufacturing Way, Industry City, IN 46201', '(800) 555-KABS']);
+const savedOr = (saved: string | null | undefined, fallback: string | null | undefined) =>
+  saved && !LEGACY_DEALER_DEFAULTS.has(saved) ? saved : fallback || '';
 
 type WorkflowStep = 'pricing' | 'breakdown' | 'preview' | 'config' | 'compare';
 type ViewMode = 'client' | 'internal';
@@ -115,7 +132,7 @@ const SECTION_ORDER = ['cabinets','perimeter','hardware','bump','opt_crown','opt
 const SECTION_LABELS: Record<string,string> = {cabinets:'Cabinets',perimeter:'Perimeter',hardware:'Hardware',bump:'Bump / Boxing',opt_crown:'Opt Crown',opt_light_rail:'Opt Light Rail',island:'Island',island_hardware:'Island Hardware',island_bump:'Island Bump',vent_chase_material:'Vent Chase Material'};
 const CAB_SUB_CATS = ['Wall Cabinets','Base Cabinets','Tall Cabinets','Vanity Cabinets','Universal Fillers','Panels','Molding & Trim','Hardwares'];
 
-export function BomManagerClient({ id, project, initialBom, manufacturerName }: BomManagerClientProps) {
+export function BomManagerClient({ id, project, initialBom, manufacturerName, company }: BomManagerClientProps) {
   const { toast } = useToast();
   const router = useRouter();
   
@@ -287,10 +304,10 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
   }, [project.manufacturer_id, customer.name]);
 
   const [dealer, setDealer] = useState({
-    name: project.bom_data?.dealerName || "Elite Building Solutions",
-    address: project.bom_data?.dealerAddress || "123 Manufacturing Way, Industry City, IN 46201",
-    phone: project.bom_data?.dealerPhone || "(800) 555-KABS",
-    email: project.bom_data?.dealerEmail || `orders@${manufacturerName.toLowerCase().replace(/\s+/g, '')}.com`
+    name: savedOr(project.bom_data?.dealerName, company.name),
+    address: savedOr(project.bom_data?.dealerAddress, company.address),
+    phone: savedOr(project.bom_data?.dealerPhone, company.phone),
+    email: project.bom_data?.dealerEmail || '',
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -342,8 +359,8 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
   useEffect(() => {
     const fetchMfgs = async () => {
       try {
-        const { supabaseClient } = await import('@/lib/supabase-client');
-        const { data } = await supabaseClient.from('manufacturers').select('id,name').eq('status', 'Active').order('name');
+        const res = await fetch('/api/manufacturers');
+        const { data } = await res.json();
         if (data) setManufacturers(data);
       } catch { /* non-critical */ }
     };
@@ -362,7 +379,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
     fetchConfig();
   }, [compareConfig.mfgBId]);
 
-  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
+  const BACKEND_URL = '/api/backend';
 
   const getEffectiveUnitPrice = (item: BomItem) => {
       return (Number(item.unit_price) || 0);
@@ -379,6 +396,8 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
       return { label: 'Nearest Size', cls: 'bg-amber-50 text-amber-700 border-amber-200' };
     if (p === 'CATEGORY_AVERAGE')
       return { label: 'Est. Average', cls: 'bg-orange-50 text-orange-700 border-orange-200' };
+    if (p === 'ESTIMATED_DOOR_DRAWER')
+      return { label: 'Smart Estimate', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
     if (p === 'MANUAL_PRICING_REQUIRED')
       return { label: 'Review Needed', cls: 'bg-red-50 text-red-700 border-red-200' };
     return { label: precision, cls: 'bg-slate-100 text-slate-500 border-slate-200' };
@@ -416,6 +435,10 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
       const avgMatch = raw.match(/avg\.\s*of\s*(\d+)/i);
       const n = avgMatch ? ` (avg. of ${avgMatch[1]} items)` : '';
       return `No close match found for "${item.sku}" — price estimated from category average${n}${catalogCol}. Review manually.`;
+    }
+    if (p === 'ESTIMATED_DOOR_DRAWER') {
+      const unit = item.sku.toUpperCase().includes('DRAWER') ? 'drawer front' : 'door';
+      return `Smart estimate: ${unit} auto-priced from this collection's base-cabinet average${catalogCol}${price}. Verify with manufacturer.`;
     }
     if (p === 'MANUAL_PRICING_REQUIRED') {
       return `"${item.sku}" could not be automatically priced. Please set price manually.`;
@@ -1103,6 +1126,12 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
               <Button variant="outline" className="rounded-xl h-11 px-4 border-violet-200 text-violet-700 hover:bg-violet-50" onClick={() => setStep('compare')}>
                 <Columns2 className="w-4 h-4 mr-2" />
                 Compare Lines
+              </Button>
+              <Button asChild variant="outline" className="rounded-xl h-11 px-4 border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+                <a href={`/quotation-ai/blueprint/${id}`}>
+                  <Blocks className="w-4 h-4 mr-2" />
+                  Blueprint Mode
+                </a>
               </Button>
             </>
           )}
@@ -2304,17 +2333,13 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                      <div className="bg-white h-full w-full relative">
                        {/* Client Invoice Custom Redesign */}
                        <div className="flex justify-between items-start mb-4 p-8 pb-0">
-                         <div className="flex flex-col items-center border-[3px] border-[#002060] p-1.5 bg-white w-48 shadow-sm">
-                            <div className="flex items-center gap-1 justify-center pb-2">
-                               <div className="w-[100px] h-[34px] relative overflow-hidden bg-white mt-1">
-                                  <div className="absolute bottom-0 w-full h-0 border-l-[50px] border-l-transparent border-r-[50px] border-r-transparent border-b-[24px] border-b-[#002060]" />
-                               </div>
-                            </div>
-                            <div className="text-white bg-[#2E7D32] px-3 font-black text-3xl w-full text-center leading-none tracking-tight pt-1 pb-1">ELITE</div>
-                            <div className="bg-[#002060] text-white text-[9px] font-bold uppercase tracking-widest mt-0.5 w-full text-center py-0.5">Building Solutions</div>
-                            <div className="mt-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight flex justify-center gap-1 border-t border-slate-200 pt-1 w-full">
-                               <span>Honesty</span> | <span>Integrity</span> | <span>Respect</span>
-                            </div>
+                         <div className="flex flex-col items-center justify-center border-[3px] border-[#002060] p-2 bg-white w-48 min-h-[7rem] shadow-sm">
+                            {company.logo_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={company.logo_url} alt={dealer.name} className="max-h-24 w-full object-contain" />
+                            ) : (
+                              <div className="text-[#002060] font-black text-lg text-center uppercase leading-tight">{dealer.name}</div>
+                            )}
                          </div>
                          <h1 className="text-3xl font-medium text-[#002060] tracking-wider uppercase mt-4 mr-4">CABINETRY BID</h1>
                        </div>
@@ -2395,6 +2420,19 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName }: 
                            <span className="text-red-700">36" UPPERS/ RAISED VANITIES/ SCRIBE AT WALLS AND QUARTER ROUND AT FLOOR/ NO HARDWARE/NO VENT BOX</span>
                            <span>TWO RETURN TRIPS INCLUDED IN PRICING. ADDITIONAL RETURN TRIPS IS NEEDED IT WILL BE BILLED ACCORDINGLY.</span>
                          </div>
+
+                         {company.proposal_terms && (
+                           <div className="mt-8 px-2">
+                             <p className="text-[10px] font-black uppercase tracking-widest text-[#002060] mb-1">Terms &amp; Conditions</p>
+                             <p className="whitespace-pre-line text-[10px] leading-relaxed text-slate-600">{company.proposal_terms}</p>
+                           </div>
+                         )}
+                         {company.signature_url && (
+                           <div className="mt-6 px-2">
+                             {/* eslint-disable-next-line @next/next/no-img-element */}
+                             <img src={company.signature_url} alt="Authorized signature" className="h-16 object-contain object-left" />
+                           </div>
+                         )}
 
                          <div className="grid grid-cols-1 gap-4 mt-8 px-2 mb-4">
                            <div className="flex items-end justify-between gap-4 max-w-full">

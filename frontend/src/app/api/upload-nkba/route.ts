@@ -1,5 +1,7 @@
 
-import { createServerSupabase } from '@/lib/supabase-server';
+import { apiUser } from '@/lib/auth';
+import { scopedDb } from '@/lib/db';
+import { logUsage } from '@/lib/usage';
 import { revalidatePath } from 'next/cache';
 
 /**
@@ -7,6 +9,8 @@ import { revalidatePath } from 'next/cache';
  * Uses the production-ready nkba_files table.
  */
 export async function POST(req: Request) {
+  const auth = await apiUser();
+  if ('response' in auth) return auth.response;
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File;
@@ -16,8 +20,8 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Missing file or version' }, { status: 400 });
     }
 
-    const supabase = createServerSupabase();
-    const fileName = `nkba-docs/versions/${crypto.randomUUID()}.pdf`;
+    const supabase = await scopedDb();
+    const fileName = `${auth.user.orgId}/nkba-docs/versions/${crypto.randomUUID()}.pdf`;
     
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -31,19 +35,20 @@ export async function POST(req: Request) {
 
     if (uploadError) throw uploadError;
 
-    const { data: { publicUrl } } = supabase.storage.from('manufacturer-docs').getPublicUrl(fileName);
-
+    // The bucket is private: store the path, not a public URL.
     const { error: dbError } = await supabase
       .from('nkba_files')
       .insert([{
         version,
         file_name: file.name,
-        file_url: publicUrl
+        file_url: fileName
       }]);
 
     if (dbError) throw dbError;
 
-    revalidatePath('/admin/nkba');
+    await logUsage(auth.user, 'file.nkba_upload', { file_name: file.name, version });
+    revalidatePath('/app/nkba');
+    revalidatePath('/super-admin/nkba');
     return Response.json({ success: true });
 
   } catch (err: any) {

@@ -1,4 +1,6 @@
-import { createServerSupabase } from '@/lib/supabase-server';
+import { apiUser } from '@/lib/auth';
+import { scopedDb } from '@/lib/db';
+import { logUsage } from '@/lib/usage';
 import { analyzeDrawing } from '@/ai/flows/analyze-drawing-flow';
 import * as fs from 'fs';
 
@@ -10,6 +12,8 @@ function logHit(msg: string) {
 }
 
 export async function POST(req: Request) {
+  const auth = await apiUser();
+  if ('response' in auth) return auth.response;
   try {
     logHit("POST /api/upload-drawing - START");
     const formData = await req.formData();
@@ -21,13 +25,13 @@ export async function POST(req: Request) {
       return Response.json({ error: 'No PDF provided.' }, { status: 400 });
     }
 
-    const supabase = createServerSupabase();
+    const supabase = await scopedDb();
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
     // 1. Initial Storage Upload
     const fileName = `${crypto.randomUUID()}.pdf`;
-    const storagePath = `quotations/drawings/${fileName}`;
+    const storagePath = `${auth.user.orgId}/quotations/drawings/${fileName}`;
     
     logHit(`Uploading to Storage: ${storagePath}`);
     const { data: uploadData, error: uploadError } = await supabase.storage.from('manufacturer-docs').upload(storagePath, buffer, {
@@ -40,8 +44,9 @@ export async function POST(req: Request) {
       throw uploadError;
     }
     
-    const { data: { publicUrl } } = supabase.storage.from('manufacturer-docs').getPublicUrl(storagePath);
-    logHit(`Public URL: ${publicUrl}`);
+    // The bucket is private: store the path, not a public URL. The backend
+    // reads it directly with the service-role key (app/core/storage.py).
+    logHit(`Storage path: ${storagePath}`);
 
     // 2. Create Project Record
     logHit("Creating DB record...");
@@ -49,7 +54,7 @@ export async function POST(req: Request) {
       .from('quotation_projects')
       .insert([{
         project_name: projectName,
-        raw_pdf_url: publicUrl,
+        raw_pdf_url: storagePath,
         status: 'Processing'
       }])
       .select()
@@ -67,7 +72,7 @@ export async function POST(req: Request) {
     try {
       const startTime = Date.now();
       const result = await analyzeDrawing({
-        pdfDataUri: publicUrl,
+        pdfDataUri: storagePath,
         projectName: projectName
       });
       const scanDuration = (Date.now() - startTime) / 1000;
@@ -106,6 +111,7 @@ export async function POST(req: Request) {
         .eq('id', project.id);
     }
 
+    await logUsage(auth.user, 'drawing.upload', { project_id: project.id, project_name: projectName });
     logHit("Returning final response.");
     return Response.json({ success: true, projectId: project.id });
 

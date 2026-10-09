@@ -1,3 +1,4 @@
+import { apiUser, authFetch } from '@/lib/auth';
 /**
  * BOM Generation Route — Thin Proxy to Python FastAPI Backend
  *
@@ -15,6 +16,8 @@ export const maxDuration = 300;
 const BACKEND_URL = (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 export async function POST(req: Request) {
+  const auth = await apiUser();
+  if ('response' in auth) return auth.response;
   try {
     const body = await req.json();
     const { projectId, manufacturerId } = body;
@@ -24,7 +27,7 @@ export async function POST(req: Request) {
     }
 
     // Proxy to Python FastAPI backend
-    const backendRes = await fetch(
+    const backendRes = await authFetch(
       `${BACKEND_URL}/api/generate-bom?project_id=${projectId}&manufacturer_id=${manufacturerId}`,
       {
         method: 'POST',

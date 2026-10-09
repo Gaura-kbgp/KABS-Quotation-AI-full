@@ -1,28 +1,62 @@
-# Node.js
+# ==========================================
+# Dependencies & Package Managers
+# ==========================================
 node_modules/
 dist/
 .next/
 out/
 build/
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+*.tsbuildinfo
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-*.tsbuildinfo
 
-# Python
+# ==========================================
+# Environment & Secrets (Security First)
+# ==========================================
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+**/backend/.env
+**/frontend/.env
+**/backend/.env.local
+**/frontend/.env.local
+
+# Allow example/template files
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
+# Credentials, Keys, Tokens & Certificates
+*.pem
+*.key
+*.cert
+*.crt
+*.pfx
+*serviceAccount*.json
+*firebase-adminsdk*.json
+credentials.json
+client_secret*.json
+token.json
+service_account.json
+private_key.json
+id_rsa*
+
+# ==========================================
+# Python & Virtual Environments
+# ==========================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
 env/
-.venv
+.venv/
 venv/
 ENV/
 instance/
@@ -32,54 +66,41 @@ instance/
 .coverage
 *.egg-info/
 *.egg
+backend/scratch/
 
-# IDEs & OS
+# ==========================================
+# Databases & Local Dumps
+# ==========================================
+*.db
+*.sqlite
+*.sqlite3
+backend/pricing.db
+db_data_dump.json
+bom_items_debug.json
+backend/bom_items_debug.json
+
+# ==========================================
+# Debug Artifacts, Logs & Scans
+# ==========================================
+*.log
+pricing_match_debug.log
+frontend/route_hit.log
+frontend/tmp_ai_scan_debug.log
+backend/check_out.txt
+backend/sku_search.txt
+scan_result_*.json
+frontend/scan_result_*.json
+backend/mfg_config_*.json
+
+# ==========================================
+# IDEs, Tools & OS Files
+# ==========================================
 .vscode/
 .idea/
 .claude/
-backend/scratch/
+.gemini/
+.agents/
 *.swp
 *.swo
 .DS_Store
 Thumbs.db
-
-# Project Secrets & Environment
-backend/.env
-frontend/.env
-**/ .env
-**/ .env.local
-
-# Data Results & Scans (Don't track these)
-db_data_dump.json
-scan_result_*.json
-frontend/scan_result_*.json
-backend/mfg_config_*.json
-*.log
-pricing_match_debug.log
-
-# Ensure vital code/config is tracked
-!package.json
-!tsconfig.json
-!next.config.js
-!next.config.ts
-!tailwind.config.js
-!tailwind.config.ts
-!postcss.config.js
-!postcss.config.mjs
-!backend/requirements.txt
-!frontend/package.json
-!**/__init__.py
-!**/*.py
-!**/*.tsx
-!**/*.ts
-!**/*.js
-!**/*.css
-!**/*.md
-!**/*.png
-!**/*.jpg
-!**/*.jpeg
-!**/*.svg
-!**/*.ico
-!**/manifest.json
-!**/components.json
-!**/postcss.config.mjs

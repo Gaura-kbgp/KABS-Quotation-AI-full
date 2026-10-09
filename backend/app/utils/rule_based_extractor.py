@@ -417,6 +417,25 @@ def categorize_code(code: str, section_context: str = None) -> Optional[str]:
 VALID_MODIFIERS = {'BUTT', 'BLD', 'MD', 'BD', 'AS', 'SLD', 'FHD', 'DP'}
 
 
+def build_match_key(raw_code: Optional[str]) -> str:
+    """Matching key that keeps every token of the printed code (suffixes such as
+    1TD, 1DDWR, X 24 DP, FH, SD). Only case and spacing are normalized, so it can
+    be compared directly against the price guide's SKU text."""
+    if not raw_code:
+        return ""
+    return re.sub(r'\s+', ' ', str(raw_code)).strip().upper()
+
+
+def clean_raw_text(raw: Optional[str]) -> str:
+    """Keep the code exactly as printed: only trim and collapse whitespace.
+    Drops a leading quantity prefix ("3-W3042" -> "W3042") because that is a count, not part of the code."""
+    if not raw:
+        return ""
+    t = re.sub(r'\s+', ' ', str(raw)).strip()
+    t = re.sub(r'^\d+\s*-\s*', '', t)
+    return t
+
+
 def sanitize_code(raw: Optional[str], pdf_type: str = PDF_TYPE_UNKNOWN) -> str:
     """Clean a raw extracted string into a proper SKU."""
     if raw is None:
@@ -602,6 +621,7 @@ def extract_page_items(text: str, pdf_type: str = PDF_TYPE_UNKNOWN) -> List[Dict
 
     for section_name, section_text in segments:
         seen_codes: Dict[str, int] = {}
+        raw_map: Dict[str, str] = {}  # sanitized code -> first printed text seen for it
 
         # Pre-process: split concatenated trim-list items onto separate lines.
         # Elite PDFs sometimes emit "3-BTK85-SM81-FL48" without newlines; this
@@ -613,6 +633,7 @@ def extract_page_items(text: str, pdf_type: str = PDF_TYPE_UNKNOWN) -> List[Dict
             qty = int(m.group(1))
             code = sanitize_code(m.group(2), pdf_type)
             if code and len(code) >= 2 and not REJECT_PATTERNS.match(code):
+                raw_map.setdefault(code, clean_raw_text(m.group(2)))
                 # For hardware count codes like DOORS/DRAWERS, take the max within a page
                 if code in HARDWARE_COUNT_CODES:
                     seen_codes[code] = max(seen_codes.get(code, 0), qty)
@@ -624,6 +645,7 @@ def extract_page_items(text: str, pdf_type: str = PDF_TYPE_UNKNOWN) -> List[Dict
             code = sanitize_code(m.group(1), pdf_type)
             qty = int(m.group(2))
             if code and len(code) >= 2 and not REJECT_PATTERNS.match(code):
+                raw_map.setdefault(code, clean_raw_text(m.group(1)))
                 if code not in seen_codes:
                     seen_codes[code] = qty
 
@@ -638,6 +660,7 @@ def extract_page_items(text: str, pdf_type: str = PDF_TYPE_UNKNOWN) -> List[Dict
                 if any(existing.endswith(code) and existing != code for existing in seen_codes):
                     continue  # "B48" already covered by "BACKB48" etc.
                 standalone[code] = standalone.get(code, 0) + 1
+                raw_map.setdefault(code, clean_raw_text(raw_code))
         seen_codes.update(standalone)
 
         # Pass 4: "N × DESCRIPTION" format — e.g. '2 × 48" SHELF ADJ (VENT BOX)'
@@ -662,9 +685,10 @@ def extract_page_items(text: str, pdf_type: str = PDF_TYPE_UNKNOWN) -> List[Dict
                 if alpha and code and 3 <= len(code) <= 24:
                     if code not in seen_codes:
                         seen_codes[code] = qty
+                        raw_map.setdefault(code, clean_raw_text(raw_desc))
 
         for code, qty in seen_codes.items():
-            items.append({'code': code, 'quantity': qty, 'section': section_name})
+            items.append({'code': code, 'raw_code': raw_map.get(code, code), 'quantity': qty, 'section': section_name})
 
     return items
 
@@ -768,6 +792,7 @@ def extract_rooms_rule_based(pdf_bytes: bytes) -> Dict[str, Any]:
     """
     rooms_map: Dict[str, dict] = {}
     rooms_qty: Dict[str, Dict[str, Dict[str, int]]] = {}
+    rooms_raw: Dict[str, Dict[str, Dict[str, str]]] = {}
     has_text = False
     last_room_name = None
 
@@ -818,6 +843,7 @@ def extract_rooms_rule_based(pdf_bytes: bytes) -> Dict[str, Any]:
             if room_name not in rooms_map:
                 rooms_map[room_name] = EMPTY_ROOM(room_name)
                 rooms_qty[room_name] = {cat: {} for cat in _ALL_CATS}
+                rooms_raw[room_name] = {cat: {} for cat in _ALL_CATS}
 
             items = extract_page_items(text, pdf_type=pdf_type)
             print(f"[rule-extract] Page {page_num + 1} ({room_name}): {len(items)} items")
@@ -832,6 +858,7 @@ def extract_rooms_rule_based(pdf_bytes: bytes) -> Dict[str, Any]:
             # on the same page (e.g. laundry over-W/D, across-uppers, bases) each
             # contribute their hardware/perimeter counts independently.
             page_cats: Dict[str, Dict[str, int]] = {cat: {} for cat in _ALL_CATS}
+            page_raw: Dict[str, Dict[str, str]] = {cat: {} for cat in _ALL_CATS}
 
             for item in items:
                 code     = item['code']
@@ -839,6 +866,7 @@ def extract_rooms_rule_based(pdf_bytes: bytes) -> Dict[str, Any]:
                 section  = item.get('section', 'General')
                 category = categorize_code(code, section_context=section)
                 if category:
+                    page_raw[category].setdefault(code, item.get('raw_code', code))
                     prev = page_cats[category].get(code, 0)
                     if is_kitchen:
                         page_cats[category][code] = max(prev, qty)
@@ -855,6 +883,7 @@ def extract_rooms_rule_based(pdf_bytes: bytes) -> Dict[str, Any]:
             for cat, code_qty in page_cats.items():
                 cat_dict = rooms_qty[room_name][cat]
                 for code, qty in code_qty.items():
+                    rooms_raw[room_name][cat].setdefault(code, page_raw[cat].get(code, code))
                     use_max = is_kitchen and (
                         code.upper() in HARDWARE_COUNT_CODES or
                         BUMP_RE.match(code.upper()) or           # SHM* shims
@@ -892,7 +921,8 @@ def extract_rooms_rule_based(pdf_bytes: bytes) -> Dict[str, Any]:
                     q_val = 1
                 if q_val == 0:
                     continue
-                final_list.append({'code': c, 'quantity': q})
+                raw_c = rooms_raw.get(room_name, {}).get(cat, {}).get(c, c)
+                final_list.append({'code': c, 'raw_code': raw_c, 'match_key': build_match_key(raw_c), 'quantity': q})
             rooms_map[room_name][cat] = final_list
 
     # ── Phase 6: post-fix misclassifications ──────────────────────────────────

@@ -3,40 +3,37 @@ KABS AI Agent — Cabinet Intelligence Engine
 Handles: manufacturer detection, manufacturer research, training document processing,
          and smart cabinet code understanding for BOM descriptions.
 """
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from app.core.auth import require_super_admin
 from app.core.supabase_client import get_supabase
 from app.utils.excel_processor import parse_specifications_python_sync
 from app.utils.pdf_processor import parse_pricing_pdf_sync
 from app.utils.drawing_processor import extract_drawing_data_python
 from app.utils.vision_scanner import analyze_drawing_vision
-from app.utils.ai_client import nvidia_generate
+from app.utils.ai_client import llm_generate
 from app.utils.rule_based_extractor import extract_rooms_rule_based
+from app.utils.display_catalog_extractor import detect_display_catalog, extract_display_catalog
+import fitz  # PyMuPDF
 from dotenv import load_dotenv
 import os, json, re, uuid, traceback, asyncio
 from urllib.parse import unquote
+from app.core.storage import download_bytes, DOCS_BUCKET, TRAINING_BUCKET
 
 load_dotenv()
 
 router = APIRouter()
 
-# ─── NVIDIA Helper (OpenAI Compatible) ──────────────────────────────────────
+# ─── LLM Helper (OpenAI) ────────────────────────────────────────────────────
 
 async def _ai_generate(prompt: str, tier: str = "flash", max_tokens: int = 4096) -> str:
-    """Call NVIDIA NIM API with strict JSON enforcement."""
-    model = "meta/llama-3.1-8b-instruct"
-    if tier == "balanced":
-        model = "meta/llama-3.1-70b-instruct"
-    elif tier == "pro-high":
-        model = "meta/llama-3.1-405b-instruct"
-    
+    """Call the OpenAI API with strict JSON enforcement."""
     system_prompt = "You are a specialized JSON extraction engine. Return ONLY valid JSON. No conversational text, no explanations, no markdown preambles. Structure your response exactly as requested."
-    
     try:
         return await asyncio.get_event_loop().run_in_executor(
-            None, lambda: nvidia_generate(prompt, model, system_prompt=system_prompt, max_tokens=max_tokens)
+            None, lambda: llm_generate(prompt, tier=tier, system_prompt=system_prompt, max_tokens=max_tokens)
         )
     except Exception as e:
-        print(f"NVIDIA API Error: {e}")
+        print(f"OpenAI API Error: {e}")
         raise
 
 def _parse_json_response(text: str) -> dict:
@@ -596,13 +593,15 @@ async def _perform_training(
 
     file_url = existing_url
     if not file_url:
-        # Upload to training-docs bucket if it's a new file
-        storage_path = f"training/{uuid.uuid4()}{file_ext}"
-        supabase.storage.from_("training-docs").upload(
+        # Upload to the (private) training-docs bucket if it's a new file.
+        # Store the PATH, not a public URL — the bucket is private and this
+        # backend always reads it back via the service-role key.
+        storage_path = f"{supabase.org_id}/training/{uuid.uuid4()}{file_ext}"
+        supabase.storage.from_(TRAINING_BUCKET).upload(
             storage_path, file_content,
             file_options={"content-type": "application/octet-stream"}
         )
-        file_url = supabase.storage.from_("training-docs").get_public_url(storage_path)
+        file_url = storage_path
 
     # ── Step 1: Smart Python extraction ──
     structured_summary = ""
@@ -689,7 +688,7 @@ async def _perform_training(
 
 # ─── Endpoint: Process Training Document (Upload) ───────────────────────────
 
-@router.post("/agent/process-training-doc")
+@router.post("/agent/process-training-doc", dependencies=[Depends(require_super_admin)])
 async def process_training_doc(
     file: UploadFile = File(...),
     doc_name: str = Form(...),
@@ -715,7 +714,7 @@ async def process_training_doc(
         return {"success": False, "error": str(e)}
 
 
-@router.post("/agent/train-from-existing")
+@router.post("/agent/train-from-existing", dependencies=[Depends(require_super_admin)])
 async def train_from_existing(payload: dict):
     """
     Train AI using a file that already exists in manufacturer_files.
@@ -755,40 +754,13 @@ async def train_from_existing(payload: dict):
                        "Please re-upload this file in the Manufacturers section to enable AI training."
             )
         
-        bucket_name = "manufacturer-docs"
-        
-        # Robust path extraction
-        file_path = ""
-        if f"/{bucket_name}/" in file_url:
-            file_path = file_url.split(f"/{bucket_name}/")[1]
-        elif "/public/" in file_url:
-            # Fallback: take everything after 'public/' and strip the first segment (bucket)
-            parts = file_url.split("/public/")[1].split("/", 1)
-            if len(parts) > 1:
-                file_path = parts[1]
-        else:
-            # Last resort: if it's not a URL, it might be the path itself
-            if not file_url.startswith("http"):
-                file_path = file_url
-        
-        if not file_path:
-            print(f"ERROR: Could not parse file path from URL: {file_url}")
-            raise HTTPException(status_code=400, detail=f"Invalid file URL format: {file_url}")
-
-        # Strip query parameters if any
-        file_path = file_path.split("?")[0]
-        
-        # NEW: Decode URL encoding (e.g. %20 -> space)
-        file_path = unquote(file_path)
-        
         try:
-            file_bytes = supabase.storage.from_(bucket_name).download(file_path)
+            file_bytes = download_bytes(file_url, DOCS_BUCKET)
         except Exception as se:
-            print(f"ERROR: Failed to download from Supabase storage ({bucket_name}/{file_path}): {se}")
-            # Try from training-docs bucket as a fallback
+            print(f"ERROR: Failed to download from {DOCS_BUCKET}: {se}")
             try:
-                file_bytes = supabase.storage.from_("training-docs").download(file_path)
-            except:
+                file_bytes = download_bytes(file_url, TRAINING_BUCKET)
+            except Exception:
                 raise Exception(f"Failed to download file from storage: {str(se)}")
 
         # 3. Run training
@@ -807,8 +779,8 @@ async def train_from_existing(payload: dict):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/agent/available-manufacturer-files")
-async def get_available_manufacturer_files():
+@router.get("/agent/available-manufacturer-files", dependencies=[Depends(require_super_admin)])
+def get_available_manufacturer_files():
     """List manufacturer files that can be used for AI training."""
     try:
         supabase = get_supabase()
@@ -846,8 +818,8 @@ async def get_available_manufacturer_files():
 
 # ─── Endpoint: List Training Documents ──────────────────────────────────────
 
-@router.get("/agent/training-docs")
-async def list_training_docs():
+@router.get("/agent/training-docs", dependencies=[Depends(require_super_admin)])
+def list_training_docs():
     """List all active training documents."""
     try:
         supabase = get_supabase()
@@ -879,12 +851,9 @@ async def analyze_drawing_full(payload: dict):
             if not pdf_url:
                 raise HTTPException(status_code=400, detail="pdf_url or pdf_bytes is required")
 
-            # STEP 1: Download and extract ALL pages text (ultra fast, no AI)
-            print(f"[full-scan] STEP 1: Downloading PDF from URL...")
-            import httpx
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.get(pdf_url)
-                pdf_bytes = resp.content
+            # STEP 1: Fetch bytes directly from storage (private bucket; service-role key)
+            print(f"[full-scan] STEP 1: Reading PDF from storage...")
+            pdf_bytes = download_bytes(pdf_url, DOCS_BUCKET)
         else:
             print(f"[full-scan] STEP 1: Using pre-loaded PDF bytes.")
         
@@ -1219,6 +1188,16 @@ async def analyze_drawing_local(payload: dict):
     ULTRA FAST LOCAL ANALYSIS:
     Uses pure Python (PyMuPDF + Regex) to extract and categorize codes.
     Zero API costs, zero latency, no API key required.
+
+    DISPLAY-CATALOG DETECTION: manufacturer showroom catalogs (e.g. a Marsh
+    dealer display book) contain multiple "DISPLAY N: <NAME>" sections, each
+    with its own door style/finish, interleaved with near-text-free CAD
+    floorplan pages. The generic rule-based extractor below was built for
+    single-project NKBA drawings and silently merges every "...KITCHEN..."
+    display into one room, discarding each display's actual door style — so
+    that shape is detected and routed through display_catalog_extractor
+    first, which segments by display and uses GPT-4o Vision for the sparse
+    floorplan pages (fitz.get_pixmap — no external OCR binary needed).
     """
     try:
         pdf_url = payload.get("pdf_url")
@@ -1226,12 +1205,24 @@ async def analyze_drawing_local(payload: dict):
             raise HTTPException(status_code=400, detail="pdf_url is required")
 
         print(f"[local-scan] Starting local extraction from {pdf_url}")
-        
-        import httpx
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(pdf_url)
-            pdf_bytes = resp.content
-        
+
+        pdf_bytes = download_bytes(pdf_url, DOCS_BUCKET)
+
+        try:
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            full_text = "\n".join(p.get_text() for p in doc)
+            doc.close()
+        except Exception as e:
+            full_text = ""
+            print(f"[local-scan] Could not pre-scan text for display detection: {e}")
+
+        if full_text and detect_display_catalog(full_text):
+            print("[local-scan] Multi-display catalog detected — using display_catalog_extractor")
+            result = extract_display_catalog(pdf_bytes)
+            if result.get("success") and result.get("rooms"):
+                return result
+            print("[local-scan] Display-catalog extraction found no rooms — falling back to generic extractor")
+
         result = extract_rooms_rule_based(pdf_bytes)
         return result
 
@@ -1259,11 +1250,8 @@ async def analyze_drawing_fast(payload: dict):
             import base64
             pdf_bytes = base64.b64decode(pdf_data_b64)
         elif pdf_url:
-            # Download PDF
-            import httpx
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(pdf_url)
-                pdf_bytes = resp.content
+            # Read PDF bytes from storage
+            pdf_bytes = download_bytes(pdf_url, DOCS_BUCKET)
         
         if not pdf_bytes:
             raise HTTPException(status_code=400, detail="pdf_url or pdf_data is required")
@@ -1501,12 +1489,9 @@ async def rescan_project(payload: dict):
         if not pdf_url:
             raise HTTPException(status_code=400, detail="Project has no PDF URL")
 
-        # 1. Download PDF once
-        print(f"[rescan] Downloading PDF for project {project_id}...")
-        import httpx
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.get(pdf_url)
-            pdf_bytes = resp.content
+        # 1. Read PDF bytes once, directly from storage
+        print(f"[rescan] Reading PDF for project {project_id}...")
+        pdf_bytes = download_bytes(pdf_url, DOCS_BUCKET)
 
         # 2. Try local first (fast)
         local_result = extract_rooms_rule_based(pdf_bytes)
@@ -1537,18 +1522,15 @@ async def rescan_project(payload: dict):
 
 
 async def analyze_drawing_local_inner(pdf_url: str) -> dict:
-    """Helper: download PDF and run rule-based extraction."""
-    import httpx
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.get(pdf_url)
-        pdf_bytes = resp.content
+    """Helper: read PDF bytes from storage and run rule-based extraction."""
+    pdf_bytes = download_bytes(pdf_url, DOCS_BUCKET)
     return extract_rooms_rule_based(pdf_bytes)
 
 
 # ─── Endpoint: Delete Training Document ─────────────────────────────────────
 
-@router.delete("/agent/training-docs/{doc_id}")
-async def delete_training_doc(doc_id: str):
+@router.delete("/agent/training-docs/{doc_id}", dependencies=[Depends(require_super_admin)])
+def delete_training_doc(doc_id: str):
     """Soft-delete a training document."""
     try:
         supabase = get_supabase()
@@ -1561,7 +1543,7 @@ async def delete_training_doc(doc_id: str):
 # ─── Endpoint: Get Manufacturer Research ────────────────────────────────────
 
 @router.get("/agent/manufacturer-research/{manufacturer_name}")
-async def get_manufacturer_research(manufacturer_name: str):
+def get_manufacturer_research(manufacturer_name: str):
     """Get cached research for a manufacturer."""
     try:
         supabase = get_supabase()

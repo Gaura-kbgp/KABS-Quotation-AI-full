@@ -1,5 +1,8 @@
-from fastapi import APIRouter, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks
+from app.core.auth import CurrentUser, get_current_user
+from app.core.usage import log_usage
 from app.core.supabase_client import get_supabase
+from app.core.storage import DOCS_BUCKET
 from app.utils.cabinet_utils import (
     compress_sku, detect_category, parse_sku_dimensions,
     find_nearest_cabinet_match, classify_cabinet_type,
@@ -17,6 +20,7 @@ import re
 import traceback
 import json
 from concurrent.futures import ThreadPoolExecutor
+from app.core.supabase_client import current_org_id
 
 _CONFIG_CACHE = {}
 _MFG_DB_CACHE = {'sku': {}, 'col': {}}
@@ -177,8 +181,9 @@ def get_manufacturer_pricing_maps(supabase, manufacturer_id: str, _manufacturer_
     now = datetime.datetime.now().timestamp()
     
     # Use cache if available (Full catalog cache covers any targeted request)
-    if manufacturer_id in GLOBAL_LOOKUP_CACHE:
-        entry = GLOBAL_LOOKUP_CACHE[manufacturer_id]
+    _key = _ck(supabase.org_id, manufacturer_id)
+    if _key in GLOBAL_LOOKUP_CACHE:
+        entry = GLOBAL_LOOKUP_CACHE[_key]
         if now - entry['timestamp'] < 900: # 15 mins
             print(f"DEBUG: Using CACHED full lookup maps for {manufacturer_id}")
             return entry['maps']
@@ -191,7 +196,7 @@ def get_manufacturer_pricing_maps(supabase, manufacturer_id: str, _manufacturer_
 
     # 4. Cache ONLY if it's a full load (no project_skus) and has data
     if not project_skus and lookup_maps.get('all_catalog_rows'):
-        GLOBAL_LOOKUP_CACHE[manufacturer_id] = {
+        GLOBAL_LOOKUP_CACHE[_key] = {
             'maps': lookup_maps,
             'timestamp': now
         }
@@ -405,8 +410,12 @@ def _build_lookup_maps(pricing_data: list):
                 lookup_maps['dim'][dim_key] = item
     return lookup_maps
 
-def get_cache_path(mfg_id: str) -> str:
-    path = os.path.join(os.path.dirname(__file__), "..", "..", f"mfg_config_{mfg_id}.json")
+def _ck(org_id: str, mfg_id: str) -> str:
+    """Cache key: caches are per company, never shared between companies."""
+    return f"{org_id}:{mfg_id}"
+
+def get_cache_path(mfg_id: str, org_id: str) -> str:
+    path = os.path.join(os.path.dirname(__file__), "..", "..", f"mfg_config_{org_id}_{mfg_id}.json")
     return os.path.abspath(path)
 
 router = APIRouter()
@@ -414,7 +423,24 @@ router = APIRouter()
 def find_best_match(item_code: str, room_collection: str, room_door_style: str, lookup_maps: dict, manufacturer_hint: str = ""):
     target = str(item_code or "").strip().upper()
     if not target: return None, None
-    
+
+    # Normalize generic designer labels → actual Marsh SKU patterns
+    # (The 2020 Design software emits generic labels like "CROWN", "LIGHT RAIL",
+    # "DOORS", "DRAWERS", "PULLS" that aren't real SKU codes. Map common ones
+    # so nearest-match can hit a real catalog row.)
+    _GENERIC_LABEL_MAP = {
+        "CROWN": "CM96",            # Crown Molding 96"
+        "CROWN MOLDING": "CM96",
+        "LIGHT RAIL": "LR96",       # Marsh has no LR — will fall through to manual
+        "LIGHTRAIL": "LR96",
+        "SHOE MOLDING": "SM96",
+        "SCRIBE": "SCR96",
+        "QUARTER ROUND": "QR96",
+        "TOE KICK": "TK96",
+    }
+    if target in _GENERIC_LABEL_MAP:
+        target = _GENERIC_LABEL_MAP[target]
+
     col = str(room_collection or "").strip().upper()
     style = str(room_door_style or "").strip().upper()
     category = detect_category(target)
@@ -761,6 +787,21 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
                 m_type = f"DIMENSION_MATCH_{cabinet_type.replace(' ', '_').upper()}"
             return nearest, m_type
 
+    # TIER 8.4: PULLS / KNOBS / HARDWARE — not real catalog SKUs, require manual price
+    if target in ('PULLS', 'PULL', 'KNOBS', 'KNOB', 'HARDWARE', 'HINGE', 'HINGES'):
+        # Try to find any catalog SKU containing this term before falling to manual
+        for probe in [target, target.rstrip('S'), 'PULL', 'KNOB']:
+            res = try_match(probe, 'HARDWARE_CATALOG', include_global=True)
+            if res:
+                return res
+        return {
+            "sku": f"{target}_MANUAL",
+            "price": 0.0,
+            "collection_name": col or "Unknown",
+            "door_style": style or "Unknown",
+            "price_ref": f"HARDWARE PRICE NOT IN CATALOG: {target.title()} not stocked by this manufacturer — enter unit price manually"
+        }, "MANUAL_PRICING_REQUIRED"
+
     # TIER 8.5: DOOR / DRAWER — style-specific catalog probe
     # DOORS/DRAWERS counts arrive with no direct catalog SKU.  We try every plausible
     # catalog key before falling through. If nothing is found we return MANUAL ($0)
@@ -822,16 +863,49 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
         if _found_global is not None:
             return _found_global, "PARTIAL_SCAN_GLOBAL"
 
-        # Nothing in catalog — return $0 so the user knows to enter the price manually
+        # SMART ESTIMATE: Marsh (and most "price-column" manufacturers) don't publish
+        # per-door/drawer SKUs — doors ship with the cabinet. For refacing/replacement
+        # orders the industry rule-of-thumb is ~6-8% of a comparable base-cabinet price
+        # for a door, ~3-5% for a drawer front. Compute from the room's price column.
+        est_price = 0.0
+        est_source = ""
+        col_items = lookup_maps.get('col_skus', {}).get(col, [])
+        all_rows = lookup_maps.get('all_catalog_rows', [])
+        base_prices = []
+        for row in all_rows:
+            if str(row.get('collection_name', '')).upper() != col:
+                continue
+            sku_r = str(row.get('sku', '')).upper()
+            # Base cabinets 24-36" wide = representative sample
+            if re.match(r'^B(1[2-9]|2[0-9]|3[0-6])\d{2}$', sku_r):
+                try:
+                    base_prices.append(float(row.get('price') or 0))
+                except Exception:
+                    pass
+        if base_prices:
+            avg_base = sum(base_prices) / len(base_prices)
+            # 7% per door, 4% per drawer front — rounded to nearest $5
+            factor = 0.04 if is_drawer else 0.07
+            est_price = round(avg_base * factor / 5) * 5
+            est_source = f"estimated as {int(factor*100)}% of avg base-cabinet price (${avg_base:.0f}) in {col}"
+        else:
+            # Fallback flat rates by tier (last 3 cols = full overlay/premium)
+            is_premium = col.upper() in ("COL_7", "COL_8", "COL_9", "COL_4F")
+            if is_drawer:
+                est_price = 65.0 if is_premium else 45.0
+            else:
+                est_price = 110.0 if is_premium else 75.0
+            est_source = f"industry standard rate for {('premium' if is_premium else 'standard')} tier"
+
         label = 'Drawer' if is_drawer else 'Door'
         style_label = style if style else 'selected door style'
         return {
-            "sku": f"{target}_MANUAL",
-            "price": 0.0,
+            "sku": f"{target}_EST",
+            "price": est_price,
             "collection_name": col or "Unknown",
             "door_style": style or "Unknown",
-            "price_ref": f"{label} price not found in catalog for {style_label} — enter unit price manually"
-        }, "MANUAL_PRICING_REQUIRED"
+            "price_ref": f"ESTIMATED {label.lower()} price (${est_price:.0f}/each) — {est_source}. Verify with manufacturer for exact {style_label} pricing."
+        }, "ESTIMATED_DOOR_DRAWER"
 
     # TIER 9: CATEGORY FALLBACK
     cat_sums = lookup_maps.get('category_sums', {})
@@ -856,7 +930,7 @@ def find_best_match(item_code: str, room_collection: str, room_door_style: str, 
     return {"sku": f"{target} (Review)", "price": 0.0, "collection_name": col or "Unknown", "price_ref": "No catalog match found"}, "MANUAL_PRICING_REQUIRED"
 
 @router.post("/generate-bom")
-async def generate_bom(project_id: str, manufacturer_id: str):
+def generate_bom(project_id: str, manufacturer_id: str, user: CurrentUser = Depends(get_current_user)):
     print("DEBUG: generate_bom started")
     try:
         supabase = get_supabase()
@@ -906,6 +980,27 @@ async def generate_bom(project_id: str, manufacturer_id: str):
                         if clean.startswith("SB") and not clean.startswith("SBN"):
                             project_skus.add(clean.replace("SB", "SBN", 1))
 
+        # 1b. For price_column manufacturers (Marsh): resolve door_style → price column
+        #     so we fetch catalog rows under COL_4S etc., not "UNIVERSAL".
+        try:
+            cfg_res = supabase.table("manufacturer_catalog_config") \
+                .select("price_model,style_to_collection") \
+                .eq("manufacturer_id", manufacturer_id).maybe_single().execute()
+            cfg = cfg_res.data if cfg_res else None
+            if cfg and cfg.get("price_model") == "price_column":
+                stc = {k.upper(): v for k, v in (cfg.get("style_to_collection") or {}).items()}
+                for style in required_styles:
+                    mapped = stc.get(style.upper())
+                    if mapped:
+                        required_cols.add(mapped)
+                # Also add ALL price columns as fallback so nearest-match has candidates
+                # even when style didn't resolve (small cost — these are narrow sections)
+                for v in stc.values():
+                    if v:
+                        required_cols.add(v)
+        except Exception as e:
+            print(f"[generate_bom] Could not resolve price_column mapping: {e}")
+
         print(f"DEBUG: Project SKUs (Targeted): {len(project_skus)}")
         print(f"DEBUG: Project Collections: {required_cols}")
 
@@ -949,6 +1044,7 @@ async def generate_bom(project_id: str, manufacturer_id: str):
                         print(f"DEBUG: FAILED ITEM: {item}")
                         raise ie
             
+        log_usage(user, "bom.generate", {"project_id": project_id, "manufacturer_id": manufacturer_id, "items": len(bom_items)})
         return {"success": True, "count": len(bom_items)}
     except Exception as e:
         import traceback
@@ -1176,6 +1272,15 @@ def _quick_match_explanation(drawing_sku: str, catalog_ref: str, match_type: str
             f'This price is NOT confirmed. Request exact pricing from manufacturer before using in a proposal.'
         )
 
+    if 'ESTIMATED_DOOR_DRAWER' in mt:
+        unit = 'drawer front' if 'DRAWER' in drawing_sku.upper() else 'door'
+        return (
+            f'ESTIMATED {unit.upper()} PRICE: {dsku} auto-priced using industry-standard '
+            f'ratio from this collection\'s base-cabinet average{col_str}. Marsh and most '
+            f'cabinet manufacturers don\'t publish per-{unit} SKUs — this is a reasonable '
+            f'estimate for replacement/extra {unit}s. Verify with manufacturer before quoting.'
+        )
+
     if 'MANUAL' in mt:
         # Special message for door/drawer counts — tell the user exactly what to enter
         sku_up = drawing_sku.upper()
@@ -1222,9 +1327,25 @@ def _match_type_confidence(match_type: str) -> float:
         return 0.70
     if "DIMENSION" in mt:
         return 0.65
+    if "ESTIMATED_DOOR_DRAWER" in mt:
+        return 0.55
     if "CATEGORY" in mt or "AVG" in mt:
         return 0.30
     return 0.50
+
+
+def _load_style_to_collection(supabase, manufacturer_id: str) -> dict:
+    """Load door-style→collection mapping from manufacturer_catalog_config."""
+    try:
+        res = supabase.table("manufacturer_catalog_config") \
+            .select("style_to_collection,price_model") \
+            .eq("manufacturer_id", manufacturer_id).maybe_single().execute()
+        res_data = res.data if res else None
+        if res_data and res_data.get("style_to_collection"):
+            return {k.upper(): v for k, v in res_data["style_to_collection"].items()}
+    except Exception as e:
+        print(f"[_price_rooms] Could not load catalog config: {e}")
+    return {}
 
 
 def _price_rooms(rooms: list, lookup_maps: dict, manufacturer_id: str, mfg_hint: str, project_id: str) -> list:
@@ -1235,11 +1356,27 @@ def _price_rooms(rooms: list, lookup_maps: dict, manufacturer_id: str, mfg_hint:
         'bump', 'island_bump', 'opt_crown', 'opt_light_rail', 'vent_chase_material'
     ]
 
+    # Load door-style→collection map once (used for price_column manufacturers like Marsh)
+    try:
+        _supabase = get_supabase()
+        style_to_col = _load_style_to_collection(_supabase, manufacturer_id)
+    except Exception:
+        style_to_col = {}
+
     for room in rooms:
-        room_col  = room.get('collection', '')
-        wood      = room.get('wood_species', '')
+        room_col   = room.get('collection', '')
+        room_style = room.get('door_style', '')
+        wood       = room.get('wood_species', '')
         effective_col = room_col
-        if manufacturer_id == "4c5206ec-fd02-46cb-81bf-f4663a7333d0" or "integrity" in mfg_hint:
+
+        # price_column model: map door style → collection_name (e.g. "ATLANTA MAPLE" → "COL_4S")
+        if style_to_col and room_style:
+            mapped = style_to_col.get(room_style.upper())
+            if mapped:
+                effective_col = mapped
+
+        # Integrity-specific: append wood species to collection
+        elif manufacturer_id == "4c5206ec-fd02-46cb-81bf-f4663a7333d0" or "integrity" in mfg_hint:
             if wood and room_col and " - " not in room_col:
                 effective_col = f"{room_col} - {wood}"
 
@@ -1397,7 +1534,7 @@ async def compare_bom(body: dict):
         return {"success": False, "error": str(e)}
 
 @router.post("/upload-pricing")
-async def upload_pricing(manufacturer_id: str, file: UploadFile = File(...)):
+async def upload_pricing(manufacturer_id: str, file: UploadFile = File(...), user: CurrentUser = Depends(get_current_user)):
     """
     Upload and extract an Excel/CSV pricing file for a manufacturer.
     Returns a detailed extraction report including collection breakdown,
@@ -1530,17 +1667,19 @@ async def upload_pricing(manufacturer_id: str, file: UploadFile = File(...)):
 
             # Bust all in-memory and disk caches so next pricing run uses fresh data
             global _CONFIG_CACHE, _MFG_DB_CACHE, GLOBAL_LOOKUP_CACHE
-            _CONFIG_CACHE.pop(manufacturer_id, None)
-            GLOBAL_LOOKUP_CACHE.pop(manufacturer_id, None)
-            for k in [k for k in _MFG_DB_CACHE['sku'] if k.startswith(f"{manufacturer_id}:")]:
+            _k = _ck(supabase.org_id, manufacturer_id)
+            _CONFIG_CACHE.pop(_k, None)
+            GLOBAL_LOOKUP_CACHE.pop(_k, None)
+            for k in [k for k in _MFG_DB_CACHE['sku'] if k.startswith(f"{_k}:")]:
                 del _MFG_DB_CACHE['sku'][k]
-            for k in [k for k in _MFG_DB_CACHE['col'] if k.startswith(f"{manufacturer_id}:")]:
+            for k in [k for k in _MFG_DB_CACHE['col'] if k.startswith(f"{_k}:")]:
                 del _MFG_DB_CACHE['col'][k]
-            cpath = get_cache_path(manufacturer_id)
+            cpath = get_cache_path(manufacturer_id, supabase.org_id)
             if os.path.exists(cpath):
                 try: os.remove(cpath)
                 except: pass
 
+        log_usage(user, "file.pricing_upload", {"manufacturer_id": manufacturer_id, "file_name": file.filename, "rows": count})
         return {
             "success":  True,
             "count":    count,
@@ -1588,13 +1727,14 @@ def _process_spec_book_bg(job_id: str, file_bytes: bytes, manufacturer_id: str,
 
             # Bust caches
             global _CONFIG_CACHE, _MFG_DB_CACHE, GLOBAL_LOOKUP_CACHE
-            _CONFIG_CACHE.pop(manufacturer_id, None)
-            GLOBAL_LOOKUP_CACHE.pop(manufacturer_id, None)
-            for k in [k for k in _MFG_DB_CACHE['sku'] if k.startswith(f"{manufacturer_id}:")]:
+            _k = _ck(supabase.org_id, manufacturer_id)
+            _CONFIG_CACHE.pop(_k, None)
+            GLOBAL_LOOKUP_CACHE.pop(_k, None)
+            for k in [k for k in _MFG_DB_CACHE['sku'] if k.startswith(f"{_k}:")]:
                 del _MFG_DB_CACHE['sku'][k]
-            for k in [k for k in _MFG_DB_CACHE['col'] if k.startswith(f"{manufacturer_id}:")]:
+            for k in [k for k in _MFG_DB_CACHE['col'] if k.startswith(f"{_k}:")]:
                 del _MFG_DB_CACHE['col'][k]
-            cpath = get_cache_path(manufacturer_id)
+            cpath = get_cache_path(manufacturer_id, supabase.org_id)
             if os.path.exists(cpath):
                 try:
                     os.remove(cpath)
@@ -1634,12 +1774,24 @@ async def upload_spec_book(
 
     try:
         supabase = get_supabase()
+        file_ext = ("." + file.filename.split(".")[-1]) if "." in (file.filename or "") else ".pdf"
+        storage_path = f"{supabase.org_id}/specs/{manufacturer_id}/{file_id}{file_ext}"
+        try:
+            supabase.storage.from_(DOCS_BUCKET).upload(
+                storage_path, file_bytes,
+                file_options={"content-type": "application/octet-stream"}
+            )
+            stored_url = storage_path
+        except Exception as upload_err:
+            print(f"[upload-spec-book] Storage upload warning: {upload_err}")
+            stored_url = "#"
+
         supabase.table("manufacturer_files").insert({
             "id": file_id,
             "manufacturer_id": manufacturer_id,
             "file_type": "spec",
             "file_name": file.filename,
-            "file_url": "#",
+            "file_url": stored_url,
             "file_format": file.filename.split('.')[-1] if '.' in file.filename else None
         }).execute()
     except Exception as e:
@@ -1670,7 +1822,7 @@ async def get_spec_job_status(job_id: str):
 
 
 @router.get("/manufacturer-config")
-async def get_manufacturer_config(id: str):
+def get_manufacturer_config(id: str):
     """
     Structured Collection -> Door Styles mapping for the frontend config page.
     Optimized: uses targeted DISTINCT-like query and aggressively caches results.
@@ -1691,21 +1843,47 @@ async def get_manufacturer_config(id: str):
                 "debug": {"source": "hardcoded_wellborn_v2", "mfr_name": mfr_name}
             }
 
+        # Fast-path: price_column manufacturers (e.g. Marsh) store the door-style
+        # information in manufacturer_catalog_config, not in the per-SKU door_style column.
+        try:
+            cfg_res = supabase.table("manufacturer_catalog_config") \
+                .select("price_model,door_styles,style_to_collection") \
+                .eq("manufacturer_id", id).maybe_single().execute()
+            cfg = cfg_res.data if cfg_res else None
+            if cfg and cfg.get("price_model") == "price_column":
+                styles = sorted({
+                    (d.get("name") or "").upper().strip()
+                    for d in (cfg.get("door_styles") or []) if d.get("name")
+                } | {
+                    k.upper().strip() for k in (cfg.get("style_to_collection") or {}).keys()
+                })
+                styles = [s for s in styles if s]
+                mapping_pc = {"UNIVERSAL": styles} if styles else {}
+                print(f"DEBUG: Returning price_column config for {id} ({len(styles)} styles)")
+                return {
+                    "success": True,
+                    "mapping": mapping_pc,
+                    "debug": {"source": "price_column_config", "mfr_name": mfr_name, "styles_count": len(styles)}
+                }
+        except Exception as e:
+            print(f"[get_manufacturer_config] price_column fast-path error: {e}")
+
         global _CONFIG_CACHE
-        if id in _CONFIG_CACHE:
+        _ckey = _ck(supabase.org_id, id)
+        if _ckey in _CONFIG_CACHE:
             print("DEBUG: Returning manufacturer config from IN-MEMORY cache")
             return {
                 "success": True, 
-                "mapping": _CONFIG_CACHE[id]["mapping"],
-                "debug": _CONFIG_CACHE[id]["debug"]
+                "mapping": _CONFIG_CACHE[_ckey]["mapping"],
+                "debug": _CONFIG_CACHE[_ckey]["debug"]
             }
 
-        cpath = get_cache_path(id)
+        cpath = get_cache_path(id, supabase.org_id)
         if os.path.exists(cpath):
             try:
                 with open(cpath, "r") as f:
                     data = json.load(f)
-                _CONFIG_CACHE[id] = data
+                _CONFIG_CACHE[_ckey] = data
                 print("DEBUG: Returning manufacturer config from DISK cache")
                 return {
                     "success": True, 
@@ -1808,7 +1986,7 @@ async def get_manufacturer_config(id: str):
             }
         }
         
-        _CONFIG_CACHE[id] = result_data
+        _CONFIG_CACHE[_ckey] = result_data
         try:
             with open(cpath, "w") as f:
                 json.dump(result_data, f)
@@ -1827,7 +2005,7 @@ async def get_manufacturer_config(id: str):
 
 
 @router.get("/db-check")
-async def db_check():
+def db_check():
     """Diagnostic endpoint to verify database connectivity."""
     try:
         supabase = get_supabase()
@@ -1843,7 +2021,7 @@ async def db_check():
 
 
 @router.get("/catalog-check")
-async def catalog_check(manufacturer_id: str):
+def catalog_check(manufacturer_id: str):
     """
     Diagnostic: returns catalog row count, sample SKUs, and collection names
     for a given manufacturer_id. Use this to verify pricing data is uploaded
@@ -1890,11 +2068,12 @@ async def catalog_check(manufacturer_id: str):
         unique_collections = list({r["collection_name"] for r in (collections_res.data or [])})
 
         # Cache status
-        cached = manufacturer_id in GLOBAL_LOOKUP_CACHE
+        _key = _ck(supabase.org_id, manufacturer_id)
+        cached = _key in GLOBAL_LOOKUP_CACHE
         cache_age = None
         if cached:
             import datetime as _dt
-            age = _dt.datetime.now().timestamp() - GLOBAL_LOOKUP_CACHE[manufacturer_id]["timestamp"]
+            age = _dt.datetime.now().timestamp() - GLOBAL_LOOKUP_CACHE[_key]["timestamp"]
             cache_age = f"{int(age)}s ago"
 
         return {
@@ -1912,16 +2091,19 @@ async def catalog_check(manufacturer_id: str):
 
 @router.post("/clear-cache")
 async def clear_cache(manufacturer_id: str = None):
-    """Clear the in-memory pricing cache for one or all manufacturers."""
+    """Clear this company's in-memory pricing cache for one or all manufacturers."""
     global GLOBAL_LOOKUP_CACHE
+    org = current_org_id.get()
     if manufacturer_id:
-        removed = manufacturer_id in GLOBAL_LOOKUP_CACHE
-        GLOBAL_LOOKUP_CACHE.pop(manufacturer_id, None)
+        key = _ck(org, manufacturer_id)
+        removed = key in GLOBAL_LOOKUP_CACHE
+        GLOBAL_LOOKUP_CACHE.pop(key, None)
         return {"success": True, "cleared": manufacturer_id if removed else None, "message": "Cache cleared" if removed else "No cache entry found"}
     else:
-        count = len(GLOBAL_LOOKUP_CACHE)
-        GLOBAL_LOOKUP_CACHE.clear()
-        return {"success": True, "cleared_all": True, "entries_removed": count}
+        mine = [k for k in GLOBAL_LOOKUP_CACHE if k.startswith(f"{org}:")]
+        for k in mine:
+            GLOBAL_LOOKUP_CACHE.pop(k, None)
+        return {"success": True, "cleared_all": True, "entries_removed": len(mine)}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -2035,7 +2217,7 @@ async def upload_install_rules(
 
 
 @router.post("/test-install-rule")
-async def test_install_rule(body: dict):
+def test_install_rule(body: dict):
     """
     Test rule lookup for a single item.
 

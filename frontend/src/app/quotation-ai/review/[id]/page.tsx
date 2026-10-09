@@ -1,5 +1,6 @@
 
-import { createServerSupabase } from '@/lib/supabase-server';
+import { requireUser } from '@/lib/auth';
+import { scopedDb } from '@/lib/db';
 import { EstimatorClient } from './estimator-client';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from 'lucide-react';
@@ -8,8 +9,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 export default async function ReviewProjectPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireUser();
   const { id } = await params;
-  const supabase = createServerSupabase();
+  const supabase = await scopedDb();
 
   const [pRes, mRes] = await Promise.all([
     supabase.from('quotation_projects').select('*').eq('id', id).single(),

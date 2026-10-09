@@ -1,3 +1,4 @@
+import { apiUser, authFetch } from '@/lib/auth';
 export const maxDuration = 300;
 
 const BACKEND_URL = (
@@ -7,10 +8,12 @@ const BACKEND_URL = (
 ).replace(/\/$/, '');
 
 export async function POST(req: Request) {
+  const auth = await apiUser();
+  if ('response' in auth) return auth.response;
   try {
     const body = await req.json();
 
-    const backendRes = await fetch(`${BACKEND_URL}/api/compare-bom`, {
+    const backendRes = await authFetch(`${BACKEND_URL}/api/compare-bom`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(body),

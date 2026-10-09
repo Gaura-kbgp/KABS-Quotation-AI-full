@@ -1,8 +1,18 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sparkles, ArrowRight } from 'lucide-react';
+import { getCurrentUser, homeFor } from '@/lib/auth';
+import { createServerSupabase } from '@/lib/supabase-server';
+import { UserMenu } from '@/components/user-menu';
 
-export default function Home() {
+export default async function Home() {
+  const user = await getCurrentUser();
+  let logoUrl: string | null = null;
+  if (user) {
+    const { data } = await createServerSupabase().from('organizations').select('logo_url').eq('id', user.orgId).maybeSingle();
+    logoUrl = data?.logo_url ?? null;
+  }
+
   return (
     <main className="relative flex flex-col items-center justify-center min-h-screen p-6 text-center overflow-hidden bg-white">
       {/* Background Decorative Elements */}
@@ -11,18 +21,20 @@ export default function Home() {
         <div className="absolute -bottom-[20%] -right-[10%] w-[50%] h-[50%] bg-blue-600/5 blur-[120px] rounded-full"></div>
       </div>
 
-      {/* Admin Login Button */}
-      <div className="absolute top-8 right-8">
-        <Link href="/admin/login">
-          <Button variant="ghost" className="rounded-full text-slate-500 hover:text-sky-600 hover:bg-sky-50 transition-all duration-300">
-            Admin Access
-          </Button>
-        </Link>
-      </div>
-
-      <div className="absolute top-8 left-8 flex items-center gap-2">
-         <div className="w-10 h-10 rounded-xl bg-sky-600 flex items-center justify-center text-white font-bold text-xl">K</div>
-         <span className="font-bold text-xl tracking-tight">KABS</span>
+      {/* Signed in: go to your workspace. Signed out: sign in / get started */}
+      <div className="absolute top-8 right-8 flex items-center gap-3">
+        {user ? (
+          <UserMenu orgName={user.orgName} logoUrl={logoUrl} profileHref={homeFor(user)} />
+        ) : (
+          <>
+            <Link href="/login" className="text-sm font-medium text-slate-500 hover:text-sky-600 px-3">
+              Sign in
+            </Link>
+            <Link href="/login?mode=signup">
+              <Button className="rounded-full gradient-button">Get started</Button>
+            </Link>
+          </>
+        )}
       </div>
 
       {/* Hero Section */}
@@ -49,9 +61,9 @@ export default function Home() {
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
             </Button>
           </Link>
-          <Link href="/design-ai">
+          <Link href="/elevate">
             <Button variant="outline" className="h-16 px-12 text-lg rounded-2xl border-slate-200 text-slate-600 hover:bg-slate-50">
-              Design AI
+              Elevate Design &amp; Pricing
             </Button>
           </Link>
         </div>

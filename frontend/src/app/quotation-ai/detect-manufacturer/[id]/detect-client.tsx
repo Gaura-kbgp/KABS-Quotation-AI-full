@@ -38,7 +38,7 @@ interface ResearchResult {
   [key: string]: unknown;
 }
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
+const BACKEND_URL = '/api/backend';
 
 export function DetectManufacturerClient({ project, manufacturers }: Props) {
   const router = useRouter();

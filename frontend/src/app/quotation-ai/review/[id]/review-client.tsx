@@ -31,7 +31,7 @@ const CABINET_SECTION_ORDER = [
   'Universal Fillers', 'Panels', 'Molding & Trim', 'Accessories',
 ];
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
+const BACKEND_URL = '/api/backend';
 
 interface ReviewClientProps {
   project: any;
@@ -222,7 +222,12 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
                               <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center font-bold text-sky-600 border border-sky-100 text-sm flex-shrink-0">
                                 {cab.quantity}
                               </div>
-                              <p className="font-bold text-sm tracking-tight text-slate-900">{cab.code}</p>
+                              <div className="min-w-0">
+                                <p className="font-bold text-sm tracking-tight text-slate-900">{cab.code}</p>
+                                {cab.raw_code && cab.raw_code !== cab.code && (
+                                  <p className="text-[11px] text-slate-400 truncate" title="Printed on drawing">printed: {cab.raw_code}</p>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -260,7 +265,12 @@ export function ReviewClient({ project, manufacturers }: ReviewClientProps) {
                             <span className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">
                               {item.quantity}
                             </span>
-                            <span className="font-bold text-slate-700 text-sm">{item.code}</span>
+                            <div className="min-w-0">
+                              <span className="font-bold text-slate-700 text-sm">{item.code}</span>
+                              {item.raw_code && item.raw_code !== item.code && (
+                                <p className="text-[11px] text-slate-400 truncate" title="Printed on drawing">printed: {item.raw_code}</p>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>

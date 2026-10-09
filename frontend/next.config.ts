@@ -30,31 +30,20 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        port: '',
+        pathname: '/storage/v1/object/public/**',
+      },
     ],
-  },
-  async rewrites() {
-    return [
-      {
-        source: '/api/generate-bom',
-        destination: `${process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/generate-bom`,
-      },
-      {
-        source: '/api/upload-pricing',
-        destination: `${process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/upload-pricing`,
-      },
-      {
-        source: '/api/manufacturer-config',
-        destination: `${process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/manufacturer-config`,
-      },
-      {
-        source: '/api/db-check',
-        destination: `${process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/db-check`,
-      },
-    ];
   },
   experimental: {
     workerThreads: false,
     cpus: 1,
+    // Middleware (matches /api/*) buffers request bodies; the 10MB default cut off
+    // large spec-book / pricing PDF uploads ("Failed to parse body as FormData").
+    middlewareClientMaxBodySize: '50mb',
   },
 };
 

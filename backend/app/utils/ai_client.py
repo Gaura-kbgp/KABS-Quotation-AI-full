@@ -1,45 +1,57 @@
+"""
+Single entry point for text LLM calls (OpenAI).
+
+Configure in the server's .env:
+  OPENAI_API_KEY   - required
+  OPENAI_MODEL     - optional, default gpt-4o-mini (cheap, reliable JSON)
+  OPENAI_MODEL_BALANCED / OPENAI_MODEL_PRO - optional tier overrides
+"""
+import base64
 import os
+
 from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 
-def get_nvidia_client():
-    api_key = os.getenv("NVIDIA_API_KEY")
-    if not api_key or api_key == "your_nvidia_api_key_here":
-        # Fallback to Gemini if NVIDIA key is not set yet, to avoid breaking everything immediately
-        # But the user asked to remove Gemini, so we should prioritize NVIDIA.
-        pass
-    
-    client = OpenAI(
-        base_url="https://integrate.api.nvidia.com/v1",
-        api_key=api_key
-    )
-    return client
+DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+TIER_MODELS = {
+    "flash": DEFAULT_MODEL,
+    "balanced": os.getenv("OPENAI_MODEL_BALANCED", "gpt-4o"),
+    "pro-high": os.getenv("OPENAI_MODEL_PRO", "gpt-4o"),
+}
 
-def nvidia_generate(prompt: str, model: str = "meta/llama-3.1-70b-instruct", is_vision: bool = False, image_data: bytes = None, system_prompt: str = None, max_tokens: int = 4096):
-    client = get_nvidia_client()
-    
+
+def get_openai_client() -> OpenAI:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not set on the server.")
+    return OpenAI(api_key=api_key)
+
+
+def llm_generate(
+    prompt: str,
+    tier: str = "flash",
+    system_prompt: str | None = None,
+    max_tokens: int = 4096,
+    image_data: bytes | None = None,
+    image_mime: str = "image/jpeg",
+) -> str:
+    client = get_openai_client()
+    model = TIER_MODELS.get(tier, DEFAULT_MODEL)
+
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
-        
-    if is_vision and image_data:
-        # Placeholder for vision implementation if needed
-        # NVIDIA vision models usually take base64 images
-        import base64
-        base64_image = base64.b64encode(image_data).decode('utf-8')
+
+    if image_data:
+        b64 = base64.b64encode(image_data).decode("utf-8")
         messages.append({
             "role": "user",
             "content": [
                 {"type": "text", "text": prompt},
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:application/pdf;base64,{base64_image}" if prompt.lower().contains("pdf") else f"data:image/jpeg;base64,{base64_image}"
-                    }
-                }
-            ]
+                {"type": "image_url", "image_url": {"url": f"data:{image_mime};base64,{b64}"}},
+            ],
         })
     else:
         messages.append({"role": "user", "content": prompt})
@@ -48,7 +60,6 @@ def nvidia_generate(prompt: str, model: str = "meta/llama-3.1-70b-instruct", is_
         model=model,
         messages=messages,
         temperature=0.2,
-        top_p=0.7,
         max_tokens=max_tokens,
     )
     return response.choices[0].message.content

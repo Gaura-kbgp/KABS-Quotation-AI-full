@@ -1,5 +1,6 @@
 # Single-Service Docker Blueprint for KABS Quotation AI
-# This file deploys both frontend and backend in one shot using a unified Docker image.
+# One Docker image runs both the FastAPI backend (internal :8000) and the Next.js app ($PORT).
+# Every secret is entered in the Render dashboard (sync: false). Never put values in this file.
 
 services:
   - type: web
@@ -7,21 +8,58 @@ services:
     env: docker
     plan: starter # Starter or better for build memory
     envVars:
-      # --- Backend Settings ---
+      # --- Public app address (Google OAuth + email links) ---
+      - key: APP_URL
+        sync: false            # e.g. https://your-service.onrender.com
+      - key: CORS_ORIGINS
+        sync: false            # same origin as APP_URL
+
+      # --- Database and storage (Supabase) ---
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: GEMINI_API_KEY
-        sync: false
-      
-      # --- Frontend Settings ---
       - key: NEXT_PUBLIC_SUPABASE_URL
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false
+
+      # --- Sessions (must be identical for backend and frontend, 32+ chars) ---
+      - key: SESSION_SECRET
+        sync: false
+
+      # --- Google sign-in ---
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      # --- Built-in Super Admin account ---
+      - key: SUPER_ADMIN_EMAIL
+        sync: false
+      - key: SUPER_ADMIN_PASSWORD
+        sync: false
+
+      # --- Email (verification and password reset) ---
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+
+      # --- AI (OpenAI, paid) ---
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+
+      # --- Internal wiring (backend is reachable only inside the container) ---
       - key: BACKEND_URL
         value: http://127.0.0.1:8000
-      - key: NEXT_PUBLIC_BACKEND_URL 
+      - key: NEXT_PUBLIC_BACKEND_URL
         value: http://127.0.0.1:8000
-

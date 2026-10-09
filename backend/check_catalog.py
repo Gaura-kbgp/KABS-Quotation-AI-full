@@ -4,7 +4,7 @@ Diagnostic: BACKB48 prefix analysis and catalog lookup
 import sys, os
 sys.path.insert(0, os.path.dirname(__file__))
 from dotenv import load_dotenv; load_dotenv()
-from app.core.supabase_client import get_supabase
+from app.core.supabase_client import get_supabase_admin as get_supabase
 from app.utils.cabinet_utils import (
     classify_cabinet_type, detect_category, parse_sku_dimensions,
     strip_catalog_suffix, strip_drawing_suffix, normalize_collection_name,

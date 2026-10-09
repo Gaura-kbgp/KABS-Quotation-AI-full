@@ -1,22 +1,110 @@
-import os
-from supabase import create_client, Client
-from supabase.lib.client_options import ClientOptions
-import httpx
+"""
+Supabase access for the backend.
 
-def get_supabase() -> Client:
+`get_supabase()` returns a TENANT-SCOPED client: every query on a tenant-owned
+table is automatically limited to the signed-in user's company (org_id), and
+every insert/upsert is stamped with that org_id. So a query can never read,
+change or delete another company's rows, even if a request passes a foreign id.
+
+`get_supabase_admin()` is the raw service-role client. Use it only for
+platform tables (profiles, organizations, auth_tokens) and Super Admin jobs.
+"""
+import os
+from contextvars import ContextVar
+from typing import Optional
+
+from supabase import create_client, Client
+
+# Set by app.core.auth.get_current_user for the duration of a request.
+current_org_id: ContextVar[Optional[str]] = ContextVar("current_org_id", default=None)
+
+# Tables whose rows belong to one company. Keep in sync with
+# docs/multitenant_001_add_orgs.sql. (manufacturer_research is a shared AI cache.)
+TENANT_TABLES = {
+    "manufacturers",
+    "manufacturer_files",
+    "manufacturer_pricing",
+    "manufacturer_specifications",
+    "labor_charges",
+    "install_rules",
+    "install_rule_overrides",
+    "nkba_files",
+    "training_documents",
+    "quotation_projects",
+    "quotation_boms",
+    "elevate_pricing_profiles",
+    "manufacturer_detections",
+    "usage_events",
+}
+
+
+def get_supabase_admin() -> Client:
     url = os.getenv("SUPABASE_URL")
     # Check for service role key or a generic key
     key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
     if not url or not key:
         raise Exception("Supabase credentials missing in backend environment (Required: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY/SUPABASE_KEY)")
-    
-    # Force no proxy in the underlying httpx client
-    # Some older postgrest versions passed 'proxy' instead of 'proxies' which breaks in newer httpx
-    # Or some environments inject 'proxy' into kwargs.
+
     try:
-        # Standard client initialization
         return create_client(url, key)
     except Exception as e:
         print(f"DEBUG: Supabase client creation failed ({e})")
         raise
 
+
+def _stamp(rows, org_id: str):
+    if isinstance(rows, list):
+        return [{**r, "org_id": org_id} for r in rows]
+    return {**rows, "org_id": org_id}
+
+
+class _ScopedTable:
+    """A table handle that always filters/stamps by org_id."""
+
+    def __init__(self, table, org_id: str):
+        self._t = table
+        self._org = org_id
+
+    def select(self, *a, **k):
+        return self._t.select(*a, **k).eq("org_id", self._org)
+
+    def update(self, *a, **k):
+        return self._t.update(*a, **k).eq("org_id", self._org)
+
+    def delete(self, *a, **k):
+        return self._t.delete(*a, **k).eq("org_id", self._org)
+
+    def insert(self, rows, *a, **k):
+        return self._t.insert(_stamp(rows, self._org), *a, **k)
+
+    def upsert(self, rows, *a, **k):
+        return self._t.upsert(_stamp(rows, self._org), *a, **k)
+
+
+class ScopedClient:
+    """Drop-in for the supabase Client, locked to one company."""
+
+    def __init__(self, raw: Client, org_id: str):
+        self._raw = raw
+        self.org_id = org_id
+
+    def table(self, name: str):
+        t = self._raw.table(name)
+        return _ScopedTable(t, self.org_id) if name in TENANT_TABLES else t
+
+    from_ = table
+
+    @property
+    def storage(self):
+        return self._raw.storage
+
+    def rpc(self, *a, **k):
+        return self._raw.rpc(*a, **k)
+
+
+def get_supabase() -> ScopedClient:
+    org = current_org_id.get()
+    if not org:
+        # Fail closed: never fall back to unscoped access.
+        raise RuntimeError("get_supabase() called without a signed-in company context")
+    return ScopedClient(get_supabase_admin(), org)

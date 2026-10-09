@@ -1,3 +1,4 @@
+import { apiUser, authFetch } from '@/lib/auth';
 /**
  * Proxy: POST /api/test-install-rule
  *
@@ -16,9 +17,11 @@ const BACKEND_URL = (
 ).replace(/\/$/, '');
 
 export async function POST(req: Request) {
+  const auth = await apiUser();
+  if ('response' in auth) return auth.response;
   try {
     const body = await req.json();
-    const backendRes = await fetch(`${BACKEND_URL}/api/test-install-rule`, {
+    const backendRes = await authFetch(`${BACKEND_URL}/api/test-install-rule`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

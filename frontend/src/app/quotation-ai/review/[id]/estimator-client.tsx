@@ -60,6 +60,8 @@ interface Room {
   room_name: string;
   collection?: string;
   door_style?: string;
+  wood_species?: string;
+  finish?: string;
   cabinets: Item[];
   perimeter: Item[];
   island: Item[];
@@ -104,11 +106,14 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
   const [manMapping, setManMapping] = useState<Record<string, string[]>>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [isFetchingConfig, setIsFetchingConfig] = useState(false);
+  const [catalogOptions, setCatalogOptions] = useState<any>(null);
 
   // Integrity-only: series + collection selection (global + per-room)
   const [globalSeries, setGlobalSeries] = useState<string>('');
   const [globalCollection, setGlobalCollection] = useState<string>('');
   const [globalDoorStyle, setGlobalDoorStyle] = useState<string>('');
+  const [globalSpecies, setGlobalSpecies] = useState<string>('');
+  const [globalFinish, setGlobalFinish] = useState<string>('');
   const [roomSeriesMap, setRoomSeriesMap] = useState<Record<number, string>>({});
   
   const [isRunningAgent, setIsRunningAgent] = useState(false);
@@ -225,6 +230,21 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
     [allCollections, globalSeries, isIntegrity]
   );
 
+  // Catalog-config driven options (for price_column model like Marsh)
+  const priceModel: string = catalogOptions?.price_model || 'collection';
+  const catalogDoorStyles: string[] = useMemo(
+    () => (catalogOptions?.door_styles || []).map((s: any) => s.name).filter(Boolean),
+    [catalogOptions]
+  );
+  const catalogSpecies: { name: string; upcharge_pct?: number }[] = useMemo(
+    () => catalogOptions?.species || [],
+    [catalogOptions]
+  );
+  const catalogFinishes: { name: string; type?: string; upcharge_pct?: number }[] = useMemo(
+    () => catalogOptions?.finishes || [],
+    [catalogOptions]
+  );
+
   const handleUpdateQty = (rIdx: number, catKey: string, iIdx: number, val: number) => {
     setRooms(prev => {
       const nr = [...prev];
@@ -298,7 +318,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
   };
 
   const handleGenerateQuote = async () => {
-    if (rooms.some(r => !r.collection || !r.door_style)) {
+    if (rooms.some(r => priceModel === 'price_column' ? !r.door_style : (!r.collection || !r.door_style))) {
       toast({ variant: 'destructive', title: 'Missing Specs', description: 'Apply manufacturer specs to all rooms.' });
       return;
     }
@@ -328,39 +348,62 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
 
   const fetchManConfig = async (id: string) => {
     setIsFetchingConfig(true);
+    setCatalogOptions(null);
+    // Reset global spec selections on manufacturer change
+    setGlobalSeries(''); setGlobalCollection(''); setGlobalDoorStyle('');
+    setGlobalSpecies(''); setGlobalFinish('');
     try {
+      // 1. Try new catalog/options endpoint (AI-extracted config — works for all manufacturers)
+      let usedCatalogConfig = false;
+      try {
+        const optRes = await fetch(`/api/backend/api/catalog/options/${id}`);
+        if (optRes.ok) {
+          const optData = await optRes.json();
+          if (optData.success) {
+            if (optData.price_model === 'price_column' && (optData.door_styles?.length > 0 || optData.price_columns?.length > 0)) {
+              // Marsh-style: door style drives everything — no collection dropdown needed
+              setCatalogOptions(optData);
+              setManMapping({});
+              usedCatalogConfig = true;
+            } else if (optData.price_model === 'collection' && optData.door_styles?.length > 0) {
+              // Collection model with catalog config — build mapping from door_styles
+              const mapping: Record<string, string[]> = {};
+              (optData.door_styles as any[]).forEach((s) => {
+                const col: string = s.collection || (optData.style_to_collection || {})[String(s.name || '').toUpperCase()] || s.column || '';
+                if (!col || !s.name) return;
+                if (!mapping[col]) mapping[col] = [];
+                mapping[col].push(s.name);
+              });
+              if (Object.keys(mapping).length > 0) {
+                setCatalogOptions(optData);
+                setManMapping(mapping);
+                usedCatalogConfig = true;
+              }
+            }
+          }
+        }
+      } catch (_) { /* catalog endpoint not reachable — fall through */ }
+
+      if (usedCatalogConfig) return;
+
+      // 2. Fallback: old manufacturer-config endpoint (existing Wellborn/1951/Integrity logic)
       const res = await fetch(`/api/manufacturer-config?id=${id}`);
       const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Unknown error loading brands');
-      }
-      const mapping: Record<string, string[]> = data.mapping || {};
+      if (!data.success) throw new Error(data.error || 'Unknown error loading brands');
 
-      // For manufacturers with a static config (1951, Wellborn), use the static list as the
-      // authoritative collection names shown in the dropdown — this prevents raw DB artifacts
-      // like "SCB/S" or "(DURAFROM TEXTURED)" variants from appearing as separate entries.
-      // DB door styles are still used when available for each canonical collection.
+      const mapping: Record<string, string[]> = data.mapping || {};
       const manName = manufacturers.find(m => m.id === id)?.name || '';
       const staticCfg = MANUFACTURER_CONFIG[manName];
       if (staticCfg) {
-        // Wellborn / 1951 Cabinetry: use ONLY the static config.
-        // The static config is the complete, correctly-ordered pricing-guide source of truth.
-        // DB data can contain partial, re-ordered, or cross-collection noise — ignore it entirely.
         const filteredMapping: Record<string, string[]> = {};
-        staticCfg.collections.forEach(col => {
-          filteredMapping[col.name] = col.styles;
-        });
+        staticCfg.collections.forEach(col => { filteredMapping[col.name] = col.styles; });
         setManMapping(filteredMapping);
       } else {
         setManMapping(mapping);
       }
     } catch (err: any) {
       console.error('[Client] Load config error:', err);
-      toast({ 
-        variant: 'destructive', 
-        title: 'Error loading brands', 
-        description: err.message || 'The connection to the pricing backend failed.' 
-      });
+      toast({ variant: 'destructive', title: 'Error loading brands', description: err.message || 'The connection to the pricing backend failed.' });
     } finally {
       setIsFetchingConfig(false);
     }
@@ -382,7 +425,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
     if (!confirm('Re-scan will re-extract all rooms from the original PDF, replacing any stale data. Manually-added rooms that are not in the PDF will be kept. Continue?')) return;
     setIsRescanning(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/agent/rescan-project`, {
+      const res = await fetch(`${'/api/backend'}/api/agent/rescan-project`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ project_id: project.id }),
@@ -743,78 +786,135 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                   </div>
                 </div>
                 <div className="flex gap-3 flex-wrap">
-                  {/* Integrity only: Series first */}
-                  {isIntegrity && (
-                    <div className="space-y-1">
-                      <p className="text-[9px] font-black uppercase text-indigo-600 tracking-widest pl-1">Series</p>
-                      <Select
-                        value={globalSeries}
-                        onValueChange={(v) => {
-                          setGlobalSeries(v);
-                          setGlobalCollection('');
-                          setGlobalDoorStyle('');
-                          // Sync per-room series map so each room row reflects the selection
-                          setRoomSeriesMap(() => {
-                            const next: Record<number, string> = {};
-                            rooms.forEach((_, i) => { next[i] = v; });
-                            return next;
-                          });
-                          setRooms(prev => prev.map(r => ({ ...r, collection: '', door_style: '' })));
-                        }}
-                      >
-                        <SelectTrigger className="w-44 h-11 text-sm bg-white border-indigo-200 rounded-xl">
-                          <SelectValue placeholder="Select Series" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border-slate-100">
-                          {integritySeriesFromDB.map(s => (
-                            <SelectItem key={s} value={s}>{s}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  {/* ── collection model (Wellborn / 1951 / Integrity) ── */}
+                  {priceModel === 'collection' && (
+                    <>
+                      {isIntegrity && (
+                        <div className="space-y-1">
+                          <p className="text-[9px] font-black uppercase text-indigo-600 tracking-widest pl-1">Series</p>
+                          <Select
+                            value={globalSeries}
+                            onValueChange={(v) => {
+                              setGlobalSeries(v);
+                              setGlobalCollection('');
+                              setGlobalDoorStyle('');
+                              setRoomSeriesMap(() => {
+                                const next: Record<number, string> = {};
+                                rooms.forEach((_, i) => { next[i] = v; });
+                                return next;
+                              });
+                              setRooms(prev => prev.map(r => ({ ...r, collection: '', door_style: '' })));
+                            }}
+                          >
+                            <SelectTrigger className="w-44 h-11 text-sm bg-white border-indigo-200 rounded-xl">
+                              <SelectValue placeholder="Select Series" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border-slate-100">
+                              {integritySeriesFromDB.map(s => (
+                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-black uppercase text-sky-600 tracking-widest pl-1">Collection</p>
+                        <Select
+                          key={globalSeries}
+                          value={globalCollection}
+                          disabled={isIntegrity && !globalSeries}
+                          onValueChange={(v) => {
+                            setGlobalCollection(v);
+                            setGlobalDoorStyle('');
+                            setRooms(prev => prev.map(r => ({ ...r, collection: v, door_style: '' })));
+                          }}
+                        >
+                          <SelectTrigger className="w-44 h-11 text-sm bg-white border-sky-200 rounded-xl">
+                            <SelectValue placeholder={isIntegrity && !globalSeries ? 'Pick series first' : 'Select'} />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border-slate-100 max-h-80">
+                            {collections.map(c => (
+                              <SelectItem key={c} value={c}>
+                                {getCollectionLabel(c, globalSeries)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-black uppercase text-sky-600 tracking-widest pl-1">Door Style</p>
+                        <Select
+                          key={globalCollection}
+                          value={globalDoorStyle}
+                          disabled={!globalCollection}
+                          onValueChange={(v) => {
+                            setGlobalDoorStyle(v);
+                            setRooms(prev => prev.map(r => ({ ...r, door_style: v })));
+                          }}
+                        >
+                          <SelectTrigger className="w-44 h-11 text-sm bg-white border-sky-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent className="bg-white border-slate-100">
+                            {globalCollection && manMapping[globalCollection]?.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
                   )}
 
-                  <div className="space-y-1">
-                    <p className="text-[9px] font-black uppercase text-sky-600 tracking-widest pl-1">Collection</p>
-                    <Select
-                      key={globalSeries}
-                      value={globalCollection}
-                      disabled={isIntegrity && !globalSeries}
-                      onValueChange={(v) => {
-                        setGlobalCollection(v);
-                        setGlobalDoorStyle('');
-                        setRooms(prev => prev.map(r => ({ ...r, collection: v, door_style: '' })));
-                      }}
-                    >
-                      <SelectTrigger className="w-44 h-11 text-sm bg-white border-sky-200 rounded-xl">
-                        <SelectValue placeholder={isIntegrity && !globalSeries ? 'Pick series first' : 'Select'} />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border-slate-100 max-h-80">
-                        {collections.map(c => (
-                          <SelectItem key={c} value={c}>
-                            {getCollectionLabel(c, globalSeries)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[9px] font-black uppercase text-sky-600 tracking-widest pl-1">Door Style</p>
-                    <Select
-                      key={globalCollection}
-                      value={globalDoorStyle}
-                      disabled={!globalCollection}
-                      onValueChange={(v) => {
-                        setGlobalDoorStyle(v);
-                        setRooms(prev => prev.map(r => ({ ...r, door_style: v })));
-                      }}
-                    >
-                      <SelectTrigger className="w-44 h-11 text-sm bg-white border-sky-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent className="bg-white border-slate-100">
-                        {globalCollection && manMapping[globalCollection]?.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {/* ── price_column model (Marsh) ── */}
+                  {priceModel === 'price_column' && (
+                    <>
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-black uppercase text-sky-600 tracking-widest pl-1">Door Style</p>
+                        <Select
+                          value={globalDoorStyle}
+                          onValueChange={(v) => {
+                            setGlobalDoorStyle(v);
+                            setRooms(prev => prev.map(r => ({ ...r, door_style: v })));
+                          }}
+                        >
+                          <SelectTrigger className="w-52 h-11 text-sm bg-white border-sky-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent className="bg-white border-slate-100 max-h-80">
+                            {catalogDoorStyles.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {catalogSpecies.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-[9px] font-black uppercase text-amber-600 tracking-widest pl-1">Species</p>
+                          <Select
+                            value={globalSpecies}
+                            onValueChange={(v) => {
+                              setGlobalSpecies(v);
+                              setRooms(prev => prev.map(r => ({ ...r, wood_species: v })));
+                            }}
+                          >
+                            <SelectTrigger className="w-40 h-11 text-sm bg-white border-amber-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent className="bg-white border-slate-100">
+                              {catalogSpecies.map(sp => <SelectItem key={sp.name} value={sp.name}>{sp.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      {catalogFinishes.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-[9px] font-black uppercase text-violet-600 tracking-widest pl-1">Finish</p>
+                          <Select
+                            value={globalFinish}
+                            onValueChange={(v) => {
+                              setGlobalFinish(v);
+                              setRooms(prev => prev.map(r => ({ ...r, finish: v })));
+                            }}
+                          >
+                            <SelectTrigger className="w-44 h-11 text-sm bg-white border-violet-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent className="bg-white border-slate-100">
+                              {catalogFinishes.map(f => <SelectItem key={f.name} value={f.name}>{f.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             </Card>
@@ -832,76 +932,121 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                   <div className="flex items-center gap-3">
                     <Layout className="w-5 h-5 text-sky-500" />
                     <span className="font-bold text-slate-900">{room.room_name}</span>
-                    {room.collection && room.door_style && (
+                    {(priceModel === 'price_column' ? room.door_style : (room.collection && room.door_style)) && (
                       <span className="text-[9px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full tracking-wider">✓ Set</span>
                     )}
                   </div>
                   <div className="flex gap-3 flex-wrap">
-                    {/* Integrity only: Series first per room */}
-                    {isIntegrity && (
-                      <div className="space-y-1">
-                        <p className="text-[9px] font-black uppercase text-indigo-500 tracking-widest pl-1">Series</p>
-                        <Select
-                          value={roomSeriesMap[rIdx] || ''}
-                          onValueChange={(v) => {
-                            setRoomSeriesMap(prev => ({ ...prev, [rIdx]: v }));
-                            // Reset collection + door_style for this room
+                    {/* ── collection model per room ── */}
+                    {priceModel === 'collection' && (
+                      <>
+                        {isIntegrity && (
+                          <div className="space-y-1">
+                            <p className="text-[9px] font-black uppercase text-indigo-500 tracking-widest pl-1">Series</p>
+                            <Select
+                              value={roomSeriesMap[rIdx] || ''}
+                              onValueChange={(v) => {
+                                setRoomSeriesMap(prev => ({ ...prev, [rIdx]: v }));
+                                const nr = [...rooms];
+                                nr[rIdx].collection = '';
+                                nr[rIdx].door_style = '';
+                                setRooms(nr);
+                              }}
+                            >
+                              <SelectTrigger className="w-40 h-11 text-sm bg-indigo-50 border-none rounded-xl">
+                                <SelectValue placeholder="Series" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white border-slate-100">
+                                {integritySeriesFromDB.map(s => (
+                                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                        <div className="space-y-1">
+                          <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest pl-1">Collection</p>
+                          <Select
+                            key={roomSeriesMap[rIdx] ?? 'no-series'}
+                            value={room.collection}
+                            disabled={isIntegrity && !roomSeriesMap[rIdx]}
+                            onValueChange={(v) => {
+                              const nr = [...rooms];
+                              nr[rIdx].collection = v;
+                              nr[rIdx].door_style = '';
+                              setRooms(nr);
+                            }}
+                          >
+                            <SelectTrigger className="w-44 h-11 text-sm bg-slate-50 border-none rounded-xl">
+                              <SelectValue placeholder={isIntegrity && !roomSeriesMap[rIdx] ? 'Pick series' : 'Select'} />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border-slate-100 max-h-80">
+                              {getFilteredCollections(roomSeriesMap[rIdx] || '').map(c => (
+                                <SelectItem key={c} value={c}>
+                                  {getCollectionLabel(c, roomSeriesMap[rIdx] || '')}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest pl-1">Door Style</p>
+                          <Select value={room.door_style} onValueChange={(v) => {
                             const nr = [...rooms];
-                            nr[rIdx].collection = '';
-                            nr[rIdx].door_style = '';
+                            nr[rIdx].door_style = v;
                             setRooms(nr);
-                          }}
-                        >
-                          <SelectTrigger className="w-40 h-11 text-sm bg-indigo-50 border-none rounded-xl">
-                            <SelectValue placeholder="Series" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white border-slate-100">
-                            {integritySeriesFromDB.map(s => (
-                              <SelectItem key={s} value={s}>{s}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                          }} disabled={!room.collection}>
+                            <SelectTrigger className="w-44 h-11 text-sm bg-slate-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent className="bg-white border-slate-100">
+                              {room.collection && manMapping[room.collection]?.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
                     )}
 
-                    <div className="space-y-1">
-                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest pl-1">Collection</p>
-                      <Select
-                        key={roomSeriesMap[rIdx] ?? 'no-series'}
-                        value={room.collection}
-                        disabled={isIntegrity && !roomSeriesMap[rIdx]}
-                        onValueChange={(v) => {
-                          const nr = [...rooms];
-                          nr[rIdx].collection = v;
-                          nr[rIdx].door_style = '';
-                          setRooms(nr);
-                        }}
-                      >
-                        <SelectTrigger className="w-44 h-11 text-sm bg-slate-50 border-none rounded-xl">
-                          <SelectValue placeholder={isIntegrity && !roomSeriesMap[rIdx] ? 'Pick series' : 'Select'} />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border-slate-100 max-h-80">
-                          {getFilteredCollections(roomSeriesMap[rIdx] || '').map(c => (
-                            <SelectItem key={c} value={c}>
-                              {getCollectionLabel(c, roomSeriesMap[rIdx] || '')}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest pl-1">Door Style</p>
-                      <Select value={room.door_style} onValueChange={(v) => {
-                        const nr = [...rooms];
-                        nr[rIdx].door_style = v;
-                        setRooms(nr);
-                      }} disabled={!room.collection}>
-                        <SelectTrigger className="w-44 h-11 text-sm bg-slate-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                        <SelectContent className="bg-white border-slate-100">
-                          {room.collection && manMapping[room.collection]?.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {/* ── price_column model per room (Marsh) ── */}
+                    {priceModel === 'price_column' && (
+                      <>
+                        <div className="space-y-1">
+                          <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest pl-1">Door Style</p>
+                          <Select value={room.door_style} onValueChange={(v) => {
+                            const nr = [...rooms]; nr[rIdx].door_style = v; setRooms(nr);
+                          }}>
+                            <SelectTrigger className="w-52 h-11 text-sm bg-slate-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent className="bg-white border-slate-100 max-h-80">
+                              {catalogDoorStyles.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {catalogSpecies.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-[9px] font-black uppercase text-amber-500 tracking-widest pl-1">Species</p>
+                            <Select value={room.wood_species || ''} onValueChange={(v) => {
+                              const nr = [...rooms]; nr[rIdx].wood_species = v; setRooms(nr);
+                            }}>
+                              <SelectTrigger className="w-40 h-11 text-sm bg-amber-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                              <SelectContent className="bg-white border-slate-100">
+                                {catalogSpecies.map(sp => <SelectItem key={sp.name} value={sp.name}>{sp.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                        {catalogFinishes.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-[9px] font-black uppercase text-violet-500 tracking-widest pl-1">Finish</p>
+                            <Select value={room.finish || ''} onValueChange={(v) => {
+                              const nr = [...rooms]; nr[rIdx].finish = v; setRooms(nr);
+                            }}>
+                              <SelectTrigger className="w-44 h-11 text-sm bg-violet-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                              <SelectContent className="bg-white border-slate-100">
+                                {catalogFinishes.map(f => <SelectItem key={f.name} value={f.name}>{f.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </Card>
               ))}

@@ -2,6 +2,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { authFetch } from '@/lib/auth';
 
 const LOG_FILE = path.join(process.cwd(), 'tmp_ai_scan_debug.log');
 function logToFile(msg: string) {
@@ -42,7 +43,7 @@ export async function analyzeDrawing(input: {
     logToFile(`[STEP-WISE SCAN] Step 1: Trying LOCAL extraction (No API Key)...`);
 
     // 1. Try LOCAL extraction first (Rule-based, 0 cost, super fast)
-    let response = await fetch(`${backendUrl}/api/agent/analyze-drawing-local`, {
+    let response = await authFetch(`${backendUrl}/api/agent/analyze-drawing-local`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -63,7 +64,7 @@ export async function analyzeDrawing(input: {
     logToFile(`[STEP-WISE SCAN] Local found no rooms or failed. Step 2: Falling back to AI extraction...`);
 
     // 2. Fallback to AI if local found nothing
-    response = await fetch(`${backendUrl}/api/agent/analyze-drawing-full`, {
+    response = await authFetch(`${backendUrl}/api/agent/analyze-drawing-full`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

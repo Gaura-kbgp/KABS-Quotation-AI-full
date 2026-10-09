@@ -1,3 +1,4 @@
+import { apiUser, authFetch } from '@/lib/auth';
 /**
  * Proxy: POST /api/install-rules-upload
  *
@@ -16,6 +17,8 @@ const BACKEND_URL = (
 ).replace(/\/$/, '');
 
 export async function POST(req: Request) {
+  const auth = await apiUser();
+  if ('response' in auth) return auth.response;
   try {
     const url = new URL(req.url);
     const manufacturerId = url.searchParams.get('manufacturer_id') || '';
@@ -29,7 +32,7 @@ export async function POST(req: Request) {
 
     // Forward the raw multipart body unchanged
     const formData = await req.formData();
-    const backendRes = await fetch(
+    const backendRes = await authFetch(
       `${BACKEND_URL}/api/install-rules/upload?manufacturer_id=${encodeURIComponent(manufacturerId)}`,
       { method: 'POST', body: formData }
     );

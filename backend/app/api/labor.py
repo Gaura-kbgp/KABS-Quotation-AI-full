@@ -18,8 +18,8 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "") or os.environ.get("SUP
 
 
 def _supabase():
-    from supabase import create_client
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+    from app.core.supabase_client import get_supabase  # company-scoped
+    return get_supabase()
 
 
 # ─── Constants ────────────────────────────────────────────────────────────────
@@ -306,7 +306,7 @@ async def upload_install_rules(file: UploadFile = File(...)):
 
 
 @router.get("/labor-rates")
-async def get_labor_rates():
+def get_labor_rates():
     sb = _supabase()
     res = (sb.table("labor_charges")
              .select("*")
@@ -328,7 +328,7 @@ class RateBody(BaseModel):
 
 
 @router.post("/labor-rates")
-async def create_labor_rate(body: RateBody):
+def create_labor_rate(body: RateBody):
     sb = _supabase()
     record = {
         "id":               str(uuid.uuid4()),
@@ -345,7 +345,7 @@ async def create_labor_rate(body: RateBody):
 
 
 @router.put("/labor-rates/{rate_id}")
-async def update_labor_rate(rate_id: str, body: RateBody):
+def update_labor_rate(rate_id: str, body: RateBody):
     sb = _supabase()
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
@@ -357,6 +357,6 @@ async def update_labor_rate(rate_id: str, body: RateBody):
 
 
 @router.delete("/labor-rates/{rate_id}")
-async def delete_labor_rate(rate_id: str):
+def delete_labor_rate(rate_id: str):
     _supabase().table("labor_charges").delete().eq("id", rate_id).execute()
     return {"success": True}

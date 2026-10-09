@@ -1,0 +1,36 @@
+# Keep secrets, local data and build junk OUT of the Docker image.
+# Secrets must be set as environment variables in Render, never copied into the image.
+
+# Secrets and local env files
+**/.env
+**/.env.*
+!**/.env.example
+
+# Dependencies and build output (rebuilt inside Docker)
+**/node_modules
+**/.next
+**/__pycache__
+**/*.pyc
+
+# Local data, scans and logs
+**/scan_result_*.json
+**/mfg_config_*.json
+**/*.log
+**/*.db
+**/*.tsbuildinfo
+db_data_dump.json
+project.json
+project_fixed.json
+backend/scratch
+backend/check_*.py
+backend/check_out.txt
+backend/sku_search.txt
+backend/bom_items_debug.json
+frontend/route_hit.log
+frontend/tmp_*.js
+frontend/tmp_*.log
+
+# Dev only
+.git
+docs
+.claude

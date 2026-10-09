@@ -1,11 +1,14 @@
+import { apiUser, authFetch } from '@/lib/auth';
 export const maxDuration = 120;
 
 const BACKEND_URL = (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 export async function POST(req: Request) {
+  const auth = await apiUser();
+  if ('response' in auth) return auth.response;
   try {
     const formData = await req.formData();
-    const res = await fetch(`${BACKEND_URL}/api/upload-install-rules`, {
+    const res = await authFetch(`${BACKEND_URL}/api/upload-install-rules`, {
       method: 'POST',
       body: formData,
     });

@@ -1,4 +1,7 @@
+import { apiUser, authFetch } from '@/lib/auth';
 export async function GET(req: Request) {
+  const auth = await apiUser();
+  if ('response' in auth) return auth.response;
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
@@ -13,7 +16,7 @@ export async function GET(req: Request) {
       const targetUrl = `${BACKEND_URL}/api/manufacturer-config?id=${id}`;
       console.log(`[API Proxy] Probing backend: ${targetUrl}`);
       
-      const backendRes = await fetch(targetUrl, {
+      const backendRes = await authFetch(targetUrl, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });

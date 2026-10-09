@@ -1,4 +1,6 @@
-import { createServerSupabase } from '@/lib/supabase-server';
+import { requireUser } from '@/lib/auth';
+import { scopedDb } from '@/lib/db';
+import { getOrgSettings } from '@/features/settings/actions';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle } from 'lucide-react';
@@ -6,8 +8,9 @@ import Link from 'next/link';
 import { BomManagerClient } from './bom-manager-client';
 
 export default async function BomPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireUser();
   const { id } = await params;
-  const supabase = createServerSupabase();
+  const supabase = await scopedDb();
 
   let project = null;
   let manufacturerName = 'Standard Production';
@@ -49,12 +52,23 @@ export default async function BomPage({ params }: { params: Promise<{ id: string
     );
   }
 
+  const org = await getOrgSettings();
+  const company = {
+    name: org.name,
+    address: org.address ?? null,
+    phone: org.phone ?? null,
+    logo_url: org.logo_url ?? null,
+    proposal_terms: org.proposal_terms ?? null,
+    signature_url: org.signature_url ?? null,
+  };
+
   return (
-    <BomManagerClient 
+    <BomManagerClient
       id={id}
       project={project}
       initialBom={bom}
       manufacturerName={manufacturerName}
+      company={company}
     />
   );
 }
