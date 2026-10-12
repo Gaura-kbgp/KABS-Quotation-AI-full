@@ -29,12 +29,25 @@ TENANT_TABLES = {
     "install_rules",
     "install_rule_overrides",
     "nkba_files",
-    "training_documents",
     "quotation_projects",
     "quotation_boms",
     "elevate_pricing_profiles",
     "manufacturer_detections",
     "usage_events",
+}
+
+# Super Admin's org — the platform's shared manufacturer catalog (brands,
+# spec/pricing files, per-SKU pricing) is curated here and read-only visible
+# to every other org, instead of each dealer re-uploading the same catalog.
+# Keep in sync with frontend/src/lib/db.ts (PLATFORM_ORG_ID) and
+# backend/app/core/storage.py (_check_tenant).
+PLATFORM_ORG_ID = "00000000-0000-0000-0000-0000000000a1"
+
+SHARED_CATALOG_TABLES = {
+    "manufacturers",
+    "manufacturer_files",
+    "manufacturer_pricing",
+    "manufacturer_specifications",
 }
 
 
@@ -61,12 +74,16 @@ def _stamp(rows, org_id: str):
 class _ScopedTable:
     """A table handle that always filters/stamps by org_id."""
 
-    def __init__(self, table, org_id: str):
+    def __init__(self, table, org_id: str, share_read: bool = False):
         self._t = table
         self._org = org_id
+        self._share_read = share_read
 
     def select(self, *a, **k):
-        return self._t.select(*a, **k).eq("org_id", self._org)
+        q = self._t.select(*a, **k)
+        if self._share_read and self._org != PLATFORM_ORG_ID:
+            return q.or_(f"org_id.eq.{self._org},org_id.eq.{PLATFORM_ORG_ID}")
+        return q.eq("org_id", self._org)
 
     def update(self, *a, **k):
         return self._t.update(*a, **k).eq("org_id", self._org)
@@ -90,7 +107,9 @@ class ScopedClient:
 
     def table(self, name: str):
         t = self._raw.table(name)
-        return _ScopedTable(t, self.org_id) if name in TENANT_TABLES else t
+        if name not in TENANT_TABLES:
+            return t
+        return _ScopedTable(t, self.org_id, share_read=name in SHARED_CATALOG_TABLES)
 
     from_ = table
 

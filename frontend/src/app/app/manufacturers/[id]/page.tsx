@@ -46,6 +46,6 @@ export default async function ManufacturerDetailPage({ params }: { params: Promi
   }
 
   return (
-    <ManufacturerDetailClient id={id} manufacturer={manufacturer} initialFiles={files} initialSpecsSummary={specsSummary} basePath="/app" />
+    <ManufacturerDetailClient id={id} manufacturer={manufacturer} initialFiles={files} initialSpecsSummary={specsSummary} basePath="/app" readOnly />
   );
 }

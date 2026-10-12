@@ -67,6 +67,11 @@ interface ManufacturerDetailClientProps {
   initialFiles: any[];
   initialSpecsSummary: SpecsSummary;
   basePath?: string;
+  /** Dealers browse Super Admin's shared catalog read-only — uploading,
+   *  re-training and deleting files is restricted server-side to Super
+   *  Admin; this hides those controls instead of letting a dealer click
+   *  something that will just fail. */
+  readOnly?: boolean;
 }
 
 const UPLOAD_STEPS = [
@@ -78,7 +83,7 @@ const UPLOAD_STEPS = [
   { pct: 98, msg: 'Rebuilding pricing cache…' },
 ];
 
-export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initialSpecsSummary, basePath = '/app' }: ManufacturerDetailClientProps) {
+export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initialSpecsSummary, basePath = '/app', readOnly = false }: ManufacturerDetailClientProps) {
   const { toast } = useToast();
   const router = useRouter();
   const [files, setFiles] = useState(initialFiles);
@@ -191,7 +196,22 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
     // ── Pricing file upload ────────────────────────────────────────────────────
     if (isAddingFile.type === 'pricing') {
       const isPdf = uploadFile.name.toLowerCase().endsWith('.pdf');
-      const isPriceColumn = catalogConfig?.price_model === 'price_column';
+
+      // For a brand-new manufacturer there's usually no catalogConfig yet —
+      // this used to silently fall through to the generic upload-pricing
+      // path (the weaker rule-based parser) every single time, forcing the
+      // admin to separately click Re-train first and re-upload for the
+      // robust price_column path to ever be used. That two-step manual
+      // dance, done in the wrong order or skipped, is exactly what produced
+      // the Aristocraft/1951/Integrity Cabinets extraction failures earlier.
+      // Run config extraction on this same file automatically first so the
+      // right ingestion path is chosen on the very first upload.
+      let activeConfig = catalogConfig;
+      if (isPdf && !activeConfig) {
+        setUploadStatusMsg('Reading catalog structure…');
+        activeConfig = await handleExtractCatalogConfig(undefined, uploadFile, /* silent */ true);
+      }
+      const isPriceColumn = activeConfig?.price_model === 'price_column';
 
       // Marsh / price_column + PDF → catalog/ingest-pricing (extracts 9 price columns per SKU)
       if (isPdf && isPriceColumn) {
@@ -375,7 +395,13 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
     }
   };
 
-  const handleExtractCatalogConfig = async (fileUrl?: string, directFile?: File) => {
+  // Returns the extracted config (or null if nothing usable was found / the
+  // request failed) so callers — including the pricing-upload flow below,
+  // which needs to know price_model BEFORE deciding how to ingest pricing
+  // rows — can use the fresh result immediately instead of waiting on React
+  // state. `silent` suppresses this function's own toasts for callers that
+  // show their own combined success/failure message instead.
+  const handleExtractCatalogConfig = async (fileUrl?: string, directFile?: File, silent = false) => {
     setIsExtractingConfig(true);
     try {
       const BACKEND = '/api/backend';
@@ -391,13 +417,30 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
       const res = await fetch(`${BACKEND}/api/catalog/extract-config`, { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.detail || 'Extraction failed');
+      if (data.saved === false) {
+        // AI looked at the file but didn't find a real door-style/price table
+        // in it — nothing was written, so don't claim success. The existing
+        // catalogConfig (if any) is left untouched on screen.
+        if (!silent) {
+          toast({
+            variant: 'destructive',
+            title: 'No catalog data found',
+            description: data.config.extraction_notes || 'This file doesn\'t look like a door-style/price-column guide — try the pricing file instead of the spec book, or vice versa.',
+          });
+        }
+        return null;
+      }
       setCatalogConfig(data.config);
-      toast({
-        title: 'Catalog Config Extracted',
-        description: `${data.config.price_model === 'price_column' ? 'Price-column' : 'Collection'} model · ${data.config.door_styles?.length || 0} door styles · ${data.config.species?.length || 0} species`,
-      });
+      if (!silent) {
+        toast({
+          title: 'Catalog Config Extracted',
+          description: `${data.config.price_model === 'price_column' ? 'Price-column' : 'Collection'} model · ${data.config.door_styles?.length || 0} door styles · ${data.config.species?.length || 0} species`,
+        });
+      }
+      return data.config;
     } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Extraction Failed', description: e.message });
+      if (!silent) toast({ variant: 'destructive', title: 'Extraction Failed', description: e.message });
+      return null;
     } finally {
       setIsExtractingConfig(false);
     }
@@ -408,7 +451,12 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
   })) ?? [];
 
   const displayCollections = specsSummary.collections || extractionReport?.collections?.length || 0;
-  const displayStyles      = specsSummary.styles || extractionReport?.door_styles?.length || 0;
+  // price_column-model catalogs (Marsh, Aristocraft...) never populate
+  // door_style per pricing row — the door-style → column mapping lives only
+  // in the catalog config, not on each SKU row — so specsSummary.styles is
+  // always 0 for them. Fall back to the extracted config's own door style
+  // list, which is the real source of truth for this model.
+  const displayStyles      = specsSummary.styles || catalogConfig?.door_styles?.length || extractionReport?.door_styles?.length || 0;
   const displaySkus        = specsSummary.skuCount || extractionReport?.total_skus || 0;
   const displayRows        = specsSummary.totalRows || extractionReport?.total_rows || 0;
 
@@ -451,9 +499,11 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
                 </CardTitle>
                 <CardDescription>Multiple PDF catalogs support.</CardDescription>
               </div>
-              <Button onClick={() => setIsAddingFile({ open: true, type: 'spec' })} variant="outline" size="sm" className="rounded-xl">
-                <Plus className="w-4 h-4 mr-2" />Add PDF
-              </Button>
+              {!readOnly && (
+                <Button onClick={() => setIsAddingFile({ open: true, type: 'spec' })} variant="outline" size="sm" className="rounded-xl">
+                  <Plus className="w-4 h-4 mr-2" />Add PDF
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-slate-100">
@@ -476,9 +526,11 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
                           <a href={file.file_url} target="_blank"><ExternalLink className="w-4 h-4" /></a>
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteFile(file)} className="text-red-400 hover:text-red-600">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {!readOnly && (
+                        <Button variant="ghost" size="icon" onClick={() => handleDeleteFile(file)} className="text-red-400 hover:text-red-600">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -498,9 +550,11 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
                   Automatically extracts collections, door styles, and per-SKU prices.
                 </CardDescription>
               </div>
-              <Button onClick={() => setIsAddingFile({ open: true, type: 'pricing' })} variant="outline" size="sm" className="rounded-xl border-emerald-100 text-emerald-600">
-                <Plus className="w-4 h-4 mr-2" />Add File
-              </Button>
+              {!readOnly && (
+                <Button onClick={() => setIsAddingFile({ open: true, type: 'pricing' })} variant="outline" size="sm" className="rounded-xl border-emerald-100 text-emerald-600">
+                  <Plus className="w-4 h-4 mr-2" />Add File
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-slate-100">
@@ -528,9 +582,11 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
                           <a href={file.file_url} target="_blank"><ExternalLink className="w-4 h-4" /></a>
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteFile(file)} className="text-red-400 hover:text-red-600">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {!readOnly && (
+                        <Button variant="ghost" size="icon" onClick={() => handleDeleteFile(file)} className="text-red-400 hover:text-red-600">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -550,7 +606,7 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
                   AI reads your price guide PDF and auto-discovers door styles, species, finishes, and price columns.
                 </CardDescription>
               </div>
-              {files.filter(f => f.file_type === 'spec').length > 0 && (
+              {!readOnly && files.filter(f => f.file_type === 'spec' || f.file_type === 'pricing').length > 0 && (
                 <>
                   <input
                     ref={retrainFileRef}
@@ -569,8 +625,17 @@ export function ManufacturerDetailClient({ id, manufacturer, initialFiles, initi
                     className="rounded-xl border-violet-100 text-violet-700 hover:bg-violet-50"
                     disabled={isExtractingConfig}
                     onClick={() => {
+                      // The door-style/price-column reference chart usually lives in
+                      // the combined "Price & Specification Guide" (uploaded under
+                      // Pricing Files), not the plain spec-only book — e.g. Aristokraft
+                      // ships a spec-only PDF with no pricing table at all. Prefer a
+                      // pricing PDF; fall back to a spec PDF only if there isn't one.
+                      // file_url has already been swapped for a signed URL (query
+                      // string, no .pdf suffix) by this point — check the original
+                      // file_name's extension instead.
+                      const pricingFile = files.find(f => f.file_type === 'pricing' && f.file_name?.toLowerCase().endsWith('.pdf'));
                       const specFile = files.find(f => f.file_type === 'spec');
-                      const url = specFile?.file_url;
+                      const url = pricingFile?.file_url || specFile?.file_url;
                       if (url && url !== '#') {
                         handleExtractCatalogConfig(url);
                       } else {

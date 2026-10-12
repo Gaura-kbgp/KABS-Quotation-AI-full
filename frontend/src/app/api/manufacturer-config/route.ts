@@ -1,4 +1,12 @@
 import { apiUser, authFetch } from '@/lib/auth';
+
+// Pricing/catalog config changes whenever an admin re-trains a manufacturer
+// or corrects its data (as just happened for Integrity Cabinets) — this
+// route must never be served from Next's Route Handler cache. Relying on
+// Next's automatic dynamic-detection (via cookies() inside apiUser()) was
+// NOT enough to prevent stale data here in practice; force it explicitly.
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   const auth = await apiUser();
   if ('response' in auth) return auth.response;
@@ -31,7 +39,9 @@ export async function GET(req: Request) {
       if (data.debug) {
         console.log(`[API Proxy] Backend scan summary: ${JSON.stringify(data.debug)} for ID: ${id}`);
       }
-      return Response.json(data);
+      // Belt-and-suspenders against any browser-side HTTP caching too —
+      // `dynamic = 'force-dynamic'` above stops Next's own server cache.
+      return Response.json(data, { headers: { 'Cache-Control': 'no-store' } });
 
     } catch (fetchErr: any) {
       console.error(`[API Proxy] Connection Error to Backend: ${fetchErr.message}. BACKEND_URL: ${BACKEND_URL}`);

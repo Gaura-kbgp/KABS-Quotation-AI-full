@@ -107,13 +107,14 @@ class ParsedWall:
 
 # ─── Low-level PDF text extraction ──────────────────────────────────────────
 
-def _extract_spans(pdf_bytes: bytes, max_pages: int = 10) -> list[tuple[int, list[TextSpan]]]:
-    """Return list of (page_index, [TextSpan]) up to max_pages."""
+def _extract_spans(pdf_bytes: bytes, max_pages: int = 10) -> tuple[list[tuple[int, list[TextSpan]]], int]:
+    """Return (list of (page_index, [TextSpan]) up to max_pages, total page count in the PDF)."""
     try:
         import pymupdf as fitz  # modern name
     except ImportError:
         import fitz             # type: ignore
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    total_pages = doc.page_count
     pages = []
     for i in range(min(max_pages, doc.page_count)):
         page = doc[i]
@@ -132,7 +133,7 @@ def _extract_spans(pdf_bytes: bytes, max_pages: int = 10) -> list[tuple[int, lis
                     spans.append(TextSpan(text=txt, x=x, y=y, width=w, height=h))
         pages.append((i, spans))
     doc.close()
-    return pages
+    return pages, total_pages
 
 
 # ─── Wall extraction (heuristic) ────────────────────────────────────────────
@@ -264,6 +265,89 @@ def _assign_appliances_and_openings(walls: list[ParsedWall], spans: list[TextSpa
                 break
 
 
+# ─── AI fallback parser ──────────────────────────────────────────────────────
+
+_AI_PARSE_PROMPT = """You are reading raw text extracted from a kitchen design drawing PDF.
+Below are text spans (text, x, y coordinates) from the drawing.
+Extract ALL wall dimensions and appliance locations from this data.
+
+Return STRICT JSON only — no prose, no markdown fences:
+{{
+  "walls": [
+    {{
+      "id": "A",
+      "length_in": 144,
+      "openings": [
+        {{"type": "window"|"door", "start_in": 60, "width_in": 36, "sill_height_in": 36}}
+      ],
+      "appliances": [
+        {{"type": "sink"|"dishwasher"|"range"|"cooktop"|"oven"|"fridge"|"microwave"|"hood", "center_in": 78, "width_in": 33}}
+      ]
+    }}
+  ],
+  "confidence": "high"|"medium"|"low",
+  "notes": "brief explanation of what was found"
+}}
+
+Rules:
+- Dimensions like 12'-6" = 150 inches, 10' = 120 inches, 96" = 96 inches.
+- Assign sequential letter IDs (A, B, C…) to walls.
+- If a dimension is ambiguous, pick the most likely kitchen wall length (72–240 inches).
+- Only include walls with dimensions found in the text.
+- Set confidence "low" if the PDF has few dimensions or only appliance labels.
+- Return an empty walls list if no wall dimensions are found.
+
+Text spans from the drawing:
+{spans_text}"""
+
+
+def _ai_parse_spans(spans_by_page: list[tuple[int, list[TextSpan]]]) -> dict | None:
+    """Use LLM to parse wall dimensions when heuristics found too little."""
+    try:
+        from app.utils.ai_client import llm_generate
+    except ImportError:
+        return None
+
+    # Flatten to a compact text representation
+    lines = []
+    for page_idx, spans in spans_by_page[:3]:  # first 3 pages only
+        for sp in spans:
+            lines.append(f"[p{page_idx+1} x={sp.x:.0f} y={sp.y:.0f}] {sp.text}")
+
+    if not lines:
+        return None
+
+    spans_text = "\n".join(lines[:400])  # cap tokens
+    try:
+        raw = llm_generate(
+            _AI_PARSE_PROMPT.format(spans_text=spans_text),
+            tier="balanced",
+            max_tokens=2048,
+        )
+        import json
+        result = json.loads(raw.strip())
+        walls = result.get("walls") or []
+        if not isinstance(walls, list):
+            return None
+        return {
+            "walls": [
+                {
+                    "id": str(w.get("id", f"W{i+1}")),
+                    "length_in": float(w.get("length_in", 0)),
+                    "openings": w.get("openings") or [],
+                    "appliances": w.get("appliances") or [],
+                }
+                for i, w in enumerate(walls)
+                if float(w.get("length_in", 0)) > 0
+            ],
+            "confidence": result.get("confidence", "low"),
+            "notes": result.get("notes", ""),
+            "source": "ai",
+        }
+    except Exception:
+        return None
+
+
 # ─── Public entry point ──────────────────────────────────────────────────────
 
 def parse_blueprint_pdf(pdf_bytes: bytes, max_pages: int = 10) -> dict:
@@ -276,12 +360,20 @@ def parse_blueprint_pdf(pdf_bytes: bytes, max_pages: int = 10) -> dict:
         "warnings": [...]
       }
     """
-    pages = _extract_spans(pdf_bytes, max_pages=max_pages)
+    pages, total_pages = _extract_spans(pdf_bytes, max_pages=max_pages)
     if not pages:
         return {"walls": [], "page_count_scanned": 0, "dimensions_found": 0,
                 "warnings": ["PDF had no extractable text — may be scanned/image-only; needs OCR."]}
 
     warnings: list[str] = []
+    if total_pages > max_pages:
+        # Previously silently dropped: a drawing set with more pages than
+        # max_pages had the rest ignored with no indication to the user that
+        # part of their plan was never scanned for walls/dimensions.
+        warnings.append(
+            f"This PDF has {total_pages} pages but only the first {max_pages} were scanned for "
+            f"walls/dimensions — pages {max_pages + 1}-{total_pages} were skipped."
+        )
     all_walls: list[ParsedWall] = []
 
     for page_idx, spans in pages:
@@ -310,6 +402,35 @@ def parse_blueprint_pdf(pdf_bytes: bytes, max_pages: int = 10) -> dict:
             continue
         seen.append(w)
 
+    # AI fallback: when heuristics found fewer than 2 walls, try AI extraction.
+    # Complex drawing sets (multiple rooms, non-standard layouts) often have
+    # dimension labels that don't sit cleanly near page edges, so the
+    # edge-proximity heuristic misses most of them — the AI reads the full
+    # text and understands context ("12'-6\" KITCHEN" vs a random number).
+    ai_source = False
+    if len(seen) < 2:
+        ai_result = _ai_parse_spans(pages)
+        if ai_result and ai_result.get("walls"):
+            seen = []
+            for wd in ai_result["walls"]:
+                pw = ParsedWall(
+                    id=wd["id"],
+                    length_in=float(wd["length_in"]),
+                    axis="top",
+                )
+                pw.appliances = wd.get("appliances") or []
+                pw.openings = wd.get("openings") or []
+                seen.append(pw)
+            ai_source = True
+            confidence = ai_result.get("confidence", "low")
+            if confidence != "high":
+                warnings.append(
+                    f"AI parser confidence: {confidence}. "
+                    + (ai_result.get("notes") or "Review walls carefully before generating.")
+                )
+            else:
+                warnings.append("Walls extracted by AI — review dimensions before generating.")
+
     if not seen:
         warnings.append("No wall-dimension clusters identified. Try a cleaner page or enter walls manually.")
 
@@ -318,4 +439,5 @@ def parse_blueprint_pdf(pdf_bytes: bytes, max_pages: int = 10) -> dict:
         "page_count_scanned": len(pages),
         "dimensions_found": sum(len(w.dimensions_found) for w in seen),
         "warnings": warnings,
+        "source": "ai" if ai_source else "heuristic",
     }

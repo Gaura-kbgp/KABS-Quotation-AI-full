@@ -57,7 +57,7 @@ export default function Error({
         </div>
         
         <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-          KABS Quotation AI • Production Environment
+          KABS Pricing AI • Production Environment
         </p>
       </div>
     </div>

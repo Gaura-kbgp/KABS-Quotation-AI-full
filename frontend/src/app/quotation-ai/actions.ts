@@ -142,6 +142,29 @@ export async function deleteInstallOverrideAction(id: string) {
   }
 }
 
+export type ReviewStatus = 'draft' | 'in_review' | 'approved' | 'sent';
+
+/**
+ * Module 5 — advance (or set) the staff review status on a project.
+ * Patches review_status in quotation_projects; revalidates review + quote pages.
+ */
+export async function setReviewStatusAction(projectId: string, status: ReviewStatus) {
+  await requireUser();
+  try {
+    const supabase = await scopedDb();
+    const { error } = await supabase
+      .from('quotation_projects')
+      .update({ review_status: status })
+      .eq('id', projectId);
+    if (error) throw error;
+    revalidatePath(`/quotation-ai/review/${projectId}`);
+    revalidatePath(`/quotation-ai/quote/${projectId}`);
+    return { success: true as const };
+  } catch (err: any) {
+    return { success: false as const, error: err.message as string };
+  }
+}
+
 /**
  * Generic project update for extracted_data and metadata.
  */

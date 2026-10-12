@@ -1,7 +1,7 @@
 """
 KABS AI Agent — Cabinet Intelligence Engine
-Handles: manufacturer detection, manufacturer research, training document processing,
-         and smart cabinet code understanding for BOM descriptions.
+Handles: manufacturer detection, manufacturer research, and smart cabinet
+         code understanding for BOM descriptions.
 """
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from app.core.auth import require_super_admin
@@ -17,7 +17,7 @@ import fitz  # PyMuPDF
 from dotenv import load_dotenv
 import os, json, re, uuid, traceback, asyncio
 from urllib.parse import unquote
-from app.core.storage import download_bytes, DOCS_BUCKET, TRAINING_BUCKET
+from app.core.storage import download_bytes, DOCS_BUCKET
 
 load_dotenv()
 
@@ -327,36 +327,6 @@ Return ONLY valid JSON:
 }}
 """
 
-TRAINING_EXTRACT_PROMPT = """You are a cabinet industry expert analyzing a document to extract key knowledge.
-
-Document name: {doc_name}
-Document type: {doc_type}
-User description: {user_description}
-
-Document content (excerpt):
-{content_excerpt}
-
-Extract and structure the key knowledge from this document. Focus on:
-1. If it's a spec book: cabinet codes, dimensions, series names, coding rules
-2. If it's NKBA rules: standard abbreviations, placement rules, code definitions
-3. If it's a pricing sheet: SKU patterns, price ranges, series names
-4. If it's manufacturer data: how they code cabinets, special codes, suffixes
-
-Return ONLY valid JSON:
-{{
-  "document_summary": "2-3 sentence summary of what this document contains",
-  "manufacturer_name": "Manufacturer name if specific, null if general",
-  "key_codes": {{"code": "meaning", "code2": "meaning2"}},
-  "coding_rules": ["rule 1", "rule 2"],
-  "series_names": ["series 1", "series 2"],
-  "dimension_format": "How dimensions are encoded",
-  "special_knowledge": ["important fact 1", "important fact 2"],
-  "nkba_standards": ["standard 1", "standard 2"],
-  "price_ranges": {{}},
-  "searchable_terms": ["term1", "term2", "term3"]
-}}
-"""
-
 
 # ─── Endpoint: Detect Manufacturer ──────────────────────────────────────────
 
@@ -570,267 +540,6 @@ Example: [{{"description": "...", "cabinet_type": "...", "match_explanation": ".
     except Exception as e:
         traceback.print_exc()
         return {"success": False, "error": str(e)}
-
-
-# ─── Helper: Training Logic ──────────────────────────────────────────────────
-
-async def _perform_training(
-    file_content: bytes,
-    file_name: str,
-    doc_name: str,
-    doc_type: str,
-    description: str = "",
-    manufacturer_id: str = "",
-    manufacturer_name: str = "",
-    existing_url: str = None
-):
-    """
-    Core training logic: parses content, calls AI for knowledge extraction,
-    and saves to training_documents table.
-    """
-    supabase = get_supabase()
-    file_ext = os.path.splitext(file_name)[1].lower() or ".pdf"
-
-    file_url = existing_url
-    if not file_url:
-        # Upload to the (private) training-docs bucket if it's a new file.
-        # Store the PATH, not a public URL — the bucket is private and this
-        # backend always reads it back via the service-role key.
-        storage_path = f"{supabase.org_id}/training/{uuid.uuid4()}{file_ext}"
-        supabase.storage.from_(TRAINING_BUCKET).upload(
-            storage_path, file_content,
-            file_options={"content-type": "application/octet-stream"}
-        )
-        file_url = storage_path
-
-    # ── Step 1: Smart Python extraction ──
-    structured_summary = ""
-    pre_parsed_records = []
-
-    if file_ext in (".xlsx", ".xlsm", ".xls"):
-        records = await asyncio.get_event_loop().run_in_executor(
-            None, parse_specifications_python_sync, file_content, manufacturer_id or "unknown", str(uuid.uuid4())
-        )
-        pre_parsed_records = records or []
-        if pre_parsed_records:
-            collections = {}
-            for r in pre_parsed_records:
-                col = r.get("collection_name", "Unknown")
-                if col not in collections: collections[col] = []
-                if len(collections[col]) < 8:
-                    collections[col].append(f"{r['sku']}=${r['price']:.2f}")
-
-            lines = [f"Excel pricing sheet: {len(pre_parsed_records)} SKU-price records found.\n"]
-            for col, samples in list(collections.items())[:15]:
-                lines.append(f"Collection '{col}': {', '.join(samples)}")
-            structured_summary = "\n".join(lines)
-
-    elif file_ext == ".pdf":
-        records = await asyncio.get_event_loop().run_in_executor(
-            None, parse_pricing_pdf_sync, file_content, manufacturer_id or "unknown", str(uuid.uuid4())
-        )
-        pre_parsed_records = records or []
-        if pre_parsed_records:
-            collections = {}
-            for r in pre_parsed_records:
-                col = r.get("collection_name", "Unknown")
-                if col not in collections: collections[col] = []
-                if len(collections[col]) < 8:
-                    collections[col].append(f"{r['sku']}=${r['price']:.2f}")
-
-            lines = [f"PDF pricing sheet: {len(pre_parsed_records)} SKU-price records found.\n"]
-            for col, samples in list(collections.items())[:15]:
-                lines.append(f"Collection '{col}': {', '.join(samples)}")
-            structured_summary = "\n".join(lines)
-
-    if not structured_summary:
-        structured_summary = _extract_text_from_bytes(file_content, file_ext)[:6000]
-
-    # ── Step 2: AI Knowledge Extraction ──
-    extracted_knowledge = {}
-    if structured_summary.strip():
-        prompt = TRAINING_EXTRACT_PROMPT.format(
-            doc_name=doc_name,
-            doc_type=doc_type,
-            user_description=description or "No description provided",
-            content_excerpt=structured_summary
-        )
-        ai_text = await _ai_generate(prompt)
-        extracted_knowledge = _parse_json_response(ai_text) or {}
-
-    extracted_knowledge["_pre_parsed_records"] = len(pre_parsed_records)
-
-    # ── Step 3: Save to DB ──
-    insert_data = {
-        "name": doc_name,
-        "description": description,
-        "doc_type": doc_type,
-        "file_url": file_url,
-        "file_name": file_name,
-        "file_size_bytes": len(file_content),
-        "extracted_knowledge": extracted_knowledge,
-        "is_active": True,
-        "manufacturer_id": manufacturer_id or None,
-        "manufacturer_name": manufacturer_name or None
-    }
-    res = supabase.table("training_documents").insert(insert_data).execute()
-    doc_id = res.data[0]["id"] if res.data else None
-
-    return {
-        "success": True,
-        "doc_id": doc_id,
-        "file_url": file_url,
-        "extracted_knowledge": extracted_knowledge,
-        "pre_parsed_records": len(pre_parsed_records),
-        "message": f"'{doc_name}' trained successfully using {len(pre_parsed_records)} pricing records."
-    }
-
-
-# ─── Endpoint: Process Training Document (Upload) ───────────────────────────
-
-@router.post("/agent/process-training-doc", dependencies=[Depends(require_super_admin)])
-async def process_training_doc(
-    file: UploadFile = File(...),
-    doc_name: str = Form(...),
-    doc_type: str = Form(default="general"),
-    description: str = Form(default=""),
-    manufacturer_id: str = Form(default=""),
-    manufacturer_name: str = Form(default="")
-):
-    """Process a NEW uploaded file for training."""
-    try:
-        file_content = await file.read()
-        return await _perform_training(
-            file_content=file_content,
-            file_name=file.filename,
-            doc_name=doc_name,
-            doc_type=doc_type,
-            description=description,
-            manufacturer_id=manufacturer_id,
-            manufacturer_name=manufacturer_name
-        )
-    except Exception as e:
-        traceback.print_exc()
-        return {"success": False, "error": str(e)}
-
-
-@router.post("/agent/train-from-existing", dependencies=[Depends(require_super_admin)])
-async def train_from_existing(payload: dict):
-    """
-    Train AI using a file that already exists in manufacturer_files.
-    Avoids redundant uploads.
-    """
-    try:
-        file_id = payload.get("file_id")
-        doc_name = payload.get("doc_name")
-        doc_type = payload.get("doc_type", "general")
-        description = payload.get("description", "")
-
-        if not file_id:
-            raise HTTPException(status_code=400, detail="file_id is required")
-
-        supabase = get_supabase()
-
-        # 1. Get file metadata and manufacturer info
-        file_res = supabase.table("manufacturer_files") \
-            .select("*, manufacturers(name)") \
-            .eq("id", file_id).single().execute()
-        
-        if not file_res.data:
-            raise HTTPException(status_code=404, detail="File not found")
-        
-        file_data = file_res.data
-        mfr_name = file_data.get("manufacturers", {}).get("name", "")
-
-        # 2. Download file content from Supabase storage
-        # URL format: .../storage/v1/object/public/BUCKET_NAME/PATH
-        file_url = file_data.get("file_url", "")
-        
-        # Check for broken references
-        if not file_url or file_url in ("local_temp", "#", "null", "undefined"):
-            raise HTTPException(
-                status_code=400, 
-                detail="This file reference is broken or was uploaded using an old method. "
-                       "Please re-upload this file in the Manufacturers section to enable AI training."
-            )
-        
-        try:
-            file_bytes = download_bytes(file_url, DOCS_BUCKET)
-        except Exception as se:
-            print(f"ERROR: Failed to download from {DOCS_BUCKET}: {se}")
-            try:
-                file_bytes = download_bytes(file_url, TRAINING_BUCKET)
-            except Exception:
-                raise Exception(f"Failed to download file from storage: {str(se)}")
-
-        # 3. Run training
-        return await _perform_training(
-            file_content=file_bytes,
-            file_name=file_data["file_name"],
-            doc_name=doc_name or file_data["file_name"],
-            doc_type=doc_type,
-            description=description,
-            manufacturer_id=file_data["manufacturer_id"],
-            manufacturer_name=mfr_name,
-            existing_url=file_url
-        )
-    except Exception as e:
-        traceback.print_exc()
-        return {"success": False, "error": str(e)}
-
-
-@router.get("/agent/available-manufacturer-files", dependencies=[Depends(require_super_admin)])
-def get_available_manufacturer_files():
-    """List manufacturer files that can be used for AI training."""
-    try:
-        supabase = get_supabase()
-        # Get all manufacturer files
-        files_res = supabase.table("manufacturer_files") \
-            .select("id, file_name, file_type, file_url, created_at, manufacturer_id, manufacturers(name)") \
-            .order("created_at", desc=True).execute()
-        
-        # Get already trained file URLs to avoid duplicates
-        trained_res = supabase.table("training_documents") \
-            .select("file_url").eq("is_active", True).execute()
-        trained_urls = {t["file_url"] for t in trained_res.data} if trained_res.data else set()
-
-        available = []
-        for f in (files_res.data or []):
-            url = f.get("file_url", "")
-            # Skip broken references
-            if not url or url in ("local_temp", "#", "null", "undefined"):
-                continue
-                
-            available.append({
-                **f,
-                "manufacturer_name": f.get("manufacturers", {}).get("name", "Unknown"),
-                "is_already_trained": url in trained_urls
-            })
-        
-        return {"success": True, "files": available}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-    except Exception as e:
-        traceback.print_exc()
-        return {"success": False, "error": str(e)}
-
-
-# ─── Endpoint: List Training Documents ──────────────────────────────────────
-
-@router.get("/agent/training-docs", dependencies=[Depends(require_super_admin)])
-def list_training_docs():
-    """List all active training documents."""
-    try:
-        supabase = get_supabase()
-        res = supabase.table("training_documents") \
-            .select("id,name,description,doc_type,file_name,file_url,manufacturer_name,extracted_knowledge,is_active,created_at") \
-            .eq("is_active", True) \
-            .order("created_at", desc=True) \
-            .execute()
-        return {"success": True, "documents": res.data or []}
-    except Exception as e:
-        return {"success": False, "error": str(e), "documents": []}
 
 
 # ─── Endpoint: FULL DOCUMENT Analysis (Single AI Call) ─────────────────────
@@ -1525,19 +1234,6 @@ async def analyze_drawing_local_inner(pdf_url: str) -> dict:
     """Helper: read PDF bytes from storage and run rule-based extraction."""
     pdf_bytes = download_bytes(pdf_url, DOCS_BUCKET)
     return extract_rooms_rule_based(pdf_bytes)
-
-
-# ─── Endpoint: Delete Training Document ─────────────────────────────────────
-
-@router.delete("/agent/training-docs/{doc_id}", dependencies=[Depends(require_super_admin)])
-def delete_training_doc(doc_id: str):
-    """Soft-delete a training document."""
-    try:
-        supabase = get_supabase()
-        supabase.table("training_documents").update({"is_active": False}).eq("id", doc_id).execute()
-        return {"success": True, "message": "Training document removed."}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
 
 
 # ─── Endpoint: Get Manufacturer Research ────────────────────────────────────

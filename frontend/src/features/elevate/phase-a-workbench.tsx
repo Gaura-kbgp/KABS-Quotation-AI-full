@@ -1,22 +1,23 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
-import { FileUp, Loader2, Plus, Save, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState, useTransition } from 'react';
+import { FileUp, Loader2, Plus, Save, Search, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { buildWorksheet, customerSummary, type PricingRules, type WorksheetItem } from './pricing';
 import { DEFAULT_RULES, effectiveRules, money, PricingRulesForm, type Method } from './pricing-rules-form';
-import { savePricingProfile, type SavedProfile } from './actions';
+import { validateSkuMatches, savePricingProfile, type Manufacturer, type SavedProfile, type SkuMatchResult } from './actions';
 
 type Row = { key: number; code: string; description: string; qty: string; listPrice: string };
 
 const blankRow = (key: number): Row => ({ key, code: '', description: '', qty: '1', listPrice: '' });
 
 /**
- * Phase A workbench. Staff enter items (later: filled from the 2020 PDF or product list),
- * then see the internal worksheet and the customer summary under the current rules.
+ * Phase A workbench. Staff select a manufacturer + door style, enter items (or import from
+ * a 2020 PDF), auto-fill list prices from the catalog, then review the internal worksheet
+ * and customer summary under the configured rules.
  */
-export function PhaseAWorkbench({ initial }: { initial: SavedProfile | null }) {
+export function PhaseAWorkbench({ initial, manufacturers }: { initial: SavedProfile | null; manufacturers: Manufacturer[] }) {
   const [rules, setRules] = useState<PricingRules>(initial?.rules ?? DEFAULT_RULES);
   const [method, setMethod] = useState<Method>(initial?.method ?? 'markup');
   const initialRows: Row[] = (initial?.items ?? []).map((i, idx) => ({
@@ -31,7 +32,80 @@ export function PhaseAWorkbench({ initial }: { initial: SavedProfile | null }) {
   const [saving, startSave] = useTransition();
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [extracting, setExtracting] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [skuStatus, setSkuStatus] = useState<Record<string, SkuMatchResult>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Manufacturer + door style for SKU price lookup
+  const [manufacturerId, setManufacturerId] = useState('');
+  const [doorStyle, setDoorStyle] = useState('');
+  const [doorStyles, setDoorStyles] = useState<string[]>([]);
+  const [loadingStyles, setLoadingStyles] = useState(false);
+
+  useEffect(() => {
+    if (!manufacturerId) { setDoorStyles([]); setDoorStyle(''); return; }
+    setLoadingStyles(true);
+    setDoorStyle('');
+    fetch(`/api/backend/api/catalog/options/${manufacturerId}`, { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return;
+        // price_column model (e.g. Marsh): price_columns are the door-style options
+        const cols: string[] = (d.price_columns ?? [])
+          .map((c: any) => typeof c === 'string' ? c : (c.id ?? c.label ?? ''))
+          .filter(Boolean);
+        // collection model: door_styles list
+        const styles: string[] = (d.door_styles ?? [])
+          .map((s: any) => typeof s === 'string' ? s : (s.name ?? ''))
+          .filter(Boolean);
+        setDoorStyles(cols.length ? cols : styles);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingStyles(false));
+  }, [manufacturerId]);
+
+  async function autoFill() {
+    const skus = rows.map(r => r.code.trim()).filter(Boolean);
+    if (!skus.length || !manufacturerId || !doorStyle) {
+      setStatus({ ok: false, text: 'Select a manufacturer and door style first, then enter SKU codes.' });
+      return;
+    }
+    setLookingUp(true);
+    setStatus(null);
+    try {
+      const results = await validateSkuMatches(manufacturerId, doorStyle, skus);
+      const statusMap: Record<string, SkuMatchResult> = {};
+      for (const r of results) statusMap[r.sku.toUpperCase()] = r;
+      setSkuStatus(statusMap);
+
+      const exactCount = results.filter(r => r.status === 'exact').length;
+      const variantCount = results.filter(r => r.status === 'variant').length;
+      const notFoundCount = results.filter(r => r.status === 'not_found' || r.status === 'wrong_style').length;
+
+      setRows(rs => rs.map(r => {
+        const match = statusMap[r.code.trim().toUpperCase()];
+        if (match?.status === 'exact' && match.price !== null) {
+          return { ...r, listPrice: String(match.price) };
+        }
+        return r;
+      }));
+
+      const parts: string[] = [];
+      if (exactCount > 0) parts.push(`${exactCount} exact`);
+      if (variantCount > 0) parts.push(`${variantCount} variant`);
+      if (notFoundCount > 0) parts.push(`${notFoundCount} not found`);
+      setStatus({
+        ok: exactCount > 0,
+        text: exactCount > 0
+          ? `Matched ${parts.join(', ')} of ${skus.length} SKU(s) from the ${doorStyle} catalog.`
+          : `No prices found for these SKUs with door style "${doorStyle}". Check the codes and door style selection.`,
+      });
+    } catch (err: any) {
+      setStatus({ ok: false, text: err.message ?? 'Price lookup failed.' });
+    } finally {
+      setLookingUp(false);
+    }
+  }
 
   async function handleExtract(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -106,6 +180,42 @@ export function PhaseAWorkbench({ initial }: { initial: SavedProfile | null }) {
   return (
     <div className="space-y-8">
       <section className="space-y-3">
+        <h3 className="text-sm font-semibold text-slate-900">0. Manufacturer &amp; Door Style</h3>
+        <p className="text-xs text-slate-400">Select a manufacturer and door style to auto-fill list prices from the catalog.</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="space-y-1 text-sm">
+            <span className="font-medium text-slate-700">Manufacturer</span>
+            <select
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+              value={manufacturerId}
+              onChange={e => setManufacturerId(e.target.value)}
+            >
+              <option value="">— Select manufacturer —</option>
+              {manufacturers.map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-1 text-sm">
+            <span className="font-medium text-slate-700">Door Style</span>
+            <select
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm disabled:opacity-50"
+              value={doorStyle}
+              onChange={e => setDoorStyle(e.target.value)}
+              disabled={!manufacturerId || loadingStyles}
+            >
+              <option value="">
+                {loadingStyles ? 'Loading…' : doorStyles.length ? '— Select door style —' : manufacturerId ? 'No styles found' : '—'}
+              </option>
+              {doorStyles.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section className="space-y-3">
         <h3 className="text-sm font-semibold text-slate-900">1. Rules</h3>
         <PricingRulesForm rules={rules} onRulesChange={setRules} method={method} onMethodChange={setMethod} />
       </section>
@@ -113,7 +223,7 @@ export function PhaseAWorkbench({ initial }: { initial: SavedProfile | null }) {
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h3 className="text-sm font-semibold text-slate-900">2. Items</h3>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
@@ -133,32 +243,76 @@ export function PhaseAWorkbench({ initial }: { initial: SavedProfile | null }) {
               {extracting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileUp className="mr-1 h-4 w-4" />}
               {extracting ? 'Extracting…' : 'Import 2020 PDF'}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={lookingUp || !manufacturerId || !doorStyle}
+              onClick={autoFill}
+              className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
+              title={!manufacturerId || !doorStyle ? 'Select manufacturer and door style first' : 'Look up list prices for all entered SKU codes'}
+            >
+              {lookingUp ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Search className="mr-1 h-4 w-4" />}
+              {lookingUp ? 'Looking up…' : 'Auto-fill prices'}
+            </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => { setRows([...rows, blankRow(nextKey)]); setNextKey(nextKey + 1); }}>
               <Plus className="mr-1 h-4 w-4" /> Add item
             </Button>
           </div>
         </div>
-        <p className="text-xs text-slate-400">Upload a 2020 Design PDF export to auto-fill this table, or enter items manually.</p>
+        <p className="text-xs text-slate-400">
+          Import a 2020 Design PDF, or enter SKU codes manually and click <strong>Auto-fill prices</strong> to look up list prices from the catalog.
+        </p>
         <div className="space-y-2">
-          {rows.map((r) => (
-            <div key={r.key} className="grid grid-cols-12 items-center gap-2">
-              <Input className="col-span-2 bg-white" placeholder="Code" value={r.code} onChange={(e) => update(r.key, { code: e.target.value })} />
-              <Input className="col-span-4 bg-white" placeholder="Description" value={r.description} onChange={(e) => update(r.key, { description: e.target.value })} />
-              <Input className="col-span-2 bg-white" type="number" min="0" placeholder="Qty" value={r.qty} onChange={(e) => update(r.key, { qty: e.target.value })} />
-              <Input className="col-span-3 bg-white" type="number" min="0" step="0.01" placeholder="List price" value={r.listPrice} onChange={(e) => update(r.key, { listPrice: e.target.value })} />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="col-span-1"
-                aria-label="Remove item"
-                onClick={() => setRows(rows.length > 1 ? rows.filter((x) => x.key !== r.key) : [blankRow(nextKey)])}
-              >
-                <Trash2 className="h-4 w-4 text-red-500" />
-              </Button>
-            </div>
-          ))}
+          {rows.map((r) => {
+            const match = skuStatus[r.code.trim().toUpperCase()];
+            return (
+              <div key={r.key} className="grid grid-cols-12 items-center gap-2">
+                <div className="col-span-2 relative">
+                  <Input className="bg-white pr-6" placeholder="Code" value={r.code} onChange={(e) => update(r.key, { code: e.target.value })} />
+                  {match && (
+                    <span
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs"
+                      title={
+                        match.status === 'exact' ? `Exact match — $${match.price}` :
+                        match.status === 'variant' ? `Variant — suggest ${match.suggestion}` :
+                        match.status === 'wrong_style' ? 'SKU exists but not in this door style' :
+                        'Not found in catalog'
+                      }
+                    >
+                      {match.status === 'exact'       ? '🟢' :
+                       match.status === 'variant'     ? '🟡' :
+                       match.status === 'wrong_style' ? '🟠' : '🔴'}
+                    </span>
+                  )}
+                </div>
+                <Input className="col-span-4 bg-white" placeholder="Description" value={r.description} onChange={(e) => update(r.key, { description: e.target.value })} />
+                <Input className="col-span-2 bg-white" type="number" min="0" placeholder="Qty" value={r.qty} onChange={(e) => update(r.key, { qty: e.target.value })} />
+                <Input className="col-span-3 bg-white" type="number" min="0" step="0.01" placeholder="List price" value={r.listPrice} onChange={(e) => update(r.key, { listPrice: e.target.value })} />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="col-span-1"
+                  aria-label="Remove item"
+                  onClick={() => setRows(rows.length > 1 ? rows.filter((x) => x.key !== r.key) : [blankRow(nextKey)])}
+                >
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                </Button>
+                {match?.status === 'variant' && match.suggestion && (
+                  <div className="col-span-12 -mt-1 ml-0 text-xs text-amber-600 pl-0.5">
+                    ↳ Closest match in catalog: <strong>{match.suggestion}</strong>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
+        {Object.keys(skuStatus).length > 0 && (
+          <p className="text-xs text-slate-400">
+            SKU confidence: 🟢 Exact match &nbsp;·&nbsp; 🟡 Variant (similar size) &nbsp;·&nbsp; 🟠 Wrong door style &nbsp;·&nbsp; 🔴 Not in catalog
+          </p>
+        )}
         {invalidRows > 0 && <p className="text-xs text-amber-600">{invalidRows} item(s) are missing a code, quantity or list price.</p>}
       </section>
 

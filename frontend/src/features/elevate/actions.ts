@@ -6,6 +6,121 @@ import { scopedDb } from '@/lib/db';
 import { logUsage } from '@/lib/usage';
 import { DEFAULT_RULES, type Method, type PricingRules, type WorksheetItem } from './pricing';
 
+export interface Manufacturer { id: string; name: string; }
+
+/** All manufacturers this org can access (own + platform shared). */
+export async function loadManufacturers(): Promise<Manufacturer[]> {
+  await requireUser();
+  const supabase = await scopedDb();
+  const { data } = await supabase.from('manufacturers').select('id, name').order('name');
+  return (data ?? []).map(r => ({ id: r.id as string, name: r.name as string }));
+}
+
+/**
+ * Look up list prices for a batch of SKU codes from manufacturer_pricing.
+ * For Marsh (price_column model) the doorStyle is the price column name (e.g. "APEX").
+ * Returns a map of UPPER-CASED sku → price. Missing SKUs are omitted.
+ */
+export async function lookupSkuPrices(
+  manufacturerId: string,
+  doorStyle: string,
+  skus: string[],
+): Promise<Record<string, number>> {
+  await requireUser();
+  if (!manufacturerId || !doorStyle || !skus.length) return {};
+  const supabase = await scopedDb();
+  const upperSkus = [...new Set(skus.map(s => s.toUpperCase().trim()).filter(Boolean))];
+  const { data } = await supabase
+    .from('manufacturer_pricing')
+    .select('sku, price')
+    .eq('manufacturer_id', manufacturerId)
+    .eq('door_style', doorStyle.toUpperCase())
+    .in('sku', upperSkus);
+  const out: Record<string, number> = {};
+  for (const row of data ?? []) {
+    if (row.sku) out[(row.sku as string).toUpperCase()] = row.price as number;
+  }
+  return out;
+}
+
+export type SkuMatchStatus = 'exact' | 'variant' | 'wrong_style' | 'not_found';
+
+export interface SkuMatchResult {
+  sku: string;
+  status: SkuMatchStatus;
+  price: number | null;
+  suggestion: string | null;
+}
+
+/**
+ * Module 3 — SKU Confidence Scoring.
+ * For each SKU: exact match → price returned; variant → closest size suggested;
+ * not_found → no match in catalog for this manufacturer/door style.
+ */
+export async function validateSkuMatches(
+  manufacturerId: string,
+  doorStyle: string,
+  skus: string[],
+): Promise<SkuMatchResult[]> {
+  await requireUser();
+  if (!manufacturerId || !doorStyle || !skus.length) return [];
+  const supabase = await scopedDb();
+  const door = doorStyle.toUpperCase();
+  const upperSkus = [...new Set(skus.map(s => s.toUpperCase().trim()).filter(Boolean))];
+
+  // Fetch all rows for this manufacturer + door_style
+  const { data: exactRows } = await supabase
+    .from('manufacturer_pricing')
+    .select('sku, price')
+    .eq('manufacturer_id', manufacturerId)
+    .eq('door_style', door)
+    .limit(10000);
+  const catalog: Record<string, number> = {};
+  for (const r of exactRows ?? []) {
+    if (r.sku) catalog[(r.sku as string).toUpperCase()] = r.price as number;
+  }
+
+  // Fetch all SKUs for this manufacturer (all door styles) — for wrong_style detection
+  const { data: allRows } = await supabase
+    .from('manufacturer_pricing')
+    .select('sku')
+    .eq('manufacturer_id', manufacturerId)
+    .limit(10000);
+  const allSkus = new Set((allRows ?? []).map(r => ((r.sku as string) ?? '').toUpperCase()));
+
+  return upperSkus.map(sku => {
+    if (sku in catalog) {
+      return { sku, status: 'exact' as const, price: catalog[sku], suggestion: null };
+    }
+
+    // Try to find a variant: same alpha prefix, closest size
+    const m = sku.match(/^([A-Z]+)(\d+)(.*)$/);
+    if (m) {
+      const [, prefix, numStr, suffix] = m;
+      const targetNum = parseInt(numStr, 10);
+      let candidates = Object.keys(catalog).filter(
+        s => s.startsWith(prefix) && s.endsWith(suffix)
+      );
+      if (!candidates.length) {
+        candidates = Object.keys(catalog).filter(s => s.startsWith(prefix));
+      }
+      if (candidates.length) {
+        candidates.sort((a, b) => {
+          const na = parseInt((a.match(/\d+/) ?? ['0'])[0], 10);
+          const nb = parseInt((b.match(/\d+/) ?? ['0'])[0], 10);
+          return Math.abs(na - targetNum) - Math.abs(nb - targetNum);
+        });
+        return { sku, status: 'variant' as const, price: null, suggestion: candidates[0] };
+      }
+    }
+
+    if (allSkus.has(sku)) {
+      return { sku, status: 'wrong_style' as const, price: null, suggestion: null };
+    }
+    return { sku, status: 'not_found' as const, price: null, suggestion: null };
+  });
+}
+
 const PROFILE_NAME = 'Default';
 
 export interface SavedProfile {

@@ -13,5 +13,5 @@ const ITEMS: NavItem[] = [
 ];
 
 export function AdminSidebar() {
-  return <NavSidebar title="KABS" subtitle="Quotation AI" items={ITEMS} />;
+  return <NavSidebar title="KABS" subtitle="Pricing AI" items={ITEMS} />;
 }

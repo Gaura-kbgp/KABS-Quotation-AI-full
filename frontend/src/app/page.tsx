@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sparkles, ArrowRight } from 'lucide-react';
-import { getCurrentUser, homeFor } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
 import { createServerSupabase } from '@/lib/supabase-server';
 import { UserMenu } from '@/components/user-menu';
 
@@ -24,7 +24,11 @@ export default async function Home() {
       {/* Signed in: go to your workspace. Signed out: sign in / get started */}
       <div className="absolute top-8 right-8 flex items-center gap-3">
         {user ? (
-          <UserMenu orgName={user.orgName} logoUrl={logoUrl} profileHref={homeFor(user)} />
+          <UserMenu
+            orgName={user.orgName}
+            logoUrl={logoUrl}
+            profileHref={user.role === 'super_admin' ? '/super-admin/dashboard' : '/app/profile'}
+          />
         ) : (
           <>
             <Link href="/login" className="text-sm font-medium text-slate-500 hover:text-sky-600 px-3">
@@ -46,7 +50,7 @@ export default async function Home() {
           </div>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tighter text-slate-900 leading-[1.1]">
             KABS <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-500 to-sky-600">Quotation AI</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-500 to-sky-600">Pricing AI</span>
           </h1>
           <p className="text-lg text-slate-500 max-w-xl mx-auto leading-relaxed">
             The next generation of kitchen and bathroom estimation. AI-powered extraction meets professional-grade precision.

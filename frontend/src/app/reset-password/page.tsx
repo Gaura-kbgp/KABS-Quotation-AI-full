@@ -3,7 +3,7 @@
 import { Suspense, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +14,7 @@ function ResetForm() {
   const token = useSearchParams().get('token') || '';
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
   const [pending, start] = useTransition();
@@ -42,12 +43,51 @@ function ResetForm() {
     <form onSubmit={submit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="password">New password</Label>
-        <Input id="password" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} className="bg-white" required />
+        <div className="relative">
+          <Input
+            id="password"
+            type={showPassword ? 'text' : 'password'}
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            minLength={8}
+            className="bg-white pr-10"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            tabIndex={-1}
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
         <p className="text-xs text-slate-400">At least 8 characters, with letters and a number.</p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="confirm">Confirm password</Label>
-        <Input id="confirm" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className="bg-white" required />
+        <div className="relative">
+          <Input
+            id="confirm"
+            type={showPassword ? 'text' : 'password'}
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            className="bg-white pr-10"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            tabIndex={-1}
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
       {error && <p role="alert" className="text-sm rounded-lg bg-red-50 border border-red-100 text-red-700 p-3">{error}</p>}
       <Button type="submit" className="w-full gradient-button h-11" disabled={pending || !token}>

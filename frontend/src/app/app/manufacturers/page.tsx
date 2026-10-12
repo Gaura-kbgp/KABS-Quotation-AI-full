@@ -1,5 +1,5 @@
 import { requireDealerAdmin } from '@/lib/auth';
-import { getManufacturers } from '@/features/manufacturers/data';
+import { getManufacturersWithSelection } from '@/features/manufacturers/data';
 import { ManufacturersList } from '@/features/manufacturers/manufacturers-list';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, RefreshCcw } from 'lucide-react';
@@ -8,7 +8,7 @@ import Link from 'next/link';
 
 export default async function ManufacturersPage() {
   await requireDealerAdmin();
-  const { manufacturers, error } = await getManufacturers();
+  const { manufacturers, error } = await getManufacturersWithSelection();
 
   if (error) {
     return (
@@ -34,7 +34,13 @@ export default async function ManufacturersPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <ManufacturersList initialManufacturers={manufacturers} basePath="/app" />
+      <ManufacturersList
+        initialManufacturers={manufacturers}
+        basePath="/app"
+        subtitle="Shared catalog curated by Super Admin — spec books and pricing already loaded. Toggle which ones you quote with."
+        readOnly
+        showSelection
+      />
     </div>
   );
 }

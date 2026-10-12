@@ -17,6 +17,7 @@ from app.utils.layout_generator import generate_kitchen_layout
 from app.utils.blueprint_pdf_parser import parse_blueprint_pdf
 from app.core.supabase_client import get_supabase
 from app.core.auth import get_current_user, CurrentUser
+from app.core.storage import MAX_UPLOAD_BYTES
 
 router = APIRouter()
 
@@ -106,6 +107,8 @@ async def parse_pdf(file: UploadFile = File(...), user: CurrentUser = Depends(ge
         pdf_bytes = await file.read()
         if len(pdf_bytes) < 100:
             raise HTTPException(status_code=400, detail="PDF too small / empty")
+        if len(pdf_bytes) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
         result = parse_blueprint_pdf(pdf_bytes)
         return {"success": True, **result}
     except HTTPException:

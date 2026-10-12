@@ -5,7 +5,7 @@ import { LogoUploader } from '@/features/settings/logo-uploader';
 import { TermsForm } from '@/features/settings/terms-form';
 import { SignaturePanel } from '@/features/settings/signature-panel';
 import { ManufacturersStep, NkbaStep } from '@/features/setup/manufacturers-step';
-import { getManufacturers, listManufacturerFiles } from '@/features/manufacturers/data';
+import { getManufacturers } from '@/features/manufacturers/data';
 import { getNkbaRules } from '@/features/nkba/data';
 import { finishSetup } from './actions';
 
@@ -15,7 +15,6 @@ export default async function SetupPage() {
   await requireSetupUser();
   const org = await getOrgSettings();
   const { manufacturers } = await getManufacturers();
-  const { files } = await listManufacturerFiles();
   const { rules: nkba } = await getNkbaRules();
 
   return (
@@ -44,11 +43,10 @@ export default async function SetupPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="font-semibold text-slate-900">4. Manufacturers and files</h2>
-          <p className="text-sm text-slate-500">Add each manufacturer you quote with, then upload its pricing sheet and spec book.</p>
+          <h2 className="font-semibold text-slate-900">4. Manufacturers</h2>
+          <p className="text-sm text-slate-500">These come from Super Admin's shared catalog — nothing to upload here.</p>
           <ManufacturersStep
             initial={manufacturers.map((m: any) => ({ id: m.id, name: m.name }))}
-            files={files.map((f: any) => ({ id: f.id, manufacturer_id: f.manufacturer_id, file_type: f.file_type, file_name: f.file_name, file_url: f.file_url }))}
           />
           <div className="border-t border-slate-100 pt-4">
             <h3 className="font-medium text-slate-900 mb-2">NKBA rules</h3>
@@ -58,7 +56,7 @@ export default async function SetupPage() {
 
         <section className="space-y-4 border-t border-slate-100 pt-6">
           <h2 className="font-semibold text-slate-900">5. Finish</h2>
-          <p className="text-sm text-slate-500">{manufacturers.length === 0 ? 'Add at least one manufacturer to finish.' : `${manufacturers.length} manufacturer${manufacturers.length === 1 ? '' : 's'} added.`}</p>
+          <p className="text-sm text-slate-500">{manufacturers.length === 0 ? 'Ask Super Admin to add a manufacturer before you continue.' : `${manufacturers.length} manufacturer${manufacturers.length === 1 ? '' : 's'} available.`}</p>
           <form action={finishSetup}>
             <button type="submit" className="w-full h-11 rounded-xl gradient-button text-white font-semibold">
               Finish setup and continue

@@ -68,6 +68,15 @@ def _extract_pdf_text_pages(pdf_bytes: bytes, start: int = 0, end: int | None = 
 _CONFIG_PROMPT = """You are analyzing pages from a cabinet manufacturer's catalog document.
 Extract the catalog configuration as JSON. Return ONLY valid JSON, nothing else.
 
+CRITICAL: Base every value — door style names, column ids/labels, species, finishes —
+ONLY on what literally appears in the "Pages to analyze" text below. The example JSON
+further down is ONLY to show the shape of the output; its door style names (Cambridge
+Birch, Atlanta Maple, Florence, Hampton, Arlington, Arcadia...) and column ids are from a
+DIFFERENT manufacturer (Marsh) and must NEVER appear in your answer unless that manufacturer
+is actually Marsh and those exact words appear in the pages. If the provided pages do not
+contain a real door-style/price-column table, return price_model: "unknown", empty lists,
+and explain what's missing in extraction_notes — do not invent plausible-looking values.
+
 Analyze these pages and determine:
 1. price_model: "collection" if prices are in separate named product lines/collections,
                 "price_column" if prices are in numbered columns (like 1,2,3,4S,5,6,4F,7,8,9) mapped to door styles
@@ -125,6 +134,38 @@ Pages to analyze:
 """
 
 
+_CHART_PAGE_RE = re.compile(
+    r'price\s*point\s*reference\s*chart|door\s*style.*price\s*(column|point)|price\s*column.*door\s*style',
+    re.IGNORECASE
+)
+
+
+def _find_chart_pages(pdf_bytes: bytes, max_pages: int = 6) -> list[str]:
+    """
+    Some catalogs (e.g. Aristokraft's 200+ page guide) bury the actual
+    door-style → price-column mapping deep in the document, well past the
+    first 20 pages — those first pages are just cover/marketing/TOC content.
+    Scan the WHOLE document for pages that look like the real reference
+    chart (by heading, or a dense grid of short door-style-like words next
+    to single/double-digit numbers) and return their text, so the AI has
+    real data to ground its answer in instead of guessing.
+    """
+    try:
+        import fitz
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    except Exception:
+        return []
+    found = []
+    for i in range(doc.page_count):
+        text = doc[i].get_text()
+        if _CHART_PAGE_RE.search(text):
+            found.append(text)
+            if len(found) >= max_pages:
+                break
+    doc.close()
+    return found
+
+
 async def extract_catalog_config(
     pdf_bytes: bytes,
     file_type: str = "price_guide",
@@ -132,12 +173,23 @@ async def extract_catalog_config(
     llm_generate_fn=None
 ) -> dict:
     """
-    AI extracts structured catalog config from first N pages of a price guide or style guide PDF.
+    AI extracts structured catalog config from a price guide or style guide PDF.
     Returns config dict with price_model, door_styles, species, finishes, upcharges, etc.
     """
     # Read first 20 pages (covers style guide + pricing header + first price pages)
     pages = _extract_pdf_text_pages(pdf_bytes, 0, 20)
-    combined = "\n---PAGE BREAK---\n".join(pages[:20])[:8000]  # Limit tokens
+    chart_pages = _find_chart_pages(pdf_bytes)
+
+    # Reserve room for the real reference-chart pages (if found anywhere in the
+    # document) FIRST — on long catalogs the front matter alone can exceed the
+    # whole token budget, which silently truncated the chart pages to nothing
+    # when they were appended at the end. Front matter fills whatever budget
+    # is left over, since it's only useful as supporting context.
+    TOTAL_BUDGET = 12000
+    chart_text = "\n---PAGE BREAK---\n".join(chart_pages)
+    front_budget = max(TOTAL_BUDGET - len(chart_text) - 100, 2000)
+    front_text = "\n---PAGE BREAK---\n".join(pages[:20])[:front_budget]
+    combined = front_text + ("\n---PAGE BREAK---\n" + chart_text if chart_text else "")
 
     if not llm_generate_fn:
         try:
@@ -155,7 +207,10 @@ async def extract_catalog_config(
         )
         config = _parse_config_json(raw)
         config["extraction_source"] = "ai_pdf"
-        config["extraction_notes"] = f"Extracted from first 20 pages of {file_type}"
+        # Keep the AI's own explanation (e.g. why it returned "unknown") if it
+        # gave one — overwriting it with a generic string hid real diagnostics.
+        if not config.get("extraction_notes"):
+            config["extraction_notes"] = f"Extracted from first 20 pages + {len(chart_pages)} chart page(s) of {file_type}"
         return config
     except Exception as e:
         print(f"[catalog_extractor] AI extraction failed: {e}")
@@ -228,14 +283,17 @@ def _extract_price_column_rows(pdf_bytes: bytes, catalog_config: dict) -> list[d
 
     rows: list[dict] = []
     pages = _extract_pdf_text_pages(pdf_bytes)
-    # Skip first ~18 pages (index, warranty, style info)
-    data_pages = pages[18:]
 
-    for page_text in data_pages:
+    # Front matter length (cover, TOC, warranty, style guide) varies a lot by
+    # manufacturer — Marsh's real SKU table starts around page 19, Aristokraft's
+    # starts around page 54 of a 232-page guide. Instead of a fixed skip count,
+    # parse every page and keep whatever rows are found; pages before the real
+    # table simply yield zero rows (no SKU-shaped tokens to match).
+    for page_text in pages:
         page_rows = _parse_marsh_page(page_text, col_ids)
         rows.extend(page_rows)
 
-    print(f"[catalog_extractor] price_column extraction: {len(rows)} rows from {len(data_pages)} pages")
+    print(f"[catalog_extractor] price_column extraction: {len(rows)} rows from {len(pages)} pages")
     return rows
 
 
@@ -271,14 +329,20 @@ def _parse_marsh_page(page_text: str, col_ids: list[str]) -> list[dict]:
             continue
 
         sku = parts[0].upper()
-        # Collect numeric values — first check same line, then subsequent lines
-        numeric_vals: list[float | None] = []
+        # Collect numeric values — first check same line, then subsequent lines.
+        # Non-numeric noise tokens (e.g. a "New" label right after the SKU,
+        # or "—"/"•" placeholders for N/A cells) are SKIPPED, not recorded as
+        # None — appending a None placeholder used to shift every real price
+        # one column to the right and silently drop the last column's price.
+        numeric_vals: list[float] = []
 
         # Values already on the SKU line (single-line format fallback)
         for p in parts[1:]:
             if len(numeric_vals) >= n_cols:
                 break
-            numeric_vals.append(_to_float(p))
+            val = _to_float(p)
+            if val is not None:
+                numeric_vals.append(val)
 
         # Continue collecting from following lines if we don't have enough
         j = i + 1
@@ -290,8 +354,9 @@ def _parse_marsh_page(page_text: str, col_ids: list[str]) -> list[dict]:
             # Stop if next line is another Marsh SKU
             if _MARSH_SKU_RE.match(nxt.split()[0] if nxt.split() else ''):
                 break
-            # Try to parse as number (including "—", "•", garbage → None)
-            numeric_vals.append(_to_float(nxt))
+            val = _to_float(nxt)
+            if val is not None:
+                numeric_vals.append(val)
             j += 1
 
         if len(numeric_vals) < n_cols:

@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, HTTPException
 from app.core.auth import CurrentUser, get_current_user
 from app.core.usage import log_usage
 from app.core.supabase_client import get_supabase
-from app.core.storage import DOCS_BUCKET
+from app.core.storage import DOCS_BUCKET, MAX_UPLOAD_BYTES
 from app.utils.cabinet_utils import (
     compress_sku, detect_category, parse_sku_dimensions,
     find_nearest_cabinet_match, classify_cabinet_type,
@@ -417,6 +417,36 @@ def _ck(org_id: str, mfg_id: str) -> str:
 def get_cache_path(mfg_id: str, org_id: str) -> str:
     path = os.path.join(os.path.dirname(__file__), "..", "..", f"mfg_config_{org_id}_{mfg_id}.json")
     return os.path.abspath(path)
+
+
+def invalidate_manufacturer_cache(manufacturer_id: str, org_id: str) -> None:
+    """Bust every in-memory AND on-disk cache that keys off this manufacturer's
+    pricing/config data, so the next read is always fresh. Call this after ANY
+    write to manufacturer_pricing or manufacturer_catalog_config for this
+    manufacturer — not just the two upload endpoints in this file that
+    originally had this inlined. Two real incidents came from this being
+    missing: (1) catalog.py's /catalog/ingest-pricing and /catalog/extract-config
+    never called it, so correcting a price_column manufacturer's (e.g. Marsh)
+    data via Re-train could still serve stale /manufacturer-config results if
+    that fallback path was ever hit; (2) a direct DB fix (bypassing the app
+    entirely, done for Integrity Cabinets) left a stale disk cache file that
+    survived even a full backend restart, serving wrong dropdown data
+    indefinitely until the file was found and deleted by hand."""
+    global _CONFIG_CACHE, _MFG_DB_CACHE, GLOBAL_LOOKUP_CACHE
+    _k = _ck(org_id, manufacturer_id)
+    _CONFIG_CACHE.pop(_k, None)
+    GLOBAL_LOOKUP_CACHE.pop(_k, None)
+    for k in [k for k in _MFG_DB_CACHE['sku'] if k.startswith(f"{_k}:")]:
+        del _MFG_DB_CACHE['sku'][k]
+    for k in [k for k in _MFG_DB_CACHE['col'] if k.startswith(f"{_k}:")]:
+        del _MFG_DB_CACHE['col'][k]
+    cpath = get_cache_path(manufacturer_id, org_id)
+    if os.path.exists(cpath):
+        try:
+            os.remove(cpath)
+        except Exception:
+            pass
+
 
 router = APIRouter()
 
@@ -1549,8 +1579,19 @@ async def upload_pricing(manufacturer_id: str, file: UploadFile = File(...), use
     safe_name = re.sub(r'[^\w.\-]', '_', file.filename or "upload")
     temp_path = os.path.join(tmp_dir, f"{file_id}_{safe_name}")
 
+    # Copy in chunks with a running size cap instead of shutil.copyfileobj
+    # (unbounded) — an oversized upload used to be written to disk in full
+    # before anything checked its size, so a large enough POST could fill
+    # disk regardless of what the parser later did with it.
+    written = 0
     with open(temp_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        while chunk := file.file.read(1024 * 1024):
+            written += len(chunk)
+            if written > MAX_UPLOAD_BYTES:
+                buffer.close()
+                os.remove(temp_path)
+                raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
+            buffer.write(chunk)
 
     try:
         with open(temp_path, "rb") as f:
@@ -1665,21 +1706,23 @@ async def upload_pricing(manufacturer_id: str, file: UploadFile = File(...), use
             else:
                 print(f"DEBUG: All {count} rows inserted successfully.")
 
-            # Bust all in-memory and disk caches so next pricing run uses fresh data
-            global _CONFIG_CACHE, _MFG_DB_CACHE, GLOBAL_LOOKUP_CACHE
-            _k = _ck(supabase.org_id, manufacturer_id)
-            _CONFIG_CACHE.pop(_k, None)
-            GLOBAL_LOOKUP_CACHE.pop(_k, None)
-            for k in [k for k in _MFG_DB_CACHE['sku'] if k.startswith(f"{_k}:")]:
-                del _MFG_DB_CACHE['sku'][k]
-            for k in [k for k in _MFG_DB_CACHE['col'] if k.startswith(f"{_k}:")]:
-                del _MFG_DB_CACHE['col'][k]
-            cpath = get_cache_path(manufacturer_id, supabase.org_id)
-            if os.path.exists(cpath):
-                try: os.remove(cpath)
-                except: pass
+            invalidate_manufacturer_cache(manufacturer_id, supabase.org_id)
 
         log_usage(user, "file.pricing_upload", {"manufacturer_id": manufacturer_id, "file_name": file.filename, "rows": count})
+        if count == 0:
+            # Same false-positive-success shape fixed elsewhere (catalog
+            # ingest job, spec-book job): returning success here let the
+            # frontend show "Pricing Catalog Updated — 0 records extracted"
+            # as if the upload worked, hiding a parser that found nothing.
+            # Existing pricing rows were NOT touched (the delete+insert
+            # block above only runs when count > 0), so nothing was lost —
+            # but the user needs to see this as a failure, not a success.
+            return {
+                "success": False,
+                "error": "No pricing records found in this file — the catalog's existing pricing data was left unchanged.",
+                "count": 0,
+                "fileName": file.filename,
+            }
         return {
             "success":  True,
             "count":    count,
@@ -1725,27 +1768,24 @@ def _process_spec_book_bg(job_id: str, file_bytes: bytes, manufacturer_id: str,
                 SPEC_UPLOAD_JOBS[job_id]['progress'] = pct
             SPEC_UPLOAD_JOBS[job_id]['message'] = f'Inserted {inserted}/{count} pricing records.'
 
-            # Bust caches
-            global _CONFIG_CACHE, _MFG_DB_CACHE, GLOBAL_LOOKUP_CACHE
-            _k = _ck(supabase.org_id, manufacturer_id)
-            _CONFIG_CACHE.pop(_k, None)
-            GLOBAL_LOOKUP_CACHE.pop(_k, None)
-            for k in [k for k in _MFG_DB_CACHE['sku'] if k.startswith(f"{_k}:")]:
-                del _MFG_DB_CACHE['sku'][k]
-            for k in [k for k in _MFG_DB_CACHE['col'] if k.startswith(f"{_k}:")]:
-                del _MFG_DB_CACHE['col'][k]
-            cpath = get_cache_path(manufacturer_id, supabase.org_id)
-            if os.path.exists(cpath):
-                try:
-                    os.remove(cpath)
-                except Exception:
-                    pass
+            invalidate_manufacturer_cache(manufacturer_id, supabase.org_id)
 
-        SPEC_UPLOAD_JOBS[job_id].update({
-            'status': 'done', 'progress': 100,
-            'message': f'Done — {count} pricing records extracted.',
-            'count': count,
-        })
+        if count == 0:
+            # Same false-positive-success bug as the catalog ingest job: reporting
+            # 'done' here let the frontend show "Spec Book Processed — Extracted
+            # 0 records" as if it succeeded, hiding a parsing failure.
+            SPEC_UPLOAD_JOBS[job_id].update({
+                'status': 'error', 'progress': 100,
+                'message': 'No pricing records found in this PDF — check the file is a price guide, not just a spec/dimensions book.',
+                'error': 'No pricing records found',
+                'count': 0,
+            })
+        else:
+            SPEC_UPLOAD_JOBS[job_id].update({
+                'status': 'done', 'progress': 100,
+                'message': f'Done — {count} pricing records extracted.',
+                'count': count,
+            })
     except Exception as e:
         SPEC_UPLOAD_JOBS[job_id].update({
             'status': 'error', 'progress': 0,
@@ -1771,6 +1811,8 @@ async def upload_spec_book(
     # Read file once into memory — on Render this stays in process RAM, not
     # double-buffered through the Next.js route handler.
     file_bytes = await file.read()
+    if len(file_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
 
     try:
         supabase = get_supabase()
@@ -1897,7 +1939,10 @@ def get_manufacturer_config(id: str):
         mapping = {}
         
         # FAST PATH: Fetch only unique collection_name, door_style pairs
-        # Supabase API max limit is 1000 rows by default (PostgREST), but we can page
+        # Supabase API max limit is 1000 rows by default (PostgREST), but we can page.
+        # NOTE: the project's own PostgREST row cap silently caps every batch at
+        # 1,000 regardless of page_size requested via .range() — so requesting
+        # 2000 can still come back as exactly 1000 even when more rows exist.
         page_size = 2000
         off = 0
         seen_combos = set()
@@ -1941,13 +1986,18 @@ def get_manufacturer_config(id: str):
                         for s in styles:
                             mapping[c].add(s)
             
-            if len(batch) < page_size: break
-            # If we've seen 1000 items in a row that we've already processed, 
+            # NOT `if len(batch) < page_size: break` — the server's own row cap
+            # (1,000) means every batch can come back smaller than page_size
+            # (2000) even when more rows remain, which made this bail out after
+            # page 1 every time for any manufacturer with >1,000 pricing rows
+            # (same shape as the already-fixed frontend summary pagination bug).
+            # `if not batch: break` above already handles true end-of-data.
+            # If we've seen 1000 items in a row that we've already processed,
             # and since we are ordered by collection, we likely have all door styles for this block.
-            if consecutive_seen > 1000: 
+            if consecutive_seen > 1000:
                 print(f"DEBUG: Bailing early at {off} rows (found {len(seen_combos)} combos)")
                 break
-            off += page_size
+            off += len(batch)
 
         elapsed = time.time() - start
         print(f"DEBUG: Config fetch completed in {elapsed:.2f}s ({off} rows scanned, {len(seen_combos)} unique combos)")
@@ -2017,7 +2067,12 @@ def db_check():
             "sample": res.data
         }
     except Exception as e:
-        return {"success": False, "error": str(e), "trace": traceback.format_exc()}
+        # Full traceback goes to server logs only â returning it in the
+        # response body let any authenticated user (any org, not just
+        # KABS staff) see internal file paths, library versions, and query
+        # structure on these diagnostic endpoints.
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
 
 
 @router.get("/catalog-check")
@@ -2086,7 +2141,12 @@ def catalog_check(manufacturer_id: str):
             "cache_age": cache_age,
         }
     except Exception as e:
-        return {"success": False, "error": str(e), "trace": traceback.format_exc()}
+        # Full traceback goes to server logs only â returning it in the
+        # response body let any authenticated user (any org, not just
+        # KABS staff) see internal file paths, library versions, and query
+        # structure on these diagnostic endpoints.
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
 
 
 @router.post("/clear-cache")
@@ -2134,6 +2194,8 @@ async def upload_install_rules(
 
     try:
         contents = await file.read()
+        if len(contents) > MAX_UPLOAD_BYTES:
+            return {"success": False, "error": f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)."}
         wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
         ws = wb.active
 
@@ -2213,7 +2275,12 @@ async def upload_install_rules(
         }
 
     except Exception as e:
-        return {"success": False, "error": str(e), "trace": traceback.format_exc()}
+        # Full traceback goes to server logs only â returning it in the
+        # response body let any authenticated user (any org, not just
+        # KABS staff) see internal file paths, library versions, and query
+        # structure on these diagnostic endpoints.
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
 
 
 @router.post("/test-install-rule")
@@ -2279,6 +2346,11 @@ def test_install_rule(body: dict):
         }
 
     except Exception as e:
-        return {"success": False, "error": str(e), "trace": traceback.format_exc()}
+        # Full traceback goes to server logs only â returning it in the
+        # response body let any authenticated user (any org, not just
+        # KABS staff) see internal file paths, library versions, and query
+        # structure on these diagnostic endpoints.
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
 
 

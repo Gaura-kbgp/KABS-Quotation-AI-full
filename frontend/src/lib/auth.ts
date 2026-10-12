@@ -85,7 +85,7 @@ export async function requireDealerAdmin(): Promise<CurrentUser> {
 export async function requireSetupUser(): Promise<CurrentUser> {
   const user = await requireUser();
   if (user.role === 'super_admin') redirect('/super-admin/dashboard');
-  if (user.onboarded) redirect('/app/profile');
+  if (user.onboarded) redirect('/');
   return user;
 }
 
@@ -93,11 +93,11 @@ export async function requireSetupUser(): Promise<CurrentUser> {
  * Where a signed-in user lands, decided here and nowhere else:
  *  - KABS super admin        -> /super-admin/dashboard
  *  - company, setup unfinished -> /setup
- *  - company, setup finished   -> /app/profile
+ *  - company, setup finished   -> / (home — Dashboard is one click away via the sidebar)
  */
 export function homeFor(user: { role: Role; onboarded: boolean }): string {
   if (user.role === 'super_admin') return '/super-admin/dashboard';
-  return user.onboarded ? '/app/profile' : '/setup';
+  return user.onboarded ? '/' : '/setup';
 }
 
 /** For API route handlers: returns a 401 Response instead of redirecting. */
@@ -118,5 +118,13 @@ export async function authFetch(input: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
   const token = await getSessionToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);
-  return fetch(input, { ...init, headers });
+  // Next.js's fetch() caches GET requests server-side (the Data Cache) by
+  // default, independent of the backend's own state — restarting the
+  // backend, or fixing data directly in the DB, did NOT bust it. Every
+  // caller of authFetch is live business data (pricing, catalog config,
+  // project state) that must never be served stale from an in-process
+  // cache the user has no way to invalidate — a dealer could see outdated
+  // prices/door-styles indefinitely. `init.cache` can still override this
+  // per call if a caller genuinely wants caching.
+  return fetch(input, { cache: 'no-store', ...init, headers });
 }

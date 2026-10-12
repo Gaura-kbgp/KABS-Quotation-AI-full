@@ -35,7 +35,7 @@ export default async function SuperAdminDashboardPage() {
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Platform Overview</h1>
-          <p className="text-slate-500 mt-1">KABS Quotation AI, across every client.</p>
+          <p className="text-slate-500 mt-1">KABS Pricing AI, across every client.</p>
         </div>
         <Link href="/super-admin/usage">
           <Button variant="outline" size="sm">Tool usage <ArrowRight className="w-4 h-4 ml-2" /></Button>

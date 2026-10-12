@@ -19,16 +19,38 @@ const TENANT_TABLES = new Set([
   'manufacturer_files',
   'manufacturer_pricing',
   'manufacturer_specifications',
+  'manufacturer_org_hidden',
   'labor_charges',
   'install_rules',
   'install_rule_overrides',
   'nkba_files',
-  'training_documents',
   'quotation_projects',
   'quotation_boms',
   'elevate_pricing_profiles',
   'manufacturer_detections',
   'usage_events',
+]);
+
+/**
+ * Super Admin's org — this is where the platform's shared manufacturer
+ * catalog (brands, spec/pricing files, per-SKU pricing) is curated and
+ * lives. Every other org reads it read-only, in addition to anything of
+ * their own, instead of each dealer having to re-upload the same catalog
+ * under their own org_id. Writes to these tables stay org-scoped as
+ * before (a dealer can still only insert/update/delete their own rows —
+ * the UI layer is responsible for not offering create/edit on manufacturer
+ * records to non-Super-Admin users; see features/setup/manufacturers-step.tsx
+ * and features/manufacturers/actions.ts).
+ * Keep in sync with backend/app/core/supabase_client.py and
+ * backend/app/core/storage.py (_check_tenant).
+ */
+export const PLATFORM_ORG_ID = '00000000-0000-0000-0000-0000000000a1';
+
+const SHARED_CATALOG_TABLES = new Set([
+  'manufacturers',
+  'manufacturer_files',
+  'manufacturer_pricing',
+  'manufacturer_specifications',
 ]);
 
 const stamp = (rows: any, orgId: string) =>
@@ -42,8 +64,12 @@ export function scopedFor(orgId: string) {
         return (table: string) => {
           const q: any = target.from(table);
           if (!TENANT_TABLES.has(table)) return q;
+          const shareRead = SHARED_CATALOG_TABLES.has(table) && orgId !== PLATFORM_ORG_ID;
           return {
-            select: (...a: any[]) => q.select(...a).eq('org_id', orgId),
+            select: (...a: any[]) =>
+              shareRead
+                ? q.select(...a).or(`org_id.eq.${orgId},org_id.eq.${PLATFORM_ORG_ID}`)
+                : q.select(...a).eq('org_id', orgId),
             update: (...a: any[]) => q.update(...a).eq('org_id', orgId),
             delete: (...a: any[]) => q.delete(...a).eq('org_id', orgId),
             insert: (rows: any, ...rest: any[]) => q.insert(stamp(rows, orgId), ...rest),

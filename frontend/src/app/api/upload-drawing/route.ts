@@ -2,13 +2,17 @@ import { apiUser } from '@/lib/auth';
 import { scopedDb } from '@/lib/db';
 import { logUsage } from '@/lib/usage';
 import { analyzeDrawing } from '@/ai/flows/analyze-drawing-flow';
-import * as fs from 'fs';
 
 export const maxDuration = 600; // Increased to 10 minutes for large drawing sets
 
+// Was fs.appendFileSync('route_hit.log', ...) — an unbounded, unrotated
+// plaintext file written to the server's local disk on every single
+// request, forever. In production (and especially on an ephemeral/
+// container filesystem) that's a slow disk-fill risk with no cleanup, for
+// a debug trail nothing ever reads back. console.log goes to the platform's
+// normal log stream instead, with its own retention/rotation already handled.
 function logHit(msg: string) {
-  const timestamp = new Date().toISOString();
-  fs.appendFileSync('route_hit.log', `[${timestamp}] ${msg}\n`);
+  console.log(`[upload-drawing] ${msg}`);
 }
 
 export async function POST(req: Request) {
@@ -84,7 +88,6 @@ export async function POST(req: Request) {
       };
 
       logHit("Saving result...");
-      fs.writeFileSync(`scan_result_${project.id}.json`, JSON.stringify(finalExtractedData, null, 2));
 
       logHit("Updating Supabase with extracted data...");
       const { error: updateError } = await supabase
@@ -103,12 +106,20 @@ export async function POST(req: Request) {
     } catch (e: any) {
       logHit(`AI Flow Catch Error: ${e.message}`);
       console.error('[ROUTE] Analysis or Update Error:', e);
-      
-      // Update status to Error so the UI knows it failed
-      await supabase
+
+      // Update status to Error so the UI knows it failed. NOTE: this table
+      // has no `metadata` column — a previous version of this update tried
+      // to write one, which made the update itself fail silently (unchecked
+      // error), leaving the project stuck at status "Processing" forever
+      // instead of surfacing "Error". Keep the failure reason in
+      // extracted_data instead, and check/log this update's own result too.
+      const { error: errorUpdateError } = await supabase
         .from('quotation_projects')
-        .update({ status: 'Error', metadata: { last_error: e.message } })
+        .update({ status: 'Error', extracted_data: { rooms: [], last_error: e.message } })
         .eq('id', project.id);
+      if (errorUpdateError) {
+        logHit(`Failed to mark project as Error: ${errorUpdateError.message}`);
+      }
     }
 
     await logUsage(auth.user, 'drawing.upload', { project_id: project.id, project_name: projectName });

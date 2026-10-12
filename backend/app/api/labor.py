@@ -9,6 +9,7 @@ import os
 from typing import Optional, Any
 
 from fastapi import APIRouter, UploadFile, File, HTTPException
+from app.core.storage import MAX_UPLOAD_BYTES
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -204,6 +205,8 @@ def _find_col_custom(headers: list[str], aliases_dict: dict[str, list[str]], fie
 async def upload_labor(file: UploadFile = File(...)):
     """Parse a CSV or Excel labor sheet and replace all existing rates."""
     file_bytes = await file.read()
+    if len(file_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
     filename = (file.filename or "").lower()
 
     matrix: list[list] = []
@@ -257,6 +260,8 @@ async def upload_install_rules(file: UploadFile = File(...)):
     """Parse an Excel/CSV install rules sheet and upsert them into public.install_rules."""
     try:
         file_bytes = await file.read()
+        if len(file_bytes) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
         filename = (file.filename or "").lower()
 
         matrix: list[list] = []
@@ -298,11 +303,15 @@ async def upload_install_rules(file: UploadFile = File(...)):
             "warnings": warnings,
             "fileName": file.filename,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
-        error_detail = traceback.format_exc()
-        print(f"ERROR in upload_install_rules: {error_detail}")
-        return {"success": False, "error": f"Internal Server Error: {str(e)}", "detail": error_detail}
+        # Traceback goes to the server log only — it used to be echoed back
+        # in the response's "detail" field, exposing internal file paths and
+        # library versions to any authenticated caller.
+        traceback.print_exc()
+        return {"success": False, "error": f"Internal Server Error: {str(e)}"}
 
 
 @router.get("/labor-rates")

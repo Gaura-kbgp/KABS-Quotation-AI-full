@@ -138,7 +138,7 @@ export function DetectManufacturerClient({ project, manufacturers }: Props) {
   const handleContinue = async () => {
     setIsSaving(true);
     try {
-      // Save detection to project metadata
+      // Save the selected manufacturer onto the project
       const updateRes = await fetch('/api/update-project-metadata', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -154,6 +154,10 @@ export function DetectManufacturerClient({ project, manufacturers }: Props) {
           },
         }),
       });
+      const updateData = await updateRes.json();
+      if (!updateRes.ok || !updateData.success) {
+        throw new Error(updateData.error || 'Failed to save manufacturer selection');
+      }
 
       router.push(`/quotation-ai/review/${project.id}`);
     } catch (err: any) {

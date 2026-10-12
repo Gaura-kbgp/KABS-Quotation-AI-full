@@ -4,7 +4,7 @@ import { requireUser } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PhaseAWorkbench } from '@/features/elevate/phase-a-workbench';
-import { loadPricingProfile } from '@/features/elevate/actions';
+import { loadPricingProfile, loadManufacturers } from '@/features/elevate/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +14,8 @@ const PHASES: { id: string; title: string; status: Status; statusText: string; i
   {
     id: 'A',
     title: 'Pricing from a 2020 design PDF or product list',
-    status: 'next',
-    statusText: 'Starts first',
+    status: 'ready',
+    statusText: 'Active',
     items: [
       'Accept a 2020 design PDF or product list (no new layout)',
       'Extract items and quantities for staff review',
@@ -70,7 +70,10 @@ export default async function ElevatePage() {
   } catch {
     redirect('/login');
   }
-  const saved = await loadPricingProfile();
+  const [saved, manufacturers] = await Promise.all([
+    loadPricingProfile(),
+    loadManufacturers(),
+  ]);
 
   return (
     <main className="min-h-screen bg-slate-50 p-6 md:p-10">
@@ -88,20 +91,13 @@ export default async function ElevatePage() {
           </Button>
         </div>
 
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="pt-6 text-sm text-amber-800">
-            Elevate has not yet supplied its catalog price lists, pricing rules or sample jobs. Until those arrive, nothing here
-            calculates a price. This page shows the agreed phases and their status.
-          </CardContent>
-        </Card>
-
         <Card className="border-slate-200">
           <CardHeader>
-            <CardDescription className="text-xs font-bold uppercase tracking-widest text-slate-400">Phase A</CardDescription>
-            <CardTitle className="mt-1 text-lg text-slate-900">Pricing workbench (rules are assumptions to confirm with Elevate)</CardTitle>
+            <CardDescription className="text-xs font-bold uppercase tracking-widest text-slate-400">Phase A — Active</CardDescription>
+            <CardTitle className="mt-1 text-lg text-slate-900">Pricing workbench</CardTitle>
           </CardHeader>
           <CardContent>
-            <PhaseAWorkbench initial={saved} />
+            <PhaseAWorkbench initial={saved} manufacturers={manufacturers} />
           </CardContent>
         </Card>
 

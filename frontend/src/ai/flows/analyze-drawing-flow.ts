@@ -40,16 +40,25 @@ export async function analyzeDrawing(input: {
       throw new Error('BACKEND_URL environment variable is not set');
     }
 
-    logToFile(`[STEP-WISE SCAN] Step 1: Trying LOCAL extraction (No API Key)...`);
+    logToFile(`[STEP-WISE SCAN] Step 1: Trying LOCAL extraction...`);
 
-    // 1. Try LOCAL extraction first (Rule-based, 0 cost, super fast)
+    // 1. Try LOCAL extraction first. For a plain single-project NKBA drawing
+    // this is pure regex (0 cost, <2s). For a multi-display manufacturer
+    // catalog (see backend/app/utils/display_catalog_extractor.py), this
+    // same endpoint renders each sparse-text page and calls GPT-4o Vision —
+    // easily 40-90s for a 20+ page catalog. The old 30s timeout killed that
+    // request client-side right as the backend was about to succeed (its
+    // own extraction has no timeout, so it kept running and the result was
+    // simply thrown away) — the project was left stuck in "Processing"
+    // forever. 180s covers that case with margin; the route's own
+    // maxDuration (600s) is the outer ceiling.
     let response = await authFetch(`${backendUrl}/api/agent/analyze-drawing-local`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         pdf_url: input.pdfDataUri,
       }),
-      signal: AbortSignal.timeout(30000), // 30s timeout for local
+      signal: AbortSignal.timeout(180000),
     });
 
     let result = await response.json();

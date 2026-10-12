@@ -49,6 +49,7 @@ import { cn, detectCategory, isPrimaryCabinet } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { MANUFACTURER_CONFIG } from '@/lib/manufacturer-config';
 // INTEGRITY_SERIES removed — series are now derived dynamically from the DB mapping
+import { StaffReviewPanel } from '@/features/review/staff-review-panel';
 
 interface Item {
   code: string;
@@ -190,17 +191,20 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
 
   /**
    * Dynamically extract series names from whatever the DB actually has.
-   * Any collection containing " - " is treated as "SERIES NAME - COLLECTION DETAIL".
-   * This handles any naming convention the DB uses without hardcoding.
+   * A collection containing " - " is "SERIES NAME - COLLECTION DETAIL" (the
+   * series is the prefix). A collection with NO " - " (e.g. Integrity's real
+   * extracted data: "DOOR STYLES ELITE SERIES") has no finer sub-collection
+   * at all — the whole name IS the series. The dash-only version used to
+   * silently drop these, leaving the Series dropdown empty, which in turn
+   * disabled Collection ("Pick series first") and Door Style forever — the
+   * whole "Configure Brands" step was unusable for Integrity as a result.
    */
   const integritySeriesFromDB = useMemo(() => {
     if (!isIntegrity) return [];
     const seriesSet = new Set<string>();
     Object.keys(manMapping).forEach(col => {
       const dashIdx = col.indexOf(' - ');
-      if (dashIdx > 0) {
-        seriesSet.add(col.substring(0, dashIdx));
-      }
+      seriesSet.add(dashIdx > 0 ? col.substring(0, dashIdx) : col);
     });
     return Array.from(seriesSet).sort();
   }, [manMapping, isIntegrity]);
@@ -209,7 +213,9 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
   const getFilteredCollections = (seriesName: string) => {
     if (!isIntegrity || !seriesName) return allCollections;
     const prefix = seriesName.toUpperCase() + ' - ';
-    return allCollections.filter(c => c.toUpperCase().startsWith(prefix));
+    return allCollections.filter(c =>
+      c.toUpperCase().startsWith(prefix) || c.toUpperCase() === seriesName.toUpperCase()
+    );
   };
 
   /** Strip the series prefix for clean display.
@@ -505,6 +511,14 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
       <div className="p-6 flex-1">
         {step === 'review' && (
           <div className="max-w-5xl mx-auto space-y-8 pb-32 animate-in fade-in duration-500">
+            {/* Module 5 — Staff Review & Approval */}
+            <StaffReviewPanel
+              projectId={project.id}
+              projectName={project.project_name}
+              reviewStatus={project.review_status ?? 'draft'}
+              rooms={rooms}
+            />
+
             <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100 sticky top-20 z-40">
                <div className="flex items-center gap-3">
                   <Sparkles className="w-5 h-5 text-sky-500" />

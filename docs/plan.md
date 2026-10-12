@@ -301,6 +301,16 @@ This is the "Blueprint Intelligence Engine":
 **Status: ⚡ PARTIAL — BOM manager works, Elevate-specific UI needed**
 - Depends on Phase A + B + C
 
+### Module 5 — Staff Review & Approval (✅ COMPLETE)
+- `features/review/staff-review-panel.tsx` — Review status workflow (Draft → In Review → Approved → Sent)
+  - Progress indicator, advance-status button, SKU exception detection
+  - "Customer Quote" link opens clean printable view
+- `app/quotation-ai/quote/[id]/page.tsx` + `customer-quote-client.tsx` — Customer-facing quote
+  - Letterhead, room-by-room BOM table, grand total, print/PDF button
+- `setReviewStatusAction()` in `actions.ts` — patches `review_status` on `quotation_projects`
+- Panel integrated into review page (`estimator-client.tsx`) at top of review step
+- **DB**: uses `review_status` column on `quotation_projects` (add if not present: `ALTER TABLE quotation_projects ADD COLUMN review_status text DEFAULT 'draft';`)
+
 ### Waiting on from Elevate (BLOCKED)
 - [ ] Integrity, Wellborn, Shiloh price lists (authorized catalogs)
 - [ ] 2020 Design PDF sample files (for extraction testing)

@@ -1,6 +1,7 @@
 
 import { requireUser } from '@/lib/auth';
 import { scopedDb } from '@/lib/db';
+import { getSelectedManufacturers } from '@/features/manufacturers/data';
 import { EstimatorClient } from './estimator-client';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from 'lucide-react';
@@ -13,9 +14,9 @@ export default async function ReviewProjectPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const supabase = await scopedDb();
 
-  const [pRes, mRes] = await Promise.all([
+  const [pRes, { manufacturers }] = await Promise.all([
     supabase.from('quotation_projects').select('*').eq('id', id).single(),
-    supabase.from('manufacturers').select('id, name').eq('status', 'Active').order('name')
+    getSelectedManufacturers(),
   ]);
 
   if (pRes.error || !pRes.data) {
@@ -24,7 +25,6 @@ export default async function ReviewProjectPage({ params }: { params: Promise<{ 
   }
 
   const project = pRes.data;
-  const manufacturers = mRes.data || [];
 
   return (
     <main className="min-h-screen bg-white text-slate-900">

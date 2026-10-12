@@ -3,7 +3,13 @@ PDF pricing parser — uses PyMuPDF (fitz) with parallel page processing
 instead of sequential pdfplumber, giving 5-15x faster extraction on large PDFs.
 """
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# SKU token immediately followed (next non-blank line) by a bare numeric
+# price — the layout used by catalogs whose PDF has no real table structure
+# fitz can detect and no "SKU .... price" dot-leader line either (each cell
+# is its own line): e.g. Integrity Cabinets' "ITEM / LIST PRICE" blocks —
+# "DW1248" \n "991" \n "DW1548" \n "1090" ...
+_LINE_SKU_RE = re.compile(r'^[A-Z]{1,6}[0-9]{2,4}[A-Z0-9\-]{0,6}$')
 
 
 # ─── Page-level extraction (runs in thread pool) ─────────────────────────────
@@ -34,7 +40,15 @@ def _extract_page(args: tuple) -> tuple[int, str, list]:
 
 def _parse_page_data(page_num: int, text: str, tables: list,
                      manufacturer_id: str, file_id: str,
-                     current_series: str, current_construction: str) -> list[dict]:
+                     current_series: str, current_construction: str
+                     ) -> tuple[list[dict], str, str]:
+    """Returns (records, updated_series, updated_construction) — the series/
+    construction state must be threaded back to the caller so it actually
+    persists across pages. Strings are immutable in Python, so reassigning
+    the function's own local `current_series` parameter never changed the
+    caller's variable; every page previously restarted from the caller's
+    stale "UNIVERSAL"/"Standard" defaults unless this exact page itself
+    re-stated the heading in its own first 10 lines."""
     records = []
     lines = text.split('\n')
 
@@ -44,7 +58,20 @@ def _parse_page_data(page_num: int, text: str, tables: list,
         if "SERIES" in u:
             m = re.search(r'([A-Z\s]+SERIES)', u)
             if m:
-                current_series = m.group(1).strip()
+                candidate = m.group(1).strip()
+                words = candidate.split()
+                # A real series heading is short ("CLASSIC SERIES", "ELITE
+                # SERIES") — the old unbounded [A-Z\s]+ greedily grabbed
+                # entire prose sentences that happen to be all-caps and
+                # mention "SERIES" too, e.g. a footnote reading "THE
+                # FOLLOWING ITEMS ARE NOT AVAILABLE IN ELITE SERIES" got
+                # stored as the series name itself, polluting the dropdown
+                # with garbage entries. Reject long matches and ones
+                # containing words that only appear in sentences, not titles.
+                _SENTENCE_WORDS = {"NOT", "ARE", "IS", "THE", "FOLLOWING", "ITEMS",
+                                    "AVAILABLE", "WILL", "CAN", "MUST", "ONLY", "WITH"}
+                if len(words) <= 4 and not (_SENTENCE_WORDS & set(words)):
+                    current_series = candidate
         if "FRAMELESS" in u:
             current_construction = "Frameless"
         elif "FACE FRAME" in u:
@@ -116,17 +143,59 @@ def _parse_page_data(page_num: int, text: str, tables: list,
         for match in re.finditer(r'([A-Z0-9\-/]{3,})\s*[.]+\s*([\d,]+(?:\.\d{2})?)', text):
             sku = match.group(1).upper()
             price_str = match.group(2).replace(',', '')
+            # A stray match (e.g. a run of only commas) can leave price_str
+            # empty after stripping — float('') raises uncaught ValueError,
+            # which propagated all the way out of parse_pricing_pdf_sync's
+            # outer try/except and discarded EVERY record from EVERY page
+            # already parsed, not just this one bad match (confirmed: a
+            # 436-page catalog with real pricing tables returned 0 records
+            # because of a single malformed match like this).
+            if not price_str:
+                continue
+            try:
+                price = float(price_str)
+            except ValueError:
+                continue
             records.append({
                 "manufacturer_id":    manufacturer_id,
                 "raw_source_file_id": file_id,
                 "sku":                sku,
-                "price":              float(price_str),
+                "price":              price,
                 "collection_name":    current_series,
                 "door_style":         current_construction,
                 "created_at":         "now()",
             })
 
-    return records
+    # ── Line-based fallback: SKU on its own line, price on the very next
+    #    non-blank line (no dot-leaders, no fitz-detected table) ────────────
+    if not records:
+        lines = [l.strip() for l in text.split('\n')]
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if _LINE_SKU_RE.match(line):
+                j = i + 1
+                while j < len(lines) and not lines[j]:
+                    j += 1
+                if j < len(lines):
+                    price_candidate = lines[j].replace(',', '').replace('$', '')
+                    try:
+                        price = float(price_candidate)
+                    except ValueError:
+                        price = None
+                    if price is not None and price > 0:
+                        records.append({
+                            "manufacturer_id":    manufacturer_id,
+                            "raw_source_file_id": file_id,
+                            "sku":                line.upper(),
+                            "price":              price,
+                            "collection_name":    current_series,
+                            "door_style":         current_construction,
+                            "created_at":         "now()",
+                        })
+            i += 1
+
+    return records, current_series, current_construction
 
 
 # ─── Public entry point ───────────────────────────────────────────────────────
@@ -135,7 +204,7 @@ def parse_pricing_pdf_sync(file_bytes: bytes, manufacturer_id: str,
                            file_id: str) -> list[dict]:
     """
     Sync parser — call via run_in_executor from async context.
-    Uses PyMuPDF (fitz) + ThreadPoolExecutor for parallel page processing.
+    Uses PyMuPDF (fitz); pages are processed sequentially (see note below).
     """
     import fitz
 
@@ -159,15 +228,20 @@ def parse_pricing_pdf_sync(file_bytes: bytes, manufacturer_id: str,
 
         print(f"PDF Parser: {len(target_pages)}/{total_pages} pages targeted")
 
-        # ── 2. Parallel page extraction ───────────────────────────────────────
+        # ── 2. Page extraction ──────────────────────────────────────────────────
+        # NOT parallelized across threads: PyMuPDF's underlying MuPDF library is
+        # not thread-safe for concurrent operations on the same fitz.Document —
+        # dispatching get_text()/find_tables() for many pages of the SAME doc
+        # across a thread pool doesn't throw, it just silently returns empty/
+        # corrupted results. Confirmed directly: the same 436-page catalog that
+        # returned 0 pricing records through the threaded path here returned
+        # 372 records from its first 100 pages alone when extracted sequentially.
+        # Text+table extraction is cheap per page, so sequential is still fast
+        # enough — correctness matters far more than the lost parallelism here.
         page_results: dict[int, tuple] = {}
-        pages_to_process = [(n, doc[n]) for n in target_pages]
-
-        with ThreadPoolExecutor(max_workers=min(8, len(pages_to_process) or 1)) as pool:
-            futures = {pool.submit(_extract_page, args): args[0] for args in pages_to_process}
-            for future in as_completed(futures):
-                page_num, text, tables = future.result()
-                page_results[page_num] = (text, tables)
+        for n in target_pages:
+            page_num, text, tables = _extract_page((n, doc[n]))
+            page_results[page_num] = (text, tables)
 
         doc.close()
 
@@ -177,11 +251,18 @@ def parse_pricing_pdf_sync(file_bytes: bytes, manufacturer_id: str,
 
         for page_num in sorted(page_results):
             text, tables = page_results[page_num]
-            records = _parse_page_data(
-                page_num, text, tables,
-                manufacturer_id, file_id,
-                current_series, current_construction
-            )
+            try:
+                records, current_series, current_construction = _parse_page_data(
+                    page_num, text, tables,
+                    manufacturer_id, file_id,
+                    current_series, current_construction
+                )
+            except Exception as page_err:
+                # One malformed page must not discard every record already
+                # found on every other page — the outer try/except used to
+                # let exactly this happen (see the price_str note above).
+                print(f"PDF Parser: page {page_num + 1} failed, skipping: {page_err}")
+                continue
             pricing_records.extend(records)
 
         # Remove garbage (non-SKU artifacts)

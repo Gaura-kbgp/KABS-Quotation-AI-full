@@ -12,7 +12,13 @@ Endpoints:
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
 from app.core.auth import CurrentUser, get_current_user
 from app.core.supabase_client import get_supabase
-from app.core.storage import download_bytes, DOCS_BUCKET
+from app.core.storage import download_bytes, DOCS_BUCKET, MAX_UPLOAD_BYTES
+# Shared with app/api/pricing.py's own cache-bust calls — this router never
+# invalidated the /manufacturer-config cache (in-memory dict + on-disk JSON
+# file) it also keys off, so correcting a manufacturer's data via Re-train
+# or /catalog/ingest-pricing could leave stale dropdown data served
+# indefinitely, exactly like the incident this fixed for Integrity Cabinets.
+from app.api.pricing import invalidate_manufacturer_cache
 from app.utils.catalog_extractor import (
     extract_catalog_config,
     extract_pricing_rows,
@@ -122,25 +128,59 @@ async def extract_config(
     # 2. Get PDF bytes
     if file:
         pdf_bytes = await file.read()
+        if len(pdf_bytes) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
     elif file_url:
         try:
-            pdf_bytes = download_bytes(DOCS_BUCKET, file_url)
+            pdf_bytes = download_bytes(file_url, DOCS_BUCKET)
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Could not read file: {e}")
     else:
         raise HTTPException(status_code=400, detail="Provide file upload or file_url")
 
-    # 3. AI extraction
-    config = await extract_catalog_config(pdf_bytes, file_type=file_type, manufacturer_name=mfg_name)
+    # 3. AI extraction — retry up to 3 times and keep the best result.
+    # The AI call is non-deterministic for the same document: re-fixing
+    # Marsh's config today, one run found 61 real door styles, another
+    # returned "collection" model with 0 — a single bad roll used to be
+    # final and silent (looked identical to a legitimately sparse catalog).
+    # A new manufacturer hitting a bad roll on its first-ever extraction
+    # would otherwise need the exact same manual "try again a few times"
+    # workaround used by hand today.
+    config = None
+    for attempt in range(3):
+        cfg = await extract_catalog_config(pdf_bytes, file_type=file_type, manufacturer_name=mfg_name)
+        cfg_styles = len(cfg.get("door_styles", []))
+        if cfg.get("price_model") in ("collection", "price_column") and (
+            config is None or cfg_styles > len(config.get("door_styles", []))
+        ):
+            config = cfg
+        if cfg_styles >= 15:
+            break
+    if config is None:
+        config = cfg  # all attempts came back empty/unknown — surface the last one's diagnostic
 
-    # 4. Save/merge into DB
+    # 4. Save/merge into DB — but only if the AI found something real.
+    # manufacturer_catalog_config.price_model has a CHECK constraint allowing
+    # only 'collection' or 'price_column'. The AI is instructed (see the
+    # anti-hallucination rules in _CONFIG_PROMPT) to return price_model:
+    # "unknown" plus an explanation in extraction_notes when the supplied
+    # pages don't actually contain a door-style/price table, rather than
+    # inventing plausible-looking values — but writing that "unknown" straight
+    # to the DB violates the constraint and 500s the whole request, hiding
+    # the real "not enough data" message from the user. Skip the write (so
+    # any existing good config is left alone) and just hand the diagnostic
+    # back to the caller to show.
+    price_model = config.get("price_model")
+    if price_model not in ("collection", "price_column"):
+        return {"success": True, "config": config, "saved": False}
+
     now = datetime.datetime.utcnow().isoformat()
     existing = supabase.table(CATALOG_TABLE).select("id") \
         .eq("manufacturer_id", manufacturer_id).maybe_single().execute()
 
     row = {
         "manufacturer_id": manufacturer_id,
-        "price_model": config.get("price_model", "collection"),
+        "price_model": price_model,
         "door_styles": config.get("door_styles", []),
         "species": config.get("species", []),
         "finishes": config.get("finishes", []),
@@ -159,7 +199,8 @@ async def extract_config(
     else:
         supabase.table(CATALOG_TABLE).insert(row).execute()
 
-    return {"success": True, "config": config}
+    invalidate_manufacturer_cache(manufacturer_id, supabase.org_id)
+    return {"success": True, "config": config, "saved": True}
 
 
 # ─── POST: Ingest pricing (background job) ───────────────────────────────────
@@ -184,10 +225,12 @@ async def ingest_pricing(
 
     if file:
         file_bytes = await file.read()
+        if len(file_bytes) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
         file_name = file.filename or "upload"
     elif file_url:
         try:
-            file_bytes = download_bytes(DOCS_BUCKET, file_url)
+            file_bytes = download_bytes(file_url, DOCS_BUCKET)
             file_name = file_url.split("/")[-1]
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Could not read file: {e}")
@@ -251,7 +294,13 @@ def _run_ingest(
         CATALOG_INGEST_JOBS[job_id]["status"] = "inserting"
 
         if not rows:
-            CATALOG_INGEST_JOBS[job_id] = {"status": "done", "progress": 100, "rows": 0, "error": "No pricing rows found"}
+            # status must be "error", not "done" — the frontend poller only
+            # throws (and shows the real failure message) on status=="error";
+            # "done" with rows=0 rendered as a false-positive success toast
+            # ("Price Guide Ingested — 0 pricing rows ingested"), hiding a
+            # broken extraction (wrong page range, wrong column count, etc.)
+            # behind what looked like a successful upload.
+            CATALOG_INGEST_JOBS[job_id] = {"status": "error", "progress": 100, "rows": 0, "error": "No pricing rows found — check that the catalog config's price_model/columns match this file."}
             return
 
         # Optionally delete existing rows for this manufacturer
@@ -279,6 +328,7 @@ def _run_ingest(
             inserted += len(batch)
             CATALOG_INGEST_JOBS[job_id]["progress"] = 50 + int(50 * inserted / total)
 
+        invalidate_manufacturer_cache(manufacturer_id, org_id)
         CATALOG_INGEST_JOBS[job_id] = {
             "status": "done", "progress": 100, "rows": inserted, "error": None
         }
@@ -289,6 +339,81 @@ def _run_ingest(
         }
     finally:
         current_org_id.reset(token)
+
+
+# ─── POST: SKU confidence validator (Module 3) ───────────────────────────────
+
+@router.post("/catalog/validate-skus")
+async def validate_skus(
+    payload: dict,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """
+    For each SKU in the request, return:
+      - exact: found in manufacturer_pricing with the specified door_style
+      - variant: base prefix exists but different size/suffix
+      - not_found: no match in catalog
+    Body: { manufacturer_id, door_style, skus: [str] }
+    Response: { results: [{sku, status, price, suggestion}] }
+    """
+    supabase = get_supabase()
+    mfg_id   = payload.get("manufacturer_id", "")
+    door     = (payload.get("door_style") or "").upper()
+    skus     = [s.upper().strip() for s in (payload.get("skus") or []) if s]
+
+    if not mfg_id or not door or not skus:
+        raise HTTPException(status_code=400, detail="manufacturer_id, door_style and skus are required")
+
+    # 1. Fetch all rows for this manufacturer + door_style (cap 10k rows)
+    rows_res = supabase.table(PRICING_TABLE).select("sku, price") \
+        .eq("manufacturer_id", mfg_id).eq("door_style", door).limit(10000).execute()
+    catalog: dict[str, float] = {
+        (r["sku"] or "").upper(): float(r["price"] or 0)
+        for r in (rows_res.data or [])
+    }
+
+    # 2. Also fetch all SKUs for this manufacturer (all door styles) for variant lookup
+    all_skus_res = supabase.table(PRICING_TABLE).select("sku") \
+        .eq("manufacturer_id", mfg_id).limit(10000).execute()
+    all_skus: set[str] = {(r["sku"] or "").upper() for r in (all_skus_res.data or [])}
+
+    results = []
+    for sku in skus:
+        if sku in catalog:
+            results.append({"sku": sku, "status": "exact", "price": catalog[sku], "suggestion": None})
+            continue
+
+        # Variant: same alpha prefix, different numeric suffix
+        import re
+        m = re.match(r'^([A-Z]+)(\d+)(.*)$', sku)
+        suggestion = None
+        if m:
+            prefix = m.group(1)
+            suffix = m.group(3)
+            # Find closest SKU with same prefix in the catalog (same door style)
+            candidates = [s for s in catalog if s.startswith(prefix) and s.endswith(suffix)]
+            if not candidates:
+                # Try without suffix constraint
+                candidates = [s for s in catalog if s.startswith(prefix)]
+            if candidates:
+                # Pick the one with numeric part closest to requested
+                try:
+                    target_num = int(m.group(2))
+                    candidates.sort(key=lambda s: abs(int(re.search(r'\d+', s).group()) - target_num))
+                except Exception:
+                    pass
+                suggestion = candidates[0]
+                results.append({"sku": sku, "status": "variant", "price": None, "suggestion": suggestion})
+                continue
+
+        # Check if the SKU exists in any door style for this manufacturer
+        if sku in all_skus:
+            results.append({"sku": sku, "status": "wrong_style", "price": None,
+                            "suggestion": f"SKU exists in catalog but not for door style {door}"})
+        else:
+            results.append({"sku": sku, "status": "not_found", "price": None, "suggestion": None})
+
+    return {"success": True, "results": results}
 
 
 # ─── PUT: Manual config save ──────────────────────────────────────────────────

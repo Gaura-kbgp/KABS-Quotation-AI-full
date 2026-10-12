@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import type { CurrentUser } from '@/lib/auth';
+import { homeFor } from '@/lib/auth';
 
 /** Shared chrome (sidebar + top bar) for both /admin and /super-admin. */
 export function AdminShell({
@@ -23,7 +24,12 @@ export function AdminShell({
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <header className="h-16 border-b border-slate-200 bg-white/80 backdrop-blur-md flex items-center justify-between px-8 shrink-0">
           <div className="flex items-center gap-4">
-            <Link href="/">
+            {/* This shell is shared by /app (dealer workspace, where "Home"
+                correctly means the quotation tool at "/") and /super-admin
+                (platform admin — a super admin isn't a dealer and shouldn't
+                be sent into the customer-facing quotation flow). Route by
+                role instead of hardcoding "/" for both. */}
+            <Link href={homeFor(user)}>
               <Button variant="ghost" size="sm" className="text-slate-500 hover:text-sky-600">
                 <Home className="w-4 h-4 mr-2" />
                 Home

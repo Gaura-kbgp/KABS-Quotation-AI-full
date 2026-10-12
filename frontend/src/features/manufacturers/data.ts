@@ -14,6 +14,49 @@ export async function getManufacturers() {
   }
 }
 
+/** Same as getManufacturers(), but each row also carries is_selected — whether
+ *  the signed-in company has this manufacturer enabled for their own
+ *  Select Manufacturer / Configure Brands pickers (see manufacturer_org_hidden
+ *  in lib/db.ts). Used by the manufacturer management list so it can render
+ *  a toggle per row. */
+export async function getManufacturersWithSelection() {
+  try {
+    const supabase = await scopedDb();
+    const [mRes, hRes] = await Promise.all([
+      supabase.from('manufacturers').select('*').order('name'),
+      supabase.from('manufacturer_org_hidden').select('manufacturer_id'),
+    ]);
+    if (mRes.error) throw new Error(mRes.error.message);
+    const hidden = new Set((hRes.data || []).map((r: any) => r.manufacturer_id));
+    const manufacturers = (mRes.data || []).map((m: any) => ({ ...m, is_selected: !hidden.has(m.id) }));
+    return { manufacturers, error: null as string | null };
+  } catch (err: any) {
+    console.error('Server-side Manufacturers Fetch Error:', err.message);
+    return { manufacturers: [] as any[], error: err.message as string };
+  }
+}
+
+/** Only the manufacturers the signed-in company has NOT hidden — this is
+ *  what quotation flows (detect-manufacturer, review) should offer in their
+ *  Select Manufacturer pickers, so a dealer who unselected a brand doesn't
+ *  see it show up when starting a new quotation. */
+export async function getSelectedManufacturers() {
+  try {
+    const supabase = await scopedDb();
+    const [mRes, hRes] = await Promise.all([
+      supabase.from('manufacturers').select('id, name').eq('status', 'Active').order('name'),
+      supabase.from('manufacturer_org_hidden').select('manufacturer_id'),
+    ]);
+    if (mRes.error) throw new Error(mRes.error.message);
+    const hidden = new Set((hRes.data || []).map((r: any) => r.manufacturer_id));
+    const manufacturers = (mRes.data || []).filter((m: any) => !hidden.has(m.id));
+    return { manufacturers, error: null as string | null };
+  } catch (err: any) {
+    console.error('Server-side Selected Manufacturers Fetch Error:', err.message);
+    return { manufacturers: [] as any[], error: err.message as string };
+  }
+}
+
 /** Every pricing sheet and spec book for the company (names + stored path, no signed URLs needed). */
 export async function listManufacturerFiles() {
   try {
@@ -61,8 +104,15 @@ export async function getManufacturerDetail(id: string) {
 
     // Calculate the summary live from the pricing table.
     // Supabase PostgREST caps unranged queries at 1,000 rows — paginate to get all.
+    // NOTE: the project's own PostgREST db-max-rows setting silently caps EVERY
+    // batch at 1,000 too, regardless of the page size requested via .range() —
+    // so a requested page of 5000 can still come back as exactly 1000 rows even
+    // when more rows exist. Stopping on "batch smaller than requested" (the old
+    // condition) mistook that short-but-nonempty batch for the last page and
+    // silently truncated large catalogs (e.g. 9,873 rows displaying as 1,000).
+    // Only an EMPTY batch reliably means "no more rows".
     if (files.length > 0) {
-      const PAGE = 5000;
+      const PAGE = 1000;
       let allRows: { collection_name: string; door_style: string; sku: string }[] = [];
       let offset = 0;
       let keepFetching = true;
@@ -76,8 +126,8 @@ export async function getManufacturerDetail(id: string) {
         if (sErr) break;
         const batch = data || [];
         allRows = allRows.concat(batch);
-        if (batch.length < PAGE) keepFetching = false;
-        else offset += PAGE;
+        if (batch.length === 0) keepFetching = false;
+        else offset += batch.length;
       }
 
       if (allRows.length > 0) {

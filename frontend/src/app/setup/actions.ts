@@ -15,5 +15,5 @@ export async function finishSetup() {
     .update({ onboarding_completed_at: new Date().toISOString() })
     .eq('id', user.orgId);
   if (error) throw error;
-  redirect('/app/profile');
+  redirect('/');
 }

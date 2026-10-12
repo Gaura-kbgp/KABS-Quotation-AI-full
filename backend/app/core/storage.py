@@ -12,10 +12,19 @@ refuses to read an object outside the caller's own company.
 """
 from urllib.parse import unquote
 
-from app.core.supabase_client import current_org_id, get_supabase_admin
+from app.core.supabase_client import current_org_id, get_supabase_admin, PLATFORM_ORG_ID
 
 DOCS_BUCKET = "manufacturer-docs"
 TRAINING_BUCKET = "training-docs"
+
+# Shared cap for user-uploaded catalog/pricing files. Several upload endpoints
+# read the whole file into memory (`await file.read()`) with no size check at
+# all before handing the bytes to PyMuPDF/pdfplumber/openpyxl/pandas — an
+# oversized or maliciously crafted file (PDF decompression bomb, XLSX zip
+# bomb) can exhaust server memory/CPU with no auth bypass needed, just a
+# large POST from any logged-in user. Matches the limit already enforced on
+# /elevate/extract-items.
+MAX_UPLOAD_BYTES = 30 * 1024 * 1024  # 30 MB
 
 _BROKEN = {"", "#", "local_temp", "null", "undefined", None}
 
@@ -35,8 +44,20 @@ def extract_path(url_or_path: str, bucket: str) -> str | None:
 
 def _check_tenant(path: str) -> None:
     org = current_org_id.get()
-    if org and not path.startswith(f"{org}/"):
-        raise PermissionError(f"Refusing cross-tenant storage access: {path}")
+    if not org:
+        # Fail closed, not open: every current caller runs inside an HTTP
+        # request (get_current_user sets this) or a background job that
+        # explicitly re-sets it from a trusted server-side value. Returning
+        # here instead of raising would silently skip tenant isolation for
+        # any future code path that forgets to set it (e.g. a bare thread,
+        # where Python's contextvars don't propagate automatically).
+        raise PermissionError(f"Refusing storage access with no tenant context set: {path}")
+    # The platform org's files are the shared manufacturer catalog (brands,
+    # spec/pricing books) — every org can read them, same as the DB rows
+    # that reference them (see SHARED_CATALOG_TABLES in supabase_client.py).
+    if path.startswith(f"{org}/") or path.startswith(f"{PLATFORM_ORG_ID}/"):
+        return
+    raise PermissionError(f"Refusing cross-tenant storage access: {path}")
 
 
 def download_bytes(url_or_path: str, bucket: str = DOCS_BUCKET) -> bytes:

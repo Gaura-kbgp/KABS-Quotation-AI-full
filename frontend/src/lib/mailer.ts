@@ -47,8 +47,8 @@ export function sendVerificationEmail(to: string, token: string) {
   const link = `${APP_URL()}/verify-email?token=${token}`;
   return sendMail(
     to,
-    'Verify your email for KABS Quotation AI',
-    `Welcome to KABS Quotation AI. Verify your email: ${link} (valid 24 hours)`,
+    'Verify your email for KABS Pricing AI',
+    `Welcome to KABS Pricing AI. Verify your email: ${link} (valid 24 hours)`,
     layout('Verify your email', 'Thanks for signing up. Confirm your email address to activate your account. This link is valid for 24 hours.', 'Verify email', link)
   );
 }
@@ -57,7 +57,7 @@ export function sendPasswordResetEmail(to: string, token: string) {
   const link = `${APP_URL()}/reset-password?token=${token}`;
   return sendMail(
     to,
-    'Reset your KABS Quotation AI password',
+    'Reset your KABS Pricing AI password',
     `Reset your password: ${link} (valid 1 hour)`,
     layout('Reset your password', 'We received a request to reset your password. This link is valid for 1 hour.', 'Reset password', link)
   );

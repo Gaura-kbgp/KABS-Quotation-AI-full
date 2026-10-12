@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { apiUser, authFetch } from '@/lib/auth';
 
 const BACKEND = process.env.BACKEND_URL ?? 'http://localhost:8000';
 
 export async function POST(req: NextRequest) {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('kabs_session')?.value;
-  if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+  const auth = await apiUser();
+  if ('response' in auth) return auth.response;
 
   const form = await req.formData();
   const file = form.get('file');
@@ -17,9 +16,14 @@ export async function POST(req: NextRequest) {
   const upstream = new FormData();
   upstream.append('file', file);
 
-  const res = await fetch(`${BACKEND}/api/elevate/extract-items`, {
+  // The backend only reads `Authorization: Bearer <token>` (see
+  // backend/app/core/auth.py), never a raw Cookie header — this route used
+  // to forward `Cookie: kabs_session=...` instead, which the backend simply
+  // ignored, making every request here 401 regardless of the caller's real
+  // session. authFetch() sends the correct bearer header, matching every
+  // other backend-proxy route in this app.
+  const res = await authFetch(`${BACKEND}/api/elevate/extract-items`, {
     method: 'POST',
-    headers: { Cookie: `kabs_session=${session}` },
     body: upstream,
   });
 

@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,7 @@ export function AuthForm({ initialError, initialMode = 'signin', allowSignup = t
   const [company, setCompany] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(initialError || '');
   const [notice, setNotice] = useState('');
   const [needsVerify, setNeedsVerify] = useState(false);
@@ -43,7 +44,7 @@ export function AuthForm({ initialError, initialMode = 'signin', allowSignup = t
       } else {
         const res = await signIn({ email, password });
         if (res.ok) {
-          router.replace(res.role === 'super_admin' ? '/super-admin/dashboard' : res.onboarded ? '/app/profile' : '/setup');
+          router.replace(res.role === 'super_admin' ? '/super-admin/dashboard' : res.onboarded ? '/' : '/setup');
           router.refresh();
         } else {
           setError(res.error);
@@ -102,17 +103,28 @@ export function AuthForm({ initialError, initialMode = 'signin', allowSignup = t
             </Link>
           )}
         </div>
-        <Input
-          id="password"
-          type="password"
-          autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
-          minLength={mode === 'signup' ? 8 : undefined}
-          className="bg-white"
-          required
-        />
+        <div className="relative">
+          <Input
+            id="password"
+            type={showPassword ? 'text' : 'password'}
+            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            minLength={mode === 'signup' ? 8 : undefined}
+            className="bg-white pr-10"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            tabIndex={-1}
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
         {mode === 'signup' && <p className="text-xs text-slate-400">At least 8 characters, with letters and a number.</p>}
       </div>
 

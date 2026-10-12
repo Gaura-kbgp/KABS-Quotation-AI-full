@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useRef } from 'react';
 import Link from 'next/link';
+import { LayoutCanvas } from './layout-canvas';
 
 type Opening = { type: 'window' | 'door'; start_in: number; width_in: number; sill_height_in?: number };
 type Appliance = { type: 'sink' | 'dishwasher' | 'range' | 'cooktop' | 'oven' | 'fridge' | 'microwave' | 'hood'; center_in: number; width_in: number };
@@ -179,8 +180,9 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
           kind: 'wall',
           attached_end: 'left',
         })));
+        const src = data.source === 'ai' ? 'AI' : 'heuristic';
         toast({ title: 'PDF imported',
-          description: `${data.walls.length} walls found, ${data.dimensions_found} dimensions parsed. Review and tweak before generating.` });
+          description: `${data.walls.length} walls found (${src} parser), ${data.dimensions_found} dimensions parsed. Review and tweak before generating.` });
       }
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'PDF import failed', description: err.message });
@@ -551,6 +553,17 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
             </Card>
           </div>
         </div>
+
+        {/* Module 2 — Visual 2D Layout Canvas */}
+        {generated && generated.items.length > 0 && (
+          <div className="mt-6">
+            <LayoutCanvas
+              walls={walls}
+              items={generated.items}
+              warnings={generated.warnings}
+            />
+          </div>
+        )}
       </div>
     </main>
   );

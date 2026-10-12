@@ -12,7 +12,7 @@ export default async function ClientsPage() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div>
         <h1 className="text-3xl font-bold text-slate-900">Clients</h1>
-        <p className="text-slate-500 mt-1">Dealer companies on KABS Quotation AI.</p>
+        <p className="text-slate-500 mt-1">Dealer companies on KABS Pricing AI.</p>
       </div>
       <ClientsPanel initialClients={clients} initialAudit={audit} />
     </div>
