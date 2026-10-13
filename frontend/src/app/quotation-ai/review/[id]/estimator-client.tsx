@@ -49,7 +49,6 @@ import { cn, detectCategory, isPrimaryCabinet } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { MANUFACTURER_CONFIG } from '@/lib/manufacturer-config';
 // INTEGRITY_SERIES removed — series are now derived dynamically from the DB mapping
-import { StaffReviewPanel } from '@/features/review/staff-review-panel';
 
 interface Item {
   code: string;
@@ -239,7 +238,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
   // Catalog-config driven options (for price_column model like Marsh)
   const priceModel: string = catalogOptions?.price_model || 'collection';
   const catalogDoorStyles: string[] = useMemo(
-    () => (catalogOptions?.door_styles || []).map((s: any) => s.name).filter(Boolean),
+    () => [...new Set((catalogOptions?.door_styles || []).map((s: any) => s.name).filter(Boolean))],
     [catalogOptions]
   );
   const catalogSpecies: { name: string; upcharge_pct?: number }[] = useMemo(
@@ -511,14 +510,6 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
       <div className="p-6 flex-1">
         {step === 'review' && (
           <div className="max-w-5xl mx-auto space-y-8 pb-32 animate-in fade-in duration-500">
-            {/* Module 5 — Staff Review & Approval */}
-            <StaffReviewPanel
-              projectId={project.id}
-              projectName={project.project_name}
-              reviewStatus={project.review_status ?? 'draft'}
-              rooms={rooms}
-            />
-
             <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100 sticky top-20 z-40">
                <div className="flex items-center gap-3">
                   <Sparkles className="w-5 h-5 text-sky-500" />

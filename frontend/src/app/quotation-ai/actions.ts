@@ -144,24 +144,43 @@ export async function deleteInstallOverrideAction(id: string) {
 
 export type ReviewStatus = 'draft' | 'in_review' | 'approved' | 'sent';
 
-/**
- * Module 5 — advance (or set) the staff review status on a project.
- * Patches review_status in quotation_projects; revalidates review + quote pages.
- */
-export async function setReviewStatusAction(projectId: string, status: ReviewStatus) {
-  await requireUser();
+export interface QuotationReviewEntry {
+  status: ReviewStatus;
+  by: string;
+  at: string;
+  note: string;
+}
+
+/** Advance or revert review status on a quotation project, recording a note in history. */
+export async function setReviewStatusAction(
+  projectId: string,
+  status: ReviewStatus,
+  note = '',
+): Promise<{ success: true } | { success: false; error: string }> {
+  const user = await requireUser();
   try {
     const supabase = await scopedDb();
+
+    const { data: existing } = await supabase
+      .from('quotation_projects')
+      .select('review_history')
+      .eq('id', projectId)
+      .maybeSingle();
+    const history: QuotationReviewEntry[] = (existing?.review_history as QuotationReviewEntry[] | null) ?? [];
+    history.push({ status, by: user.email ?? user.id, at: new Date().toISOString(), note: note.trim() });
+
     const { error } = await supabase
       .from('quotation_projects')
-      .update({ review_status: status })
+      .update({ review_status: status, review_notes: note.trim() || null, review_history: history })
       .eq('id', projectId);
     if (error) throw error;
+
     revalidatePath(`/quotation-ai/review/${projectId}`);
+    revalidatePath(`/quotation-ai/bom/${projectId}`);
     revalidatePath(`/quotation-ai/quote/${projectId}`);
-    return { success: true as const };
+    return { success: true };
   } catch (err: any) {
-    return { success: false as const, error: err.message as string };
+    return { success: false, error: err.message as string };
   }
 }
 

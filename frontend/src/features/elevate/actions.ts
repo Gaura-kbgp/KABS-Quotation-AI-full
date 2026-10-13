@@ -43,6 +43,65 @@ export async function lookupSkuPrices(
   return out;
 }
 
+export type ElevateApprovalStatus = 'draft' | 'in_review' | 'approved' | 'sent';
+
+export interface ReviewHistoryEntry {
+  status: ElevateApprovalStatus;
+  by: string;
+  at: string;
+  note: string;
+}
+
+/** Module 5 — advance or revert the approval status, optionally with a note. */
+export async function setElevateApprovalAction(
+  status: ElevateApprovalStatus,
+  note = '',
+): Promise<{ success: true } | { success: false; error: string }> {
+  const user = await requireUser();
+  try {
+    const supabase = await scopedDb();
+
+    // Append to history
+    const { data: existing } = await supabase
+      .from('elevate_pricing_profiles')
+      .select('review_history')
+      .eq('name', 'Default')
+      .maybeSingle();
+    const history: ReviewHistoryEntry[] = (existing?.review_history as ReviewHistoryEntry[] | null) ?? [];
+    const entry: ReviewHistoryEntry = {
+      status,
+      by: user.email ?? user.id,
+      at: new Date().toISOString(),
+      note: note.trim(),
+    };
+    history.push(entry);
+
+    const patch: Record<string, unknown> = {
+      approval_status: status,
+      review_notes: note.trim() || null,
+      review_history: history,
+    };
+    if (status === 'approved') {
+      patch.approved_at = new Date().toISOString();
+      patch.approved_by = user.email ?? user.id;
+    }
+    if (status === 'draft') {
+      patch.approved_at = null;
+      patch.approved_by = null;
+    }
+
+    const { error } = await supabase
+      .from('elevate_pricing_profiles')
+      .update(patch)
+      .eq('name', 'Default');
+    if (error) throw error;
+    revalidatePath('/elevate');
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message as string };
+  }
+}
+
 export type SkuMatchStatus = 'exact' | 'variant' | 'wrong_style' | 'not_found';
 
 export interface SkuMatchResult {
@@ -127,6 +186,11 @@ export interface SavedProfile {
   rules: PricingRules;
   method: Method;
   items: WorksheetItem[];
+  approvalStatus?: ElevateApprovalStatus;
+  approvedAt?: string | null;
+  approvedBy?: string | null;
+  reviewNotes?: string | null;
+  reviewHistory?: ReviewHistoryEntry[];
 }
 
 const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
@@ -138,7 +202,7 @@ function sanitizeRules(raw: any): PricingRules {
   for (const k of ['costFactor', 'builderDiscountPct', 'markupPct', 'installation', 'delivery', 'freight', 'threePl', 'hardware', 'taxPct'] as const) {
     if (isNum(raw[k])) r[k] = raw[k];
   }
-  r.grossProfitTargetPct = isNum(raw.grossProfitTargetPct) ? raw.grossProfitTargetPct : null;
+  r.grossProfitTargetPct = isNum(raw.grossProfitTargetPct) ? raw.grossProfitTargetPct : 0;
   r.taxOnCharges = raw.taxOnCharges === true;
   return r;
 }
@@ -160,7 +224,7 @@ export async function loadPricingProfile(): Promise<SavedProfile | null> {
   const supabase = await scopedDb();
   const { data, error } = await supabase
     .from('elevate_pricing_profiles')
-    .select('method, rules, items')
+    .select('method, rules, items, approval_status, approved_at, approved_by, review_notes, review_history')
     .eq('name', PROFILE_NAME)
     .maybeSingle();
   if (error) {
@@ -168,10 +232,17 @@ export async function loadPricingProfile(): Promise<SavedProfile | null> {
     return null;
   }
   if (!data) return null;
+  const approvalStatus = (['draft', 'in_review', 'approved', 'sent'] as ElevateApprovalStatus[])
+    .includes(data.approval_status) ? data.approval_status as ElevateApprovalStatus : 'draft';
   return {
     rules: sanitizeRules(data.rules),
     method: data.method === 'gp' ? 'gp' : 'markup',
     items: sanitizeItems(data.items),
+    approvalStatus,
+    approvedAt: data.approved_at ?? null,
+    approvedBy: data.approved_by ?? null,
+    reviewNotes: data.review_notes ?? null,
+    reviewHistory: Array.isArray(data.review_history) ? (data.review_history as ReviewHistoryEntry[]) : [],
   };
 }
 

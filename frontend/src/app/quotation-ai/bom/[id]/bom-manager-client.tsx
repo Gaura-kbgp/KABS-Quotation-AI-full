@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -79,6 +79,8 @@ import {
 } from '../../actions';
 import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { QuotationReviewPanel } from '@/features/quotation/quotation-review-panel';
+import { type QuotationReviewEntry, setReviewStatusAction } from '../../actions';
 
 interface BomItem {
   id: string;
@@ -246,6 +248,8 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
   const [selectedRooms, setSelectedRooms] = useState<string[]>(project.bom_data?.selectedRooms || roomsList);
   const [step, setStep] = useState<WorkflowStep>('pricing');
   const [viewMode, setViewMode] = useState<ViewMode>('client');
+  const [reviewStatus, setReviewStatus] = useState<string>(project.review_status ?? 'draft');
+  const [isSubmittingReview, startReviewTransition] = useTransition();
 
   const [pricingFactor, setPricingFactor] = useState(project.bom_data?.pricingFactor ?? 1);
   const [targetMargin, setTargetMargin] = useState(project.bom_data?.targetMargin ?? 35);
@@ -331,6 +335,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
   const [quickFillValues, setQuickFillValues] = useState<Record<string, { factor: string; include_3pl: boolean }>>({});
   const [isSavingQuickFill, setIsSavingQuickFill] = useState(false);
   const manageRulesRef = useRef<HTMLDivElement>(null);
+  const reviewPanelRef = useRef<HTMLDivElement>(null);
 
   // ── Cross-Line Comparison ──────────────────────────────────────────────────
   interface CompareRow {
@@ -1113,6 +1118,39 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {step === 'preview' && reviewStatus === 'draft' && (
+            <Button
+              className="rounded-xl h-11 px-5 bg-sky-600 hover:bg-sky-700 text-white gap-2 font-semibold shadow-md shadow-sky-200"
+              disabled={isSubmittingReview}
+              onClick={() => startReviewTransition(async () => {
+                const res = await setReviewStatusAction(project.id, 'in_review', 'Proposal ready — sent to Elevate staff for pricing review');
+                if (res.success) {
+                  setReviewStatus('in_review');
+                  toast({ title: 'Sent to Elevate Staff & Pricing', description: 'Staff can now review, edit and approve this proposal.' });
+                  setTimeout(() => reviewPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+                }
+              })}
+            >
+              {isSubmittingReview ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+              Send to Elevate Staff &amp; Pricing
+            </Button>
+          )}
+          {step === 'preview' && reviewStatus === 'in_review' && (
+            <button
+              onClick={() => reviewPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full hover:bg-amber-100 transition-colors"
+            >
+              In Review — View Panel ↓
+            </button>
+          )}
+          {step === 'preview' && reviewStatus === 'approved' && (
+            <button
+              onClick={() => reviewPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full hover:bg-emerald-100 transition-colors"
+            >
+              ✓ Approved — View Panel ↓
+            </button>
+          )}
           {step === 'pricing' && (
             <>
               <Button variant="outline" className="rounded-xl h-11 px-4 border-slate-200" onClick={handleReprice} disabled={isPricing}>
@@ -2696,6 +2734,46 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
                     <Button size="lg" variant="outline" className="h-16 px-12 text-lg rounded-2xl border-slate-200" onClick={() => triggerPrint()}>
                       <FileDown className="w-5 h-5 mr-3" /> Save Single PDF
                     </Button>
+                  </div>
+
+                  {/* Staff Review & Approval Panel */}
+                  <div ref={reviewPanelRef} className="print:hidden mt-8">
+                    <QuotationReviewPanel
+                      project={{
+                        id: project.id,
+                        project_name: project.project_name,
+                        review_status: reviewStatus,
+                        review_history: project.review_history as QuotationReviewEntry[] | null,
+                        review_notes: project.review_notes,
+                        has_blueprint: !!(project.extracted_data?.rooms?.length),
+                      }}
+                      bom={bom.filter(i => i.is_billable && selectedRooms.includes(i.room)).map(i => ({
+                        id: i.id,
+                        room: i.room,
+                        sku: i.sku,
+                        description: i.description,
+                        quantity: Number(i.qty),
+                        list_price: Number(i.unit_price),
+                        unit_cost: undefined,
+                        line_total: Number(i.line_total),
+                        sell_price: Number(i.unit_price),
+                      }))}
+                      companyName={company.name}
+                      manufacturerName={manufacturerName}
+                      sourceFileName={
+                        project.raw_pdf_url
+                          ? decodeURIComponent(project.raw_pdf_url.split('/').pop() ?? project.project_name)
+                          : project.project_name
+                      }
+                      pricing={{
+                        pricingFactor,
+                        targetMargin,
+                        discount: globalDiscount,
+                        taxRate,
+                        freight,
+                        installationCharges,
+                      }}
+                    />
                   </div>
                 </div>
            )}

@@ -14,7 +14,7 @@ export type Method = 'gp' | 'markup';
 export const DEFAULT_RULES: PricingRules = {
   costFactor: 0.45,
   builderDiscountPct: 0,
-  grossProfitTargetPct: null,
+  grossProfitTargetPct: 0,
   markupPct: 20,
   installation: 0,
   delivery: 0,

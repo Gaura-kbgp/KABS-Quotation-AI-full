@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { FileUp, Loader2, Plus, Save, Search, Trash2 } from 'lucide-react';
+import { FileUp, Loader2, Plus, Save, Search, Trash2, Download, FileSpreadsheet, ChevronDown, ChevronUp } from 'lucide-react';
+import { downloadWorksheetExcel, printWorksheetPdf } from './download-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { buildWorksheet, customerSummary, type PricingRules, type WorksheetItem } from './pricing';
@@ -33,6 +34,7 @@ export function PhaseAWorkbench({ initial, manufacturers }: { initial: SavedProf
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
+  const [showItems, setShowItems] = useState(true);
   const [skuStatus, setSkuStatus] = useState<Record<string, SkuMatchResult>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,15 +52,23 @@ export function PhaseAWorkbench({ initial, manufacturers }: { initial: SavedProf
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (!d) return;
-        // price_column model (e.g. Marsh): price_columns are the door-style options
-        const cols: string[] = (d.price_columns ?? [])
-          .map((c: any) => typeof c === 'string' ? c : (c.id ?? c.label ?? ''))
-          .filter(Boolean);
-        // collection model: door_styles list
-        const styles: string[] = (d.door_styles ?? [])
+        // Always prefer actual door style names from door_styles array (name field)
+        const namedStyles: string[] = (d.door_styles ?? [])
           .map((s: any) => typeof s === 'string' ? s : (s.name ?? ''))
           .filter(Boolean);
-        setDoorStyles(cols.length ? cols : styles);
+
+        if (namedStyles.length > 0) {
+          // Deduplicate while preserving order
+          setDoorStyles([...new Set(namedStyles)]);
+        } else if (d.price_model === 'price_column') {
+          // Fallback: use price column labels (e.g. "Arcdia/Bel-Air") when no named styles
+          const cols: string[] = (d.price_columns ?? [])
+            .map((c: any) => typeof c === 'string' ? c : (c.label ?? c.id ?? ''))
+            .filter(Boolean);
+          setDoorStyles(cols);
+        } else {
+          setDoorStyles([]);
+        }
       })
       .catch(() => {})
       .finally(() => setLoadingStyles(false));
@@ -130,7 +140,22 @@ export function PhaseAWorkbench({ initial, manufacturers }: { initial: SavedProf
       }));
       setRows(imported);
       setNextKey(nextKey + imported.length);
-      setStatus({ ok: true, text: `Imported ${imported.length} items from PDF (${data.source === 'ai' ? 'AI' : 'rule-based'} extraction, ${data.page_count} pages).` });
+      setShowItems(true);
+
+      // Auto-select manufacturer if detected from PDF and not already chosen
+      let detectedNote = '';
+      if (data.detected_manufacturer && !manufacturerId) {
+        const match = manufacturers.find(m =>
+          m.name.toLowerCase().includes(data.detected_manufacturer.toLowerCase()) ||
+          data.detected_manufacturer.toLowerCase().includes(m.name.toLowerCase())
+        );
+        if (match) {
+          setManufacturerId(match.id);
+          detectedNote = ` · Detected manufacturer: ${match.name}`;
+        }
+      }
+
+      setStatus({ ok: true, text: `Imported ${imported.length} items from PDF (${data.source === 'ai' ? 'AI' : 'rule-based'} extraction, ${data.page_count} pages).${detectedNote}` });
     } catch (err: any) {
       setStatus({ ok: false, text: err.message });
     } finally {
@@ -222,7 +247,18 @@ export function PhaseAWorkbench({ initial, manufacturers }: { initial: SavedProf
 
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h3 className="text-sm font-semibold text-slate-900">2. Items</h3>
+          <button
+            type="button"
+            className="flex items-center gap-1.5 text-sm font-semibold text-slate-900 hover:text-sky-700 transition-colors"
+            onClick={() => setShowItems(v => !v)}
+          >
+            {showItems ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            2. Items
+            {!showItems && rows.filter(r => r.code.trim()).length > 0 && (
+              <span className="text-xs font-normal text-slate-400 ml-1">({rows.filter(r => r.code.trim()).length} items)</span>
+            )}
+            <span className="text-[10px] font-normal text-slate-400 ml-1">(optional)</span>
+          </button>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Hidden file input */}
             <input
@@ -243,26 +279,32 @@ export function PhaseAWorkbench({ initial, manufacturers }: { initial: SavedProf
               {extracting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileUp className="mr-1 h-4 w-4" />}
               {extracting ? 'Extracting…' : 'Import 2020 PDF'}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={lookingUp || !manufacturerId || !doorStyle}
-              onClick={autoFill}
-              className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
-              title={!manufacturerId || !doorStyle ? 'Select manufacturer and door style first' : 'Look up list prices for all entered SKU codes'}
-            >
-              {lookingUp ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Search className="mr-1 h-4 w-4" />}
-              {lookingUp ? 'Looking up…' : 'Auto-fill prices'}
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => { setRows([...rows, blankRow(nextKey)]); setNextKey(nextKey + 1); }}>
-              <Plus className="mr-1 h-4 w-4" /> Add item
-            </Button>
+            {showItems && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={lookingUp || !manufacturerId || !doorStyle}
+                  onClick={autoFill}
+                  className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
+                  title={!manufacturerId || !doorStyle ? 'Select manufacturer and door style first' : 'Look up list prices for all entered SKU codes'}
+                >
+                  {lookingUp ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Search className="mr-1 h-4 w-4" />}
+                  {lookingUp ? 'Looking up…' : 'Auto-fill prices'}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => { setRows([...rows, blankRow(nextKey)]); setNextKey(nextKey + 1); }}>
+                  <Plus className="mr-1 h-4 w-4" /> Add item
+                </Button>
+              </>
+            )}
           </div>
         </div>
-        <p className="text-xs text-slate-400">
-          Import a 2020 Design PDF, or enter SKU codes manually and click <strong>Auto-fill prices</strong> to look up list prices from the catalog.
-        </p>
+        {showItems && (
+          <>
+            <p className="text-xs text-slate-400">
+              Import a 2020 Design PDF (manufacturer will be auto-detected), or enter SKU codes manually and click <strong>Auto-fill prices</strong>.
+            </p>
         <div className="space-y-2">
           {rows.map((r) => {
             const match = skuStatus[r.code.trim().toUpperCase()];
@@ -314,13 +356,37 @@ export function PhaseAWorkbench({ initial, manufacturers }: { initial: SavedProf
           </p>
         )}
         {invalidRows > 0 && <p className="text-xs text-amber-600">{invalidRows} item(s) are missing a code, quantity or list price.</p>}
+          </>
+        )}
       </section>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <Button type="button" className="gradient-button" onClick={save} disabled={saving}>
           {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
           Save for my company
         </Button>
+        {ws && (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => downloadWorksheetExcel(ws)}
+              className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Download Excel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => printWorksheetPdf(ws)}
+              className="border-sky-200 text-sky-700 hover:bg-sky-50 gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Download PDF
+            </Button>
+          </>
+        )}
         {status && <span className={`text-sm ${status.ok ? 'text-emerald-600' : 'text-red-600'}`}>{status.text}</span>}
       </div>
 

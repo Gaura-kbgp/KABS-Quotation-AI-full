@@ -124,6 +124,19 @@ Rules:
     return json.loads(raw)
 
 
+_MANUFACTURER_KEYWORDS: list[tuple[str, list[str]]] = [
+    ('Wellborn Cabinet',   ['wellborn']),
+    ('Integrity Cabinets', ['integrity cabinets', 'integrity cabinet']),
+]
+
+def _detect_manufacturer(text: str) -> str | None:
+    lower = text.lower()
+    for name, keywords in _MANUFACTURER_KEYWORDS:
+        if any(k in lower for k in keywords):
+            return name
+    return None
+
+
 def _sanitize(items: list) -> list[dict]:
     cleaned = []
     for it in items:
@@ -178,6 +191,7 @@ async def extract_items(
             print(f"[elevate/extract] AI fallback failed: {e}")
 
     cleaned = _sanitize(items)
+    detected_manufacturer = _detect_manufacturer(text)
 
     return {
         'success': True,
@@ -185,4 +199,5 @@ async def extract_items(
         'item_count': len(cleaned),
         'page_count': page_count,
         'source': source,
+        'detected_manufacturer': detected_manufacturer,
     }

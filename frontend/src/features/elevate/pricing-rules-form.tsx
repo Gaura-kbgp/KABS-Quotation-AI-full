@@ -29,7 +29,7 @@ export function PricingRulesForm({ rules, onRulesChange, method, onMethodChange 
       <input
         type="number"
         step="0.01"
-        value={rules[key] as number}
+        value={rules[key] ?? ''}
         onChange={num(key)}
         className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
       />
