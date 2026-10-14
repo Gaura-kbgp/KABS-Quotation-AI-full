@@ -1378,6 +1378,18 @@ def _load_style_to_collection(supabase, manufacturer_id: str) -> dict:
     return {}
 
 
+# Tiers precise enough that staff don't need to manually confirm every line item.
+# Anything NOT in this set (nearest-size, category average, manual, estimated
+# door/drawer) is provisional and must be explicitly confirmed before a quote can be
+# approved — see setReviewStatusAction() in frontend/src/app/quotation-ai/actions.ts.
+_CONFIRMED_BY_DEFAULT_PREFIXES = ("EXACT", "BRIDGED", "COMPRESSED", "ALIAS", "FUZZY", "SMART_FUZZY", "SMART_DIM_IDENTITY", "DIMENSION")
+
+
+def _is_confirmed_by_default(match_type: str) -> bool:
+    mt = (match_type or "").upper()
+    return mt.startswith(_CONFIRMED_BY_DEFAULT_PREFIXES)
+
+
 def _price_rooms(rooms: list, lookup_maps: dict, manufacturer_id: str, mfg_hint: str, project_id: str) -> list:
     """Match every cabinet in every room against lookup_maps and return BOM item dicts."""
     bom_items = []
@@ -1442,6 +1454,7 @@ def _price_rooms(rooms: list, lookup_maps: dict, manufacturer_id: str, mfg_hint:
                         "cabinet_type":    cat,
                         "match_explanation": _quick_match_explanation(raw_code, match.get('price_ref') or match['sku'], match_type),
                         "match_confidence": _match_type_confidence(match_type),
+                        "price_confirmed": _is_confirmed_by_default(match_type),
                         "created_at":      datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
                     })
     return bom_items

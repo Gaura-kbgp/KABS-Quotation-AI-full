@@ -5,6 +5,18 @@ import { scopedDb } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 const BACKEND_URL = (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
+// Precision tiers that get an amber/orange/red "not exact" badge in the BOM manager
+// (bom-manager-client.tsx getPrecisionBadge). These are provisional — a guessed price,
+// not a confirmed catalog hit — and must be staff-confirmed (price_confirmed=true) or
+// corrected before a quote can move to 'approved'/'sent'. Mirrors the backend's
+// _is_confirmed_by_default() in backend/app/api/pricing.py — keep both in sync.
+function isProvisionalPrecision(precisionLevel: string | null | undefined): boolean {
+  const p = (precisionLevel || '').toUpperCase();
+  if (!p) return false;
+  if (p.startsWith('NEAREST_DIM')) return true;
+  return p === 'CATEGORY_AVERAGE' || p === 'MANUAL_PRICING_REQUIRED' || p === 'ESTIMATED_DOOR_DRAWER';
+}
+
 // ─── Install Rules ─────────────────────────────────────────────────────────
 
 export interface InstallRule {
@@ -160,6 +172,28 @@ export async function setReviewStatusAction(
   const user = await requireUser();
   try {
     const supabase = await scopedDb();
+
+    // Gate: a quote can't be approved/sent while it still has unconfirmed provisional
+    // prices (nearest-size substitution, category average, manual-required, estimated
+    // door/drawer) on a billable line. Staff must either confirm the price as-is or
+    // correct it (both set price_confirmed=true) in the BOM manager first.
+    if (status === 'approved' || status === 'sent') {
+      const { data: items } = await supabase
+        .from('quotation_boms')
+        .select('sku, precision_level, price_confirmed, is_billable')
+        .eq('project_id', projectId);
+      const unresolved = (items ?? []).filter(
+        (i: any) => i.is_billable !== false && isProvisionalPrecision(i.precision_level) && !i.price_confirmed
+      );
+      if (unresolved.length > 0) {
+        const skus = unresolved.slice(0, 5).map((i: any) => i.sku).join(', ');
+        const more = unresolved.length > 5 ? ` and ${unresolved.length - 5} more` : '';
+        return {
+          success: false,
+          error: `${unresolved.length} item(s) still need price confirmation before approval: ${skus}${more}. Confirm or correct them in the BOM manager first.`,
+        };
+      }
+    }
 
     const { data: existing } = await supabase
       .from('quotation_projects')

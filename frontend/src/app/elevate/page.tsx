@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowRight, FileText, Clock, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { PhaseAWorkbench } from '@/features/elevate/phase-a-workbench';
-import { ElevateReviewCard } from '@/features/elevate/elevate-review-card';
+import { ElevateQuotePreview } from '@/features/elevate/elevate-quote-preview';
 import { loadPricingProfile, loadManufacturers } from '@/features/elevate/actions';
 
 export const dynamic = 'force-dynamic';
@@ -169,7 +169,7 @@ export default async function ElevatePage() {
             { n: '2', title: 'Upload or paste items', desc: 'Upload a 2020 PDF or type SKU codes and quantities.' },
             { n: '3', title: 'Auto-fill prices', desc: 'Click Auto-fill to pull list prices from the catalog.' },
             { n: '4', title: 'Set rules & save', desc: 'Adjust markup / GP target, charges, then Save.' },
-            { n: '5', title: 'Review & send quote', desc: 'Approve the worksheet and generate the customer quote below.' },
+            { n: '5', title: 'Use it on the project', desc: 'Carry these numbers into the quotation project — review and sending happen there.' },
           ].map(step => (
             <div key={step.n} className="flex items-start gap-2 min-w-[160px] flex-1">
               <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-600 text-[10px] font-bold text-white">{step.n}</span>
@@ -190,14 +190,14 @@ export default async function ElevatePage() {
           </CardContent>
         </Card>
 
-        {/* Staff Review & Approval */}
+        {/* Quote preview — approval itself happens on the quotation project, not here */}
         <Card className="border-slate-200">
           <CardHeader>
-            <CardDescription className="text-xs font-bold uppercase tracking-widest text-slate-400">Review &amp; Approval</CardDescription>
-            <CardTitle className="mt-1 text-lg text-slate-900">Staff review and customer quote</CardTitle>
+            <CardDescription className="text-xs font-bold uppercase tracking-widest text-slate-400">Reference</CardDescription>
+            <CardTitle className="mt-1 text-lg text-slate-900">Quote preview</CardTitle>
           </CardHeader>
           <CardContent>
-            <ElevateReviewCard profile={saved} />
+            <ElevateQuotePreview profile={saved} />
           </CardContent>
         </Card>
       </div>

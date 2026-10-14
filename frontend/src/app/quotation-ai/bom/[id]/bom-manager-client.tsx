@@ -95,6 +95,7 @@ interface BomItem {
   line_total: number;
   room: string;
   precision_level: string;
+  price_confirmed?: boolean;
   is_billable?: boolean;
   description?: string;
   cabinet_type?: string;
@@ -405,6 +406,8 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
       return { label: 'Smart Estimate', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
     if (p === 'MANUAL_PRICING_REQUIRED')
       return { label: 'Review Needed', cls: 'bg-red-50 text-red-700 border-red-200' };
+    if (p === 'ELEVATE_WORKSHEET')
+      return { label: 'Elevate Priced', cls: 'bg-violet-50 text-violet-700 border-violet-200' };
     return { label: precision, cls: 'bg-slate-100 text-slate-500 border-slate-200' };
   };
 
@@ -773,6 +776,12 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
     if ('unit_price' in updates || 'qty' in updates) {
       item.line_total = (Number(item.unit_price) || 0) * (Number(item.qty) || 0);
     }
+    // Editing the price or catalog reference on an unresolved match IS staff review —
+    // treat it as confirmation so the approval gate (setReviewStatusAction) doesn't
+    // also demand a separate "Confirm" click for a line they just corrected.
+    if (('unit_price' in updates || 'matched_sku' in updates) && !('price_confirmed' in updates)) {
+      item.price_confirmed = true;
+    }
     newBom[idx] = item;
     setBom(newBom);
   };
@@ -882,6 +891,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
           description: item.description || null,
           cabinet_type: item.cabinet_type || null,
           match_explanation: item.match_explanation || null,
+          price_confirmed: item.price_confirmed ?? false,
         })
       ));
       await updateProjectAction(id, {
@@ -1169,6 +1179,12 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
                 <a href={`/quotation-ai/blueprint/${id}`}>
                   <Blocks className="w-4 h-4 mr-2" />
                   Blueprint Mode
+                </a>
+              </Button>
+              <Button asChild variant="outline" className="rounded-xl h-11 px-4 border-sky-200 text-sky-700 hover:bg-sky-50">
+                <a href={`/quotation-ai/elevate/${id}`}>
+                  <Calculator className="w-4 h-4 mr-2" />
+                  Elevate Pricing
                 </a>
               </Button>
             </>
@@ -1520,6 +1536,22 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
                                           <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border ${badge.cls}`}>
                                             {isEstimated ? '⚠ ' : isNearest ? '≈ ' : '✓ '}{badge.label}
                                           </span>
+                                          {(isEstimated || isNearest) && (
+                                            item.price_confirmed ? (
+                                              <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600">
+                                                <CheckCircle2 className="w-2.5 h-2.5" /> Confirmed
+                                              </span>
+                                            ) : (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleUpdateItem(idx, { price_confirmed: true })}
+                                                className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border border-red-300 text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
+                                                title="This price is a substitution/estimate, not a confirmed catalog hit — confirm it's correct before the quote can be approved"
+                                              >
+                                                Needs confirmation
+                                              </button>
+                                            )
+                                          )}
                                           {/* Catalog ref — editable */}
                                           <div className="flex items-center gap-1 flex-wrap">
                                             <span className="text-[8px] font-black uppercase tracking-wider text-slate-400 whitespace-nowrap">Catalog:</span>

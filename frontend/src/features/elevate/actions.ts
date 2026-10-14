@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireUser } from '@/lib/auth';
 import { scopedDb } from '@/lib/db';
 import { logUsage } from '@/lib/usage';
-import { DEFAULT_RULES, type Method, type PricingRules, type WorksheetItem } from './pricing';
+import { DEFAULT_RULES, buildWorksheet, type Method, type PricingRules, type WorksheetItem } from './pricing';
 
 export interface Manufacturer { id: string; name: string; }
 
@@ -43,64 +43,12 @@ export async function lookupSkuPrices(
   return out;
 }
 
-export type ElevateApprovalStatus = 'draft' | 'in_review' | 'approved' | 'sent';
-
-export interface ReviewHistoryEntry {
-  status: ElevateApprovalStatus;
-  by: string;
-  at: string;
-  note: string;
-}
-
-/** Module 5 — advance or revert the approval status, optionally with a note. */
-export async function setElevateApprovalAction(
-  status: ElevateApprovalStatus,
-  note = '',
-): Promise<{ success: true } | { success: false; error: string }> {
-  const user = await requireUser();
-  try {
-    const supabase = await scopedDb();
-
-    // Append to history
-    const { data: existing } = await supabase
-      .from('elevate_pricing_profiles')
-      .select('review_history')
-      .eq('name', 'Default')
-      .maybeSingle();
-    const history: ReviewHistoryEntry[] = (existing?.review_history as ReviewHistoryEntry[] | null) ?? [];
-    const entry: ReviewHistoryEntry = {
-      status,
-      by: user.email ?? user.id,
-      at: new Date().toISOString(),
-      note: note.trim(),
-    };
-    history.push(entry);
-
-    const patch: Record<string, unknown> = {
-      approval_status: status,
-      review_notes: note.trim() || null,
-      review_history: history,
-    };
-    if (status === 'approved') {
-      patch.approved_at = new Date().toISOString();
-      patch.approved_by = user.email ?? user.id;
-    }
-    if (status === 'draft') {
-      patch.approved_at = null;
-      patch.approved_by = null;
-    }
-
-    const { error } = await supabase
-      .from('elevate_pricing_profiles')
-      .update(patch)
-      .eq('name', 'Default');
-    if (error) throw error;
-    revalidatePath('/elevate');
-    return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message as string };
-  }
-}
+// Approval used to be tracked here (draft/in_review/approved/sent on this single
+// org-wide profile row), but elevate_pricing_profiles isn't tied to any one
+// quotation — it couldn't reflect a real per-customer review. The actual approval
+// gate is setReviewStatusAction() in app/quotation-ai/actions.ts, scoped to the
+// quotation project and its BOM (which also blocks on unconfirmed catalog prices).
+// This file keeps the pricing worksheet (rules/method/items) only.
 
 export type SkuMatchStatus = 'exact' | 'variant' | 'wrong_style' | 'not_found';
 
@@ -186,11 +134,6 @@ export interface SavedProfile {
   rules: PricingRules;
   method: Method;
   items: WorksheetItem[];
-  approvalStatus?: ElevateApprovalStatus;
-  approvedAt?: string | null;
-  approvedBy?: string | null;
-  reviewNotes?: string | null;
-  reviewHistory?: ReviewHistoryEntry[];
 }
 
 const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
@@ -218,40 +161,39 @@ function sanitizeItems(raw: any): WorksheetItem[] {
   }));
 }
 
-/** This company's saved Elevate pricing profile, or null if nothing is saved yet. */
-export async function loadPricingProfile(): Promise<SavedProfile | null> {
+/**
+ * The saved Elevate pricing worksheet, or null if nothing is saved yet.
+ * With a projectId, loads that project's own worksheet (one per project).
+ * Without one, loads the legacy org-wide scratchpad (name='Default', no project).
+ */
+export async function loadPricingProfile(projectId?: string): Promise<SavedProfile | null> {
   await requireUser();
   const supabase = await scopedDb();
-  const { data, error } = await supabase
-    .from('elevate_pricing_profiles')
-    .select('method, rules, items, approval_status, approved_at, approved_by, review_notes, review_history')
-    .eq('name', PROFILE_NAME)
-    .maybeSingle();
+  let query = supabase.from('elevate_pricing_profiles').select('method, rules, items');
+  query = projectId ? query.eq('project_id', projectId) : query.eq('name', PROFILE_NAME).is('project_id', null);
+  const { data, error } = await query.maybeSingle();
   if (error) {
     console.error('Load Elevate profile error:', error.message);
     return null;
   }
   if (!data) return null;
-  const approvalStatus = (['draft', 'in_review', 'approved', 'sent'] as ElevateApprovalStatus[])
-    .includes(data.approval_status) ? data.approval_status as ElevateApprovalStatus : 'draft';
   return {
     rules: sanitizeRules(data.rules),
     method: data.method === 'gp' ? 'gp' : 'markup',
     items: sanitizeItems(data.items),
-    approvalStatus,
-    approvedAt: data.approved_at ?? null,
-    approvedBy: data.approved_by ?? null,
-    reviewNotes: data.review_notes ?? null,
-    reviewHistory: Array.isArray(data.review_history) ? (data.review_history as ReviewHistoryEntry[]) : [],
   };
 }
 
-export async function savePricingProfile(input: SavedProfile) {
+export async function savePricingProfile(input: SavedProfile, projectId?: string) {
   const user = await requireUser();
   try {
     const supabase = await scopedDb();
-    const row = {
-      name: PROFILE_NAME,
+    // Per-project rows use name = the project id, so the existing (org_id, name)
+    // unique constraint still gives one row per project without touching the DB
+    // constraint — see docs/multitenant_014_elevate_per_project.sql.
+    const row: Record<string, unknown> = {
+      name: projectId ?? PROFILE_NAME,
+      project_id: projectId ?? null,
       method: input.method === 'gp' ? 'gp' : 'markup',
       rules: sanitizeRules(input.rules),
       items: sanitizeItems(input.items),
@@ -260,11 +202,81 @@ export async function savePricingProfile(input: SavedProfile) {
     const { error } = await supabase.from('elevate_pricing_profiles').upsert([row], { onConflict: 'org_id,name' });
     if (error) throw error;
 
-    await logUsage(user, 'elevate.pricing_save', { items: row.items.length });
-    revalidatePath('/elevate');
+    await logUsage(user, 'elevate.pricing_save', { items: (row.items as unknown[]).length, project_id: projectId ?? null });
+    revalidatePath(projectId ? `/quotation-ai/elevate/${projectId}` : '/elevate');
     return { success: true as const };
   } catch (err: any) {
     console.error('Save Elevate profile error:', err);
     return { success: false as const, error: err.message as string };
   }
+}
+
+/**
+ * Push this project's Elevate worksheet into the shared BOM (quotation_boms), the
+ * same table generate-bom and Blueprint's apply-to-project write into — so it goes
+ * through the same confirmed-price gate and staff review as everything else.
+ * Replaces any Elevate-origin rows from a previous apply for this project (tagged
+ * by price_source) so re-applying after editing the worksheet doesn't duplicate.
+ */
+export async function applyElevateToProject(projectId: string) {
+  const user = await requireUser();
+  try {
+    const supabase = await scopedDb();
+    const { data: profileRow, error: loadErr } = await supabase
+      .from('elevate_pricing_profiles')
+      .select('method, rules, items')
+      .eq('project_id', projectId)
+      .maybeSingle();
+    if (loadErr) throw loadErr;
+    if (!profileRow) return { success: false as const, error: 'No saved worksheet for this project yet — add items and save first.' };
+
+    const items = sanitizeItems(profileRow.items);
+    if (!items.length) return { success: false as const, error: 'Worksheet has no items.' };
+
+    const rules = sanitizeRules(profileRow.rules);
+    const method = profileRow.method === 'gp' ? 'gp' : 'markup';
+    const ws = buildWorksheet(items, effectiveRulesFor(rules, method));
+
+    const PRICE_SOURCE = 'Elevate Worksheet';
+    const { error: delErr } = await supabase
+      .from('quotation_boms')
+      .delete()
+      .eq('project_id', projectId)
+      .eq('price_source', PRICE_SOURCE);
+    if (delErr) throw delErr;
+
+    const rows = ws.lines.map(line => ({
+      project_id: projectId,
+      sku: line.code,
+      matched_sku: line.code,
+      qty: line.qty,
+      unit_price: line.qty > 0 ? round2(line.extendedSell / line.qty) : 0,
+      line_total: round2(line.extendedSell),
+      room: 'Elevate Worksheet',
+      precision_level: 'ELEVATE_WORKSHEET',
+      price_confirmed: true, // staff authored this pricing deliberately via the worksheet's own rules
+      price_source: PRICE_SOURCE,
+      description: line.description || null,
+      cabinet_type: 'elevate_item',
+      match_explanation: `Priced via Elevate worksheet (${method === 'gp' ? `${rules.grossProfitTargetPct ?? 0}% GP target` : `${rules.markupPct}% markup`} on ${rules.costFactor} cost factor)`,
+      is_billable: true,
+    }));
+
+    const { error: insErr } = await supabase.from('quotation_boms').insert(rows);
+    if (insErr) throw insErr;
+
+    await logUsage(user, 'elevate.apply_to_project', { project_id: projectId, items: rows.length });
+    revalidatePath(`/quotation-ai/bom/${projectId}`);
+    revalidatePath(`/quotation-ai/elevate/${projectId}`);
+    return { success: true as const, count: rows.length };
+  } catch (err: any) {
+    console.error('Apply Elevate to project error:', err);
+    return { success: false as const, error: err.message as string };
+  }
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+function effectiveRulesFor(rules: PricingRules, method: Method): PricingRules {
+  return { ...rules, grossProfitTargetPct: method === 'gp' ? rules.grossProfitTargetPct ?? 0 : null };
 }

@@ -18,7 +18,7 @@ const blankRow = (key: number): Row => ({ key, code: '', description: '', qty: '
  * a 2020 PDF), auto-fill list prices from the catalog, then review the internal worksheet
  * and customer summary under the configured rules.
  */
-export function PhaseAWorkbench({ initial, manufacturers }: { initial: SavedProfile | null; manufacturers: Manufacturer[] }) {
+export function PhaseAWorkbench({ initial, manufacturers, projectId }: { initial: SavedProfile | null; manufacturers: Manufacturer[]; projectId?: string }) {
   const [rules, setRules] = useState<PricingRules>(initial?.rules ?? DEFAULT_RULES);
   const [method, setMethod] = useState<Method>(initial?.method ?? 'markup');
   const initialRows: Row[] = (initial?.items ?? []).map((i, idx) => ({
@@ -172,8 +172,8 @@ export function PhaseAWorkbench({ initial, manufacturers }: { initial: SavedProf
         items: rows
           .filter((r) => r.code.trim() || r.listPrice)
           .map((r) => ({ code: r.code.trim(), description: r.description.trim(), qty: Number(r.qty) || 0, listPrice: Number(r.listPrice) || 0, category: 'cabinet' as const })),
-      });
-      setStatus(res.success ? { ok: true, text: 'Saved for your company.' } : { ok: false, text: res.error || 'Could not save.' });
+      }, projectId);
+      setStatus(res.success ? { ok: true, text: projectId ? 'Saved for this project.' : 'Saved for your company.' } : { ok: false, text: res.error || 'Could not save.' });
     });
   }
 
