@@ -1177,8 +1177,8 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
               { n: 3, label: 'Manufacturer',   done: !!manufacturerName, active: step === 'config' },
               { n: 4, label: 'BOM & Catalog',  done: step === 'breakdown' || step === 'preview', active: step === 'pricing' },
               { n: 5, label: 'Calculations',   done: step === 'preview', active: step === 'breakdown' },
-              { n: 6, label: 'Proposal',       done: reviewStatus !== 'draft' && step === 'preview', active: step === 'preview' && reviewStatus === 'draft' },
-              { n: 7, label: 'Staff Review',   done: reviewStatus === 'approved' || reviewStatus === 'sent' || reviewStatus === 'accepted', active: step === 'preview' && (reviewStatus === 'in_review' || reviewStatus === 'changes_requested') },
+              { n: 6, label: 'Staff Review',   done: reviewStatus === 'approved' || reviewStatus === 'sent' || reviewStatus === 'accepted', active: step === 'preview' && (reviewStatus === 'draft' || reviewStatus === 'in_review' || reviewStatus === 'changes_requested') },
+              { n: 7, label: 'Send to Client', done: reviewStatus === 'sent' || reviewStatus === 'accepted', active: step === 'preview' && reviewStatus === 'approved' },
             ].map((s, i, arr) => (
               <div key={s.n} className="flex items-center shrink-0">
                 <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold transition-colors ${
