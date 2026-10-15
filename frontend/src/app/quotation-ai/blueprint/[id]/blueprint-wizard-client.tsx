@@ -52,9 +52,11 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
   const router = useRouter();
   const pdfFileRef = useRef<HTMLInputElement | null>(null);
   const [isSaving, startSave] = useTransition();
-  const [lastSaved, setLastSaved] = useState<Date | null>(
-    project.extracted_data?.blueprint ? new Date() : null
-  );
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  useEffect(() => {
+    if (project.extracted_data?.blueprint) setLastSaved(new Date());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Init from saved blueprint spec if available
   const saved = project.extracted_data?.blueprint;
