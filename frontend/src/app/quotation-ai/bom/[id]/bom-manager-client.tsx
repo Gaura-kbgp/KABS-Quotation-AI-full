@@ -265,9 +265,6 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
   const [freight, setFreight] = useState(project.bom_data?.freight ?? 0);
   const [fuelSurcharge, setFuelSurcharge] = useState(project.bom_data?.fuelSurcharge ?? 0);
   const [miscCharges, setMiscCharges] = useState(project.bom_data?.miscCharges ?? 0);
-  const [installationCharges, setInstallationCharges] = useState(project.bom_data?.installationCharges ?? 0);
-  const [laborCharges, setLaborCharges] = useState(project.bom_data?.laborCharges ?? 0);
-  const [customItemCharges, setCustomItemCharges] = useState<Record<string, {installation?: number, labor?: number}>>(project.bom_data?.customItemCharges || {});
   const [installRate, setInstallRate] = useState<number>(project.bom_data?.installRate ?? 0);
   const [installCostRate, setInstallCostRate] = useState<number>(project.bom_data?.installCostRate ?? 0);
   const [includeInstall, setIncludeInstall] = useState<boolean>(project.bom_data?.includeInstall ?? false);
@@ -637,7 +634,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
       rawListSubtotal,
       totalRoomDiscount
     };
-  }, [bom, selectedRooms, activePrintRoom, pricingFactor, targetMargin, globalDiscount, taxRate, freight, fuelSurcharge, miscCharges, installationCharges, laborCharges, roomDiscounts, customItemCharges, installRate, installCostRate, includeInstall, includeDelivery, deliverySellRate, deliveryCostRate, installRules, installOverrides, isInstallManufacturer]);
+  }, [bom, selectedRooms, activePrintRoom, pricingFactor, targetMargin, globalDiscount, taxRate, freight, fuelSurcharge, miscCharges, roomDiscounts, installRate, installCostRate, includeInstall, includeDelivery, deliverySellRate, deliveryCostRate, installRules, installOverrides, isInstallManufacturer]);
 
   // ── Install / 3PL Calculations ─────────────────────────────────────────────
   // Lookup priority: client overrides → manufacturer defaults → missing
@@ -907,15 +904,12 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
           freight,
           fuelSurcharge,
           miscCharges,
-          installationCharges,
-          laborCharges,
           installRate,
           installCostRate,
           includeInstall,
           includeDelivery,
           deliverySellRate,
           deliveryCostRate,
-          customItemCharges,
           roomDiscounts,
           customerName: customer.name,
           customerAddress: customer.address,
@@ -2759,12 +2753,9 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
                   )}
                                </div>
 
-                  <div className="mt-32 pt-10 border-t border-slate-100 flex justify-center gap-6 print:hidden">
+                  <div className="mt-32 pt-10 border-t border-slate-100 flex justify-center print:hidden">
                     <Button size="lg" className="gradient-button h-16 px-12 text-lg rounded-2xl shadow-xl shadow-sky-500/30" onClick={() => triggerPrint()}>
-                      <Printer className="w-5 h-5 mr-3" /> Print Proposal (A4)
-                    </Button>
-                    <Button size="lg" variant="outline" className="h-16 px-12 text-lg rounded-2xl border-slate-200" onClick={() => triggerPrint()}>
-                      <FileDown className="w-5 h-5 mr-3" /> Save Single PDF
+                      <Printer className="w-5 h-5 mr-3" /> Print / Save PDF
                     </Button>
                   </div>
 
@@ -2803,7 +2794,6 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
                         discount: globalDiscount,
                         taxRate,
                         freight,
-                        installationCharges,
                       }}
                       unconfirmedCount={unconfirmedCount}
                     />
