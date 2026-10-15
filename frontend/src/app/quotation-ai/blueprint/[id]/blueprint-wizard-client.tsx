@@ -67,6 +67,11 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
   const [parsingPdf, setParsingPdf] = useState(false);
   const [showImportPanel, setShowImportPanel] = useState(false);
   const [importDragging, setImportDragging] = useState(false);
+  type ImportResult =
+    | { status: 'success'; wallCount: number; dimCount: number; source: string; warnings: string[] }
+    | { status: 'no_walls'; fileName: string; warnings: string[]; pageCount: number }
+    | { status: 'error'; message: string };
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [refining, setRefining] = useState(false);
   const [aiReview, setAiReview] = useState<any>(null);
   const [roomName, setRoomName] = useState<string>('KITCHEN');
@@ -253,6 +258,7 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
 
   const importPdf = async (file: File) => {
     setParsingPdf(true);
+    setImportResult(null);
     try {
       const fd = new FormData();
       fd.append('file', file);
@@ -260,8 +266,13 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
       const data = await res.json();
       if (!data.success) throw new Error(data.detail || 'PDF parse failed');
       if (!data.walls || data.walls.length === 0) {
-        toast({ variant: 'destructive', title: 'No walls found',
-          description: data.warnings?.[0] || 'Try a cleaner page or enter walls manually.' });
+        // Keep the panel open and show inline guidance — don't fire a destructive toast
+        setImportResult({
+          status: 'no_walls',
+          fileName: file.name,
+          warnings: data.warnings || [],
+          pageCount: data.page_count_scanned ?? 0,
+        });
       } else {
         setWalls(data.walls.map((w: any, i: number) => ({
           id: w.id || String.fromCharCode(65 + i),
@@ -274,13 +285,23 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
           kind: 'wall',
           attached_end: 'left',
         })));
-        setShowImportPanel(false);
         const src = data.source === 'ai' ? 'AI' : 'heuristic';
-        toast({ title: 'PDF imported',
-          description: `${data.walls.length} walls found (${src} parser), ${data.dimensions_found} dimensions parsed. Review and tweak before generating.` });
+        // Show any parser warnings inline rather than closing silently
+        if (data.warnings?.length) {
+          setImportResult({
+            status: 'success',
+            wallCount: data.walls.length,
+            dimCount: data.dimensions_found ?? 0,
+            source: src,
+            warnings: data.warnings,
+          });
+        } else {
+          setShowImportPanel(false);
+          toast({ title: `✓ ${data.walls.length} walls imported`, description: `${src} parser · ${data.dimensions_found ?? 0} dimensions found. Review before generating.` });
+        }
       }
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'PDF import failed', description: err.message });
+      setImportResult({ status: 'error', message: err.message });
     } finally {
       setParsingPdf(false);
     }
@@ -360,7 +381,7 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
             </Button>
             {/* Import — now a prominent toggle that shows the drop zone below */}
             <Button
-              onClick={() => setShowImportPanel(v => !v)}
+              onClick={() => { setShowImportPanel(v => !v); setImportResult(null); }}
               disabled={parsingPdf}
               className={cn(
                 'rounded-xl h-9 px-4 font-bold transition-all',
@@ -410,8 +431,8 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
                       e.preventDefault();
                       setImportDragging(false);
                       const f = e.dataTransfer.files[0];
-                      if (f?.name.toLowerCase().endsWith('.pdf')) importPdf(f);
-                      else toast({ variant: 'destructive', title: 'PDF only', description: 'Please drop a .pdf file.' });
+                      if (f?.name.toLowerCase().endsWith('.pdf')) { setImportResult(null); importPdf(f); }
+                      else setImportResult({ status: 'error', message: 'Only PDF files are supported. Please drop a .pdf file.' });
                     }}
                     className={cn(
                       'border-2 border-dashed rounded-2xl transition-all flex flex-col items-center justify-center text-center cursor-pointer',
@@ -438,9 +459,107 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
                       </>
                     )}
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-3 text-center">
-                    After import, review the detected walls and adjust any measurements before generating the layout.
-                  </p>
+                  {/* ── Inline result feedback ── */}
+                  {importResult && (
+                    <div className={cn(
+                      'mt-4 rounded-2xl border p-4',
+                      importResult.status === 'success'  && 'bg-emerald-50 border-emerald-200',
+                      importResult.status === 'no_walls' && 'bg-slate-50 border-slate-200',
+                      importResult.status === 'error'    && 'bg-amber-50 border-amber-200',
+                    )}>
+                      {importResult.status === 'no_walls' && (
+                        <>
+                          <div className="flex items-start gap-3 mb-3">
+                            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <FileText className="w-4 h-4 text-slate-500" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-black text-slate-800">No wall dimensions found</p>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                {importResult.fileName}
+                                {importResult.pageCount > 0 && ` · ${importResult.pageCount} page${importResult.pageCount !== 1 ? 's' : ''} scanned`}
+                              </p>
+                            </div>
+                          </div>
+                          {importResult.warnings.length > 0 && (
+                            <div className="space-y-1 mb-3">
+                              {importResult.warnings.map((w, i) => (
+                                <p key={i} className="text-xs text-slate-600 leading-relaxed">• {w}</p>
+                              ))}
+                            </div>
+                          )}
+                          <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-2">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">What to do next</p>
+                            <p className="text-xs text-slate-600">
+                              <strong className="text-slate-800">Display / showroom PDFs</strong> — like a Marsh Display or showroom layout — don't have wall dimension annotations. Use this PDF as a visual reference and enter walls manually below.
+                            </p>
+                            <p className="text-xs text-slate-600">
+                              <strong className="text-slate-800">Floor plan PDFs</strong> — dimensioned 2020 Design kitchen plans — are fully supported. Try a dimensioned floor plan instead.
+                            </p>
+                          </div>
+                          <div className="flex gap-2 mt-3">
+                            <Button size="sm" onClick={() => { setImportResult(null); pdfFileRef.current?.click(); }}
+                              className="rounded-xl h-8 text-xs border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border font-bold">
+                              Try a different PDF
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => { setImportResult(null); setShowImportPanel(false); }}
+                              className="rounded-xl h-8 text-xs font-bold">
+                              Enter walls manually
+                            </Button>
+                          </div>
+                        </>
+                      )}
+
+                      {importResult.status === 'success' && (
+                        <>
+                          <div className="flex items-start gap-3 mb-3">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-black text-emerald-800">
+                                {importResult.wallCount} wall{importResult.wallCount !== 1 ? 's' : ''} imported
+                              </p>
+                              <p className="text-xs text-emerald-600 mt-0.5">
+                                {importResult.source} parser · {importResult.dimCount} dimensions found
+                              </p>
+                            </div>
+                          </div>
+                          {importResult.warnings.map((w, i) => (
+                            <p key={i} className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mb-2">⚠ {w}</p>
+                          ))}
+                          <Button size="sm" onClick={() => { setImportResult(null); setShowImportPanel(false); }}
+                            className="rounded-xl h-8 text-xs gradient-button w-full font-bold">
+                            Review walls below →
+                          </Button>
+                        </>
+                      )}
+
+                      {importResult.status === 'error' && (
+                        <>
+                          <div className="flex items-start gap-3 mb-3">
+                            <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <AlertTriangle className="w-4 h-4 text-amber-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-black text-amber-800">Import failed</p>
+                              <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">{importResult.message}</p>
+                            </div>
+                          </div>
+                          <Button size="sm" onClick={() => { setImportResult(null); pdfFileRef.current?.click(); }}
+                            className="rounded-xl h-8 text-xs border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 border font-bold">
+                            Try again
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {!importResult && (
+                    <p className="text-[10px] text-slate-400 mt-3 text-center">
+                      After import, review the detected walls and adjust any measurements before generating the layout.
+                    </p>
+                  )}
                 </div>
               </Card>
             )}
