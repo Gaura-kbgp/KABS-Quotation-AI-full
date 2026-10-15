@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useTransition } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,11 +10,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import {
   ArrowLeft, Plus, Trash2, Ruler, Blocks, Wand2, Save, Download, DoorOpen,
-  Refrigerator, ChefHat, Droplet, WashingMachine, LayoutGrid, FileText, Sparkles, Circle
+  Refrigerator, ChefHat, Droplet, WashingMachine, LayoutGrid, FileText, Sparkles, Circle,
+  Loader2, CheckCircle2,
 } from 'lucide-react';
 import { useRef } from 'react';
 import Link from 'next/link';
 import { LayoutCanvas } from './layout-canvas';
+import { saveBlueprintAction } from '@/app/quotation-ai/actions';
 
 type Opening = { type: 'window' | 'door'; start_in: number; width_in: number; sill_height_in?: number };
 type Appliance = { type: 'sink' | 'dishwasher' | 'range' | 'cooktop' | 'oven' | 'fridge' | 'microwave' | 'hood'; center_in: number; width_in: number };
@@ -45,11 +47,18 @@ function newWall(idx: number, kind: 'wall' | 'island' | 'peninsula' = 'wall'): W
 export function BlueprintWizardClient({ id, project }: { id: string; project: any }) {
   const { toast } = useToast();
   const pdfFileRef = useRef<HTMLInputElement | null>(null);
-  const [walls, setWalls] = useState<Wall[]>([newWall(0)]);
-  const [ceilingIn, setCeilingIn] = useState<number>(96);
-  const [wallCabHeight, setWallCabHeight] = useState<number>(36);
-  const [hasCrown, setHasCrown] = useState(true);
-  const [hasLightRail, setHasLightRail] = useState(false);
+  const [isSaving, startSave] = useTransition();
+  const [lastSaved, setLastSaved] = useState<Date | null>(
+    project.extracted_data?.blueprint ? new Date() : null
+  );
+
+  // Init from saved blueprint spec if available
+  const saved = project.extracted_data?.blueprint;
+  const [walls, setWalls] = useState<Wall[]>(saved?.walls?.length ? saved.walls : [newWall(0)]);
+  const [ceilingIn, setCeilingIn] = useState<number>(saved?.ceiling_height_in ?? 96);
+  const [wallCabHeight, setWallCabHeight] = useState<number>(saved?.options?.wall_cabinet_height_in ?? 36);
+  const [hasCrown, setHasCrown] = useState<boolean>(saved?.options?.has_crown ?? true);
+  const [hasLightRail, setHasLightRail] = useState<boolean>(saved?.options?.has_light_rail ?? false);
   const [generated, setGenerated] = useState<{ items: BomItem[]; summary: any; warnings: string[] } | null>(null);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -58,6 +67,24 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
   const [aiReview, setAiReview] = useState<any>(null);
   const [roomName, setRoomName] = useState<string>('KITCHEN');
   const [replaceExisting, setReplaceExisting] = useState(false);
+
+  const currentSpec = () => ({
+    walls,
+    ceiling_height_in: ceilingIn,
+    options: { wall_cabinet_height_in: wallCabHeight, has_crown: hasCrown, has_light_rail: hasLightRail },
+  });
+
+  const saveSpec = () => {
+    startSave(async () => {
+      const res = await saveBlueprintAction(id, currentSpec());
+      if (res.success) {
+        setLastSaved(new Date());
+        toast({ title: '✓ Blueprint saved' });
+      } else {
+        toast({ variant: 'destructive', title: 'Save failed', description: res.error });
+      }
+    });
+  };
 
   const addWall = (kind: 'wall' | 'island' | 'peninsula' = 'wall') =>
     setWalls(w => [...w, newWall(w.length, kind)]);
@@ -149,6 +176,9 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.detail || 'Apply failed');
+      // Auto-save spec to DB when applying so it's preserved
+      await saveBlueprintAction(id, currentSpec());
+      setLastSaved(new Date());
       toast({ title: 'Applied to project', description: `${data.added} items added to ${data.room}. Now generate the BOM to see pricing.` });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Apply failed', description: err.message });
@@ -252,6 +282,16 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
                 e.target.value = '';
               }}
             />
+            {lastSaved && (
+              <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Saved {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+            <Button variant="outline" onClick={saveSpec} disabled={isSaving} className="rounded-xl border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+              {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              Save Spec
+            </Button>
             <Button variant="outline" onClick={() => pdfFileRef.current?.click()}
                     disabled={parsingPdf} className="rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50">
               <FileText className="w-4 h-4 mr-2" />

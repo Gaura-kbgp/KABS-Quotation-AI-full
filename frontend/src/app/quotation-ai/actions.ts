@@ -218,6 +218,33 @@ export async function setReviewStatusAction(
   }
 }
 
+/** Save blueprint wall spec into extracted_data.blueprint — no new DB column needed. */
+export async function saveBlueprintAction(
+  projectId: string,
+  spec: { walls: any[]; ceiling_height_in: number; options: any },
+): Promise<{ success: true } | { success: false; error: string }> {
+  await requireUser();
+  try {
+    const supabase = await scopedDb();
+    const { data: row } = await supabase
+      .from('quotation_projects')
+      .select('extracted_data')
+      .eq('id', projectId)
+      .maybeSingle();
+    const merged = { ...(row?.extracted_data ?? {}), blueprint: spec };
+    const { error } = await supabase
+      .from('quotation_projects')
+      .update({ extracted_data: merged })
+      .eq('id', projectId);
+    if (error) throw error;
+    revalidatePath(`/quotation-ai/blueprint/${projectId}`);
+    revalidatePath(`/quotation-ai/bom/${projectId}`);
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message as string };
+  }
+}
+
 /**
  * Generic project update for extracted_data and metadata.
  */

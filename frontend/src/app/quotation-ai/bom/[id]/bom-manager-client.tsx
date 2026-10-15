@@ -2768,7 +2768,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
                         review_status: reviewStatus,
                         review_history: project.review_history as QuotationReviewEntry[] | null,
                         review_notes: project.review_notes,
-                        has_blueprint: !!(project.extracted_data?.rooms?.length),
+                        has_blueprint: !!(project.extracted_data?.blueprint),
                       }}
                       bom={bom.filter(i => i.is_billable && selectedRooms.includes(i.room)).map(i => ({
                         id: i.id,
