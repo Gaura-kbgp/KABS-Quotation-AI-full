@@ -252,7 +252,7 @@ export async function getProjectsAction() {
     const supabase = await scopedDb();
     const { data, error } = await supabase
       .from('quotation_projects')
-      .select('id, project_name, review_status, bom_data, created_at, manufacturer_id')
+      .select('id, project_name, review_status, bom_data, created_at, manufacturer_id, extracted_data')
       .order('created_at', { ascending: false });
     if (error) throw error;
     return { success: true, projects: (data || []) as Array<{
@@ -262,10 +262,35 @@ export async function getProjectsAction() {
       bom_data: any;
       created_at: string;
       manufacturer_id: string | null;
+      extracted_data: any;
     }> };
   } catch (err: any) {
     console.error('[getProjects]', err);
     return { success: false, projects: [] as any[], error: err.message as string };
+  }
+}
+
+/** Create a blank project for use in Blueprint Mode — no PDF required. */
+export async function createBlankProjectAction(name?: string): Promise<{ success: true; id: string } | { success: false; error: string }> {
+  const user = await requireUser();
+  try {
+    const supabase = await scopedDb();
+    const projectName = (name || '').trim() || `Blueprint — ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+    const { data, error } = await supabase
+      .from('quotation_projects')
+      .insert({
+        project_name: projectName,
+        review_status: 'draft',
+        extracted_data: { _origin: 'blueprint', rooms: [] },
+        ...(user.id ? { user_id: user.id } : {}),
+      })
+      .select('id')
+      .single();
+    if (error) throw error;
+    return { success: true, id: data.id };
+  } catch (err: any) {
+    console.error('[createBlankProject]', err);
+    return { success: false, error: err.message as string };
   }
 }
 

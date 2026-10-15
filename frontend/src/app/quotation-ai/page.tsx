@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -19,12 +19,14 @@ import {
   Eye,
   Plus,
   RefreshCw,
+  Ruler,
+  ExternalLink,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { getProjectsAction } from './actions';
+import { getProjectsAction, createBlankProjectAction } from './actions';
 
 type ReviewStatus = 'draft' | 'in_review' | 'changes_requested' | 'approved' | 'sent' | 'accepted' | 'rejected';
 
@@ -35,6 +37,7 @@ type Project = {
   bom_data: any;
   created_at: string;
   manufacturer_id: string | null;
+  extracted_data: any;
 };
 
 const STATUS_CONFIG: Record<ReviewStatus, { label: string; color: string; icon: React.ReactNode }> = {
@@ -81,6 +84,7 @@ export default function QuotationAiPage() {
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
+  const [creatingBlueprint, startBlueprintCreate] = useTransition();
 
   const loadProjects = useCallback(async () => {
     setLoadingProjects(true);
@@ -95,7 +99,6 @@ export default function QuotationAiPage() {
 
   const handleUpload = async () => {
     if (!file) return;
-
     setIsProcessing(true);
     const formData = new FormData();
     formData.append('file', file);
@@ -108,13 +111,11 @@ export default function QuotationAiPage() {
       });
 
       const contentType = res.headers.get("content-type");
-
       if (!contentType || !contentType.includes("application/json")) {
         throw new Error('Server timeout. This drawing set is too large for a single pass. Try uploading just the Cabinetry/Plan pages.');
       }
 
       const result = await res.json();
-
       if (res.ok && result.projectId) {
         toast({ title: 'Success', description: 'Takeoff complete.' });
         router.push(`/quotation-ai/review/${result.projectId}`);
@@ -122,14 +123,20 @@ export default function QuotationAiPage() {
         throw new Error(result.error || 'AI analysis encountered an issue.');
       }
     } catch (err: any) {
-      console.error('[Scan Process v86] Error:', err);
-      toast({
-        variant: 'destructive',
-        title: 'Scan Interrupted',
-        description: err.message
-      });
+      toast({ variant: 'destructive', title: 'Scan Interrupted', description: err.message });
       setIsProcessing(false);
     }
+  };
+
+  const handleBlueprintMode = () => {
+    startBlueprintCreate(async () => {
+      const res = await createBlankProjectAction();
+      if (res.success) {
+        router.push(`/quotation-ai/blueprint/${res.id}`);
+      } else {
+        toast({ variant: 'destructive', title: 'Could not create project', description: res.error });
+      }
+    });
   };
 
   const isDraft = (p: Project) => !p.review_status || p.review_status === 'draft';
@@ -158,24 +165,65 @@ export default function QuotationAiPage() {
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
             Quotation <span className="text-sky-600">Projects</span>
           </h1>
-          <p className="text-sm text-slate-500">Resume a draft or start a new quote.</p>
+          <p className="text-sm text-slate-500">Start a new quote or resume a draft.</p>
         </div>
 
-        {/* New Quote button / toggle */}
-        <div className="flex justify-end">
-          <Button
-            onClick={() => setShowUpload(v => !v)}
-            className={cn('gap-2', showUpload ? 'variant-outline border border-slate-200 bg-white text-slate-700' : 'gradient-button')}
-          >
-            {showUpload ? <XCircle className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-            {showUpload ? 'Cancel' : 'New Quote'}
-          </Button>
-        </div>
+        {/* ── Two-path entry ────────────────────────────────────────────── */}
+        {!showUpload && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Path 1 — Upload drawing */}
+            <button
+              onClick={() => setShowUpload(true)}
+              className="group text-left rounded-2xl border-2 border-slate-200 hover:border-sky-400 bg-white p-5 transition-all hover:shadow-md"
+            >
+              <div className="w-11 h-11 rounded-xl bg-sky-50 flex items-center justify-center mb-4 group-hover:bg-sky-100 transition-colors">
+                <UploadCloud className="w-6 h-6 text-sky-600" />
+              </div>
+              <p className="font-black text-slate-800 mb-1">New Quote</p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Upload a 2020 Design PDF — AI extracts all cabinet codes and generates pricing instantly.
+              </p>
+              <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-sky-600">
+                Upload PDF <ChevronRight className="w-3.5 h-3.5" />
+              </span>
+            </button>
+
+            {/* Path 2 — Blueprint Mode */}
+            <button
+              onClick={handleBlueprintMode}
+              disabled={creatingBlueprint}
+              className="group text-left rounded-2xl border-2 border-violet-200 hover:border-violet-500 bg-white p-5 transition-all hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <div className="w-11 h-11 rounded-xl bg-violet-50 flex items-center justify-center mb-4 group-hover:bg-violet-100 transition-colors">
+                {creatingBlueprint
+                  ? <Loader2 className="w-6 h-6 text-violet-600 animate-spin" />
+                  : <Ruler className="w-6 h-6 text-violet-600" />
+                }
+              </div>
+              <p className="font-black text-slate-800 mb-1 flex items-center gap-2">
+                Blueprint Mode
+                <span className="text-[9px] font-black uppercase bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">New</span>
+              </p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Sketch a kitchen layout from scratch — enter wall dimensions, place appliances, and auto-generate a cabinet schedule.
+              </p>
+              <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-violet-600">
+                Open layout canvas <ChevronRight className="w-3.5 h-3.5" />
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Upload panel */}
         {showUpload && (
           <Card className="bg-white border-slate-200 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
             <CardContent className="p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-black text-slate-700">Upload Drawing PDF</p>
+                <Button variant="ghost" size="sm" onClick={() => setShowUpload(false)} className="text-slate-400 hover:text-slate-600 h-7 px-2">
+                  <XCircle className="w-4 h-4" />
+                </Button>
+              </div>
               <div
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
@@ -214,9 +262,7 @@ export default function QuotationAiPage() {
 
         {isProcessing && (
           <div className="p-5 rounded-2xl bg-sky-50 border border-sky-100 flex items-start gap-4 animate-in fade-in slide-in-from-top-2 duration-500">
-            <div className="mt-1">
-              <AlertCircle className="w-5 h-5 text-sky-600" />
-            </div>
+            <AlertCircle className="w-5 h-5 text-sky-600 mt-1" />
             <div>
               <p className="text-xs font-bold text-sky-800 uppercase tracking-wider mb-1">Hybrid Mode Enabled</p>
               <p className="text-[11px] text-sky-700 leading-relaxed">Processing architectural anchors and cabinetry schedules.</p>
@@ -263,7 +309,7 @@ export default function QuotationAiPage() {
         {!loadingProjects && projects.length === 0 && !showUpload && (
           <div className="text-center py-16 space-y-4">
             <FolderOpen className="w-12 h-12 text-slate-300 mx-auto" />
-            <p className="text-sm text-slate-400">No quotes yet. Start one with the button above.</p>
+            <p className="text-sm text-slate-400">No quotes yet. Choose a path above to start.</p>
           </div>
         )}
 
@@ -275,16 +321,28 @@ export default function QuotationAiPage() {
 function ProjectCard({ project: p, onResume }: { project: Project; onResume: () => void }) {
   const lastStep = p.bom_data?.lastStep as string | undefined;
   const name = p.project_name || 'Untitled Project';
+  const hasBlueprint = !!(p.extracted_data?.blueprint || p.extracted_data?._origin === 'blueprint');
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex items-center gap-4 hover:border-sky-200 hover:shadow-md transition-all">
-      <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center flex-shrink-0">
-        <FileText className="w-5 h-5 text-sky-600" />
+      <div className={cn(
+        'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0',
+        hasBlueprint ? 'bg-violet-50' : 'bg-sky-50'
+      )}>
+        {hasBlueprint
+          ? <Ruler className="w-5 h-5 text-violet-600" />
+          : <FileText className="w-5 h-5 text-sky-600" />
+        }
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-slate-900 truncate">{name}</p>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           <StatusBadge status={p.review_status} />
+          {hasBlueprint && (
+            <span className="text-[10px] font-black text-violet-600 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+              Blueprint
+            </span>
+          )}
           {lastStep && (
             <span className="text-[10px] text-slate-400 font-medium">
               Last: {STEP_LABEL[lastStep] ?? lastStep}
@@ -293,9 +351,18 @@ function ProjectCard({ project: p, onResume }: { project: Project; onResume: () 
           <span className="text-[10px] text-slate-300">{formatDate(p.created_at)}</span>
         </div>
       </div>
-      <Button size="sm" onClick={onResume} className="gradient-button flex-shrink-0 text-xs px-4 h-8">
-        Resume
-      </Button>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {hasBlueprint && (
+          <Link href={`/quotation-ai/blueprint/${p.id}`}>
+            <Button size="sm" variant="outline" className="text-xs px-3 h-8 border-violet-200 text-violet-700 hover:bg-violet-50">
+              <ExternalLink className="w-3 h-3 mr-1" />Blueprint
+            </Button>
+          </Link>
+        )}
+        <Button size="sm" onClick={onResume} className="gradient-button text-xs px-4 h-8">
+          Resume
+        </Button>
+      </div>
     </div>
   );
 }
