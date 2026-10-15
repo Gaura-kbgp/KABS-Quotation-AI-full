@@ -127,7 +127,7 @@ const LEGACY_DEALER_DEFAULTS = new Set(['Elite Building Solutions', '123 Manufac
 const savedOr = (saved: string | null | undefined, fallback: string | null | undefined) =>
   saved && !LEGACY_DEALER_DEFAULTS.has(saved) ? saved : fallback || '';
 
-type WorkflowStep = 'pricing' | 'breakdown' | 'preview' | 'config' | 'compare';
+type WorkflowStep = 'pricing' | 'breakdown' | 'preview' | 'invoice' | 'config' | 'compare';
 type ViewMode = 'client' | 'internal';
 
 // Module-level constants shared by the BOM render and the Calculation Breakdown step
@@ -1125,7 +1125,8 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between print:hidden">
         <div className="flex items-center gap-3 sm:gap-6 min-w-0">
           <Button variant="ghost" size="icon" className="rounded-full shrink-0" onClick={() => {
-            if (step === 'preview') setStep('breakdown');
+            if (step === 'invoice') setStep('preview');
+            else if (step === 'preview') setStep('breakdown');
             else if (step === 'breakdown') setStep('pricing');
             else if (step === 'pricing' && manufacturerName === "Integrity Cabinets") setStep('config');
             else router.back();
@@ -1134,7 +1135,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
           </Button>
           <div className="min-w-0">
             <h1 className="text-base sm:text-xl font-bold tracking-tight truncate">
-              {step === 'pricing' ? 'Bill of Materials' : step === 'config' ? 'Manufacturer Configuration' : step === 'compare' ? 'Compare Cabinet Lines' : step === 'breakdown' ? 'Calculation Breakdown' : 'Staff Review & Proposal'}
+              {step === 'pricing' ? 'Bill of Materials' : step === 'config' ? 'Manufacturer Configuration' : step === 'compare' ? 'Compare Cabinet Lines' : step === 'breakdown' ? 'Calculation Breakdown' : step === 'preview' ? 'Staff Review' : 'Invoice & Proposal'}
             </h1>
             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest truncate hidden sm:block">
               Project: {project.project_name} • {manufacturerName}
@@ -1164,15 +1165,19 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
               </Button>
             </>
           )}
-          <Button className="rounded-xl h-9 sm:h-11 px-3 sm:px-6 gradient-button" onClick={() => {
+          <Button
+            className="rounded-xl h-9 sm:h-11 px-3 sm:px-6 gradient-button"
+            disabled={step === 'preview' && reviewStatus !== 'approved' && reviewStatus !== 'sent' && reviewStatus !== 'accepted'}
+            onClick={() => {
               if (step === 'config') setStep('pricing');
               else if (step === 'compare') setStep('pricing');
               else if (step === 'pricing') setStep('breakdown');
               else if (step === 'breakdown') setStep('preview');
-              else setStep('pricing');
-          }}>
-             <span className="hidden sm:inline">{step === 'config' ? 'Proceed to BOM' : step === 'compare' ? 'Back to BOM' : step === 'pricing' ? 'Next: Review Calculations' : step === 'breakdown' ? 'Next: Staff Review' : 'Back to BOM List'}</span>
-             <span className="sm:hidden">{step === 'pricing' ? 'Next' : step === 'breakdown' ? 'Review' : step === 'config' ? 'BOM' : 'Back'}</span>
+              else if (step === 'preview') setStep('invoice');
+              else router.push('/quotation-ai');
+            }}>
+             <span className="hidden sm:inline">{step === 'config' ? 'Proceed to BOM' : step === 'compare' ? 'Back to BOM' : step === 'pricing' ? 'Next: Review Calculations' : step === 'breakdown' ? 'Next: Staff Review' : step === 'preview' ? 'Next: Invoice & Proposal' : 'Back to BOM List'}</span>
+             <span className="sm:hidden">{step === 'pricing' ? 'Next' : step === 'breakdown' ? 'Review' : step === 'config' ? 'BOM' : step === 'preview' ? 'Invoice' : 'List'}</span>
              <ArrowRight className="w-4 h-4 ml-1 sm:ml-2" />
           </Button>
         </div>
@@ -1186,10 +1191,10 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
               { n: 1, label: 'Upload',         done: true },
               { n: 2, label: 'AI Extraction',  done: true },
               { n: 3, label: 'Manufacturer',   done: !!manufacturerName, active: step === 'config' },
-              { n: 4, label: 'BOM & Catalog',  done: step === 'breakdown' || step === 'preview', active: step === 'pricing' },
-              { n: 5, label: 'Calculations',   done: step === 'preview', active: step === 'breakdown' },
-              { n: 6, label: 'Staff Review',   done: reviewStatus === 'approved' || reviewStatus === 'sent' || reviewStatus === 'accepted', active: step === 'preview' && (reviewStatus === 'draft' || reviewStatus === 'in_review' || reviewStatus === 'changes_requested') },
-              { n: 7, label: 'Send to Client', done: reviewStatus === 'sent' || reviewStatus === 'accepted', active: step === 'preview' && reviewStatus === 'approved' },
+              { n: 4, label: 'BOM & Catalog',  done: step === 'breakdown' || step === 'preview' || step === 'invoice', active: step === 'pricing' },
+              { n: 5, label: 'Calculations',   done: step === 'preview' || step === 'invoice', active: step === 'breakdown' },
+              { n: 6, label: 'Staff Review',   done: reviewStatus === 'approved' || reviewStatus === 'sent' || reviewStatus === 'accepted', active: step === 'preview' },
+              { n: 7, label: 'Send to Client', done: reviewStatus === 'sent' || reviewStatus === 'accepted', active: step === 'invoice' },
             ].map((s, i, arr) => (
               <div key={s.n} className="flex items-center shrink-0">
                 <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold transition-colors ${
@@ -2290,9 +2295,9 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
           })()}
 
           {step === 'preview' && (
-            <div className="animate-in fade-in duration-500 space-y-12">
+            <div className="animate-in fade-in duration-500">
 
-              {/* ── Step 6: Staff Review Panel — always first ── */}
+              {/* ── Step 6: Staff Review ── */}
               <div ref={reviewPanelRef} className="print:hidden">
                 <QuotationReviewPanel
                   project={{
@@ -2329,21 +2334,25 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
                     freight,
                   }}
                   unconfirmedCount={unconfirmedCount}
+                  onStatusChange={(newStatus) => {
+                    setReviewStatus(newStatus);
+                    if (newStatus === 'approved' || newStatus === 'sent') setStep('invoice');
+                  }}
                 />
               </div>
+            </div>
+          )}
 
-              {/* ── Step 7: Send to Client — Invoice & Proposal ── */}
+          {step === 'invoice' && (
+            <div className="animate-in fade-in duration-500 space-y-12">
+
+              {/* ── Step 7: Invoice & Proposal ── */}
               <div className={`space-y-12 transition-opacity duration-300 ${reviewStatus === 'draft' || reviewStatus === 'in_review' || reviewStatus === 'changes_requested' ? 'opacity-50 pointer-events-none' : ''}`}>
-                {(reviewStatus === 'draft' || reviewStatus === 'in_review' || reviewStatus === 'changes_requested') && (
-                  <div className="print:hidden flex items-center gap-3 px-5 py-3 bg-amber-50 border border-amber-200 rounded-2xl">
-                    <span className="text-amber-600 text-sm font-bold">⏳ Step 7 — Send to Client unlocks after Staff Review approval</span>
-                  </div>
-                )}
                <Card className="rounded-3xl border-slate-200 shadow-sm bg-white overflow-hidden print:hidden">
                   <CardHeader className="bg-slate-50 border-b border-slate-100">
                     <CardTitle className="text-lg flex items-center gap-2">
                        <FileText className="w-5 h-5 text-sky-600" />
-                       Step 7 — Invoice & Proposal Configuration
+                       Invoice & Proposal Configuration
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-8 space-y-10">

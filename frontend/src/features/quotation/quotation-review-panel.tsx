@@ -47,6 +47,8 @@ interface QuotationReviewPanelProps {
   pricing?: PricingSnapshot;
   /** Number of billable items with provisional/unconfirmed pricing */
   unconfirmedCount?: number;
+  /** Called after a successful review-status transition so the parent can sync its own state */
+  onStatusChange?: (status: ReviewStatus) => void;
 }
 
 const FLOW: ReviewStatus[] = ['draft', 'in_review', 'approved', 'sent'];
@@ -270,7 +272,7 @@ function CheckItem({ ok, label, detail }: { ok: boolean; label: string; detail?:
 export function QuotationReviewPanel({
   project, bom, companyName = 'KABS Inc.',
   manufacturerName, sourceFileName, pricing,
-  unconfirmedCount = 0,
+  unconfirmedCount = 0, onStatusChange,
 }: QuotationReviewPanelProps) {
   const rawStatus = (project.review_status ?? 'draft') as ReviewStatus;
   const validStatus = (rawStatus in STATUS_CONFIG) ? rawStatus : 'draft';
@@ -321,6 +323,7 @@ export function QuotationReviewPanel({
         setHistory(h => [...h, { status: toStatus, by: 'You', at: new Date().toISOString(), note: note.trim() }]);
         setStatus(toStatus);
         setNote('');
+        onStatusChange?.(toStatus);
       } else {
         setError((res as any).error ?? 'Could not update status.');
       }
