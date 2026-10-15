@@ -1118,7 +1118,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
           </Button>
           <div className="min-w-0">
             <h1 className="text-base sm:text-xl font-bold tracking-tight truncate">
-              {step === 'pricing' ? 'Bill of Materials' : step === 'config' ? 'Manufacturer Configuration' : step === 'compare' ? 'Compare Cabinet Lines' : step === 'breakdown' ? 'Calculation Breakdown' : 'Proposal Preview'}
+              {step === 'pricing' ? 'Bill of Materials' : step === 'config' ? 'Manufacturer Configuration' : step === 'compare' ? 'Compare Cabinet Lines' : step === 'breakdown' ? 'Calculation Breakdown' : 'Staff Review & Proposal'}
             </h1>
             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest truncate hidden sm:block">
               Project: {project.project_name} • {manufacturerName}
@@ -1155,8 +1155,8 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
               else if (step === 'breakdown') setStep('preview');
               else setStep('pricing');
           }}>
-             <span className="hidden sm:inline">{step === 'config' ? 'Proceed to BOM' : step === 'compare' ? 'Back to BOM' : step === 'pricing' ? 'Next: Review Calculations' : step === 'breakdown' ? 'Next: Preview Proposal' : 'Back to BOM List'}</span>
-             <span className="sm:hidden">{step === 'pricing' ? 'Next' : step === 'breakdown' ? 'Preview' : step === 'config' ? 'BOM' : 'Back'}</span>
+             <span className="hidden sm:inline">{step === 'config' ? 'Proceed to BOM' : step === 'compare' ? 'Back to BOM' : step === 'pricing' ? 'Next: Review Calculations' : step === 'breakdown' ? 'Next: Staff Review' : 'Back to BOM List'}</span>
+             <span className="sm:hidden">{step === 'pricing' ? 'Next' : step === 'breakdown' ? 'Review' : step === 'config' ? 'BOM' : 'Back'}</span>
              <ArrowRight className="w-4 h-4 ml-1 sm:ml-2" />
           </Button>
         </div>
@@ -2034,14 +2034,16 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
             return (
               <div className="animate-in fade-in duration-500 max-w-5xl mx-auto space-y-6 pb-16">
                 {/* Step indicator */}
-                <div className="flex items-center gap-3 px-1">
-                  <div className="flex items-center gap-2 text-xs text-slate-400 font-bold uppercase tracking-widest">
+                <div className="flex items-center gap-3 px-1 overflow-x-auto">
+                  <div className="flex items-center gap-2 text-xs text-slate-400 font-bold uppercase tracking-widest min-w-max">
                     <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-xs font-black">1</span> BOM Review
-                    <span className="w-12 h-px bg-slate-200" />
+                    <span className="w-10 h-px bg-slate-200" />
                     <span className="w-6 h-6 rounded-full bg-[#002060] text-white flex items-center justify-center text-xs font-black">2</span>
                     <span className="text-[#002060]">Calculation Breakdown</span>
-                    <span className="w-12 h-px bg-slate-200" />
-                    <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-xs font-black">3</span> Proposal Preview
+                    <span className="w-10 h-px bg-slate-200" />
+                    <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-xs font-black">3</span> Staff Review
+                    <span className="w-10 h-px bg-slate-200" />
+                    <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-xs font-black">4</span> Send to Client
                   </div>
                 </div>
 
@@ -2265,7 +2267,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
                 </div>
 
                 <p className="text-center text-[10px] text-slate-400 font-semibold pb-4">
-                  All calculations verified — click <span className="font-black text-[#002060]">Next: Preview Proposal</span> to continue
+                  All calculations verified — click <span className="font-black text-[#002060]">Next: Staff Review</span> to continue
                 </p>
               </div>
             );
