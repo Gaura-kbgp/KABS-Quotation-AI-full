@@ -95,7 +95,7 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
   const [editingValue, setEditingValue] = useState<string>('');
 
   useEffect(() => {
-    fetch('/api/manufacturers').then(r => r.json()).then(d => setManufacturers(d.manufacturers || []));
+    fetch('/api/manufacturers').then(r => r.json()).then(d => setManufacturers(d.data || []));
   }, []);
 
   useEffect(() => {
