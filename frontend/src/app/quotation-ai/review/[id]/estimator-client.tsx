@@ -780,16 +780,16 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
             {!isFetchingConfig && (
             <>
             <Card className="p-6 rounded-2xl bg-gradient-to-r from-sky-50 to-indigo-50 border-sky-200 shadow-md">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-sky-500 flex items-center justify-center">
-                    <Sparkles className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-900 text-sm">Apply to All Rooms</p>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Select once, apply everywhere</p>
-                  </div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl bg-sky-500 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5 text-white" />
                 </div>
+                <div>
+                  <p className="font-bold text-slate-900 text-sm">Apply to All Rooms</p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Select once, apply everywhere</p>
+                </div>
+              </div>
+              <div>
                 <div className="flex gap-3 flex-wrap">
                   {/* ── collection model (Wellborn / 1951 / Integrity) ── */}
                   {priceModel === 'collection' && (
@@ -814,7 +814,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                             <SelectTrigger className="w-44 h-11 text-sm bg-white border-indigo-200 rounded-xl">
                               <SelectValue placeholder="Select Series" />
                             </SelectTrigger>
-                            <SelectContent className="bg-white border-slate-100">
+                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
                               {integritySeriesFromDB.map(s => (
                                 <SelectItem key={s} value={s}>{s}</SelectItem>
                               ))}
@@ -837,7 +837,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                           <SelectTrigger className="w-44 h-11 text-sm bg-white border-sky-200 rounded-xl">
                             <SelectValue placeholder={isIntegrity && !globalSeries ? 'Pick series first' : 'Select'} />
                           </SelectTrigger>
-                          <SelectContent className="bg-white border-slate-100 max-h-80">
+                          <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl max-h-80">
                             {collections.map(c => (
                               <SelectItem key={c} value={c}>
                                 {getCollectionLabel(c, globalSeries)}
@@ -858,7 +858,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                           }}
                         >
                           <SelectTrigger className="w-44 h-11 text-sm bg-white border-sky-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent className="bg-white border-slate-100">
+                          <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
                             {globalCollection && manMapping[globalCollection]?.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                           </SelectContent>
                         </Select>
@@ -879,7 +879,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                           }}
                         >
                           <SelectTrigger className="w-52 h-11 text-sm bg-white border-sky-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent className="bg-white border-slate-100 max-h-80">
+                          <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl max-h-80">
                             {catalogDoorStyles.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                           </SelectContent>
                         </Select>
@@ -895,7 +895,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                             }}
                           >
                             <SelectTrigger className="w-40 h-11 text-sm bg-white border-amber-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                            <SelectContent className="bg-white border-slate-100">
+                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
                               {catalogSpecies.map(sp => <SelectItem key={sp.name} value={sp.name}>{sp.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
@@ -912,7 +912,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                             }}
                           >
                             <SelectTrigger className="w-44 h-11 text-sm bg-white border-violet-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                            <SelectContent className="bg-white border-slate-100">
+                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
                               {catalogFinishes.map(f => <SelectItem key={f.name} value={f.name}>{f.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
@@ -933,9 +933,9 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
 
             <div className="grid grid-cols-1 gap-4">
               {rooms.map((room, rIdx) => (
-                <Card key={rIdx} className="p-6 rounded-2xl flex items-center justify-between gap-4 bg-white border-slate-100 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <Layout className="w-5 h-5 text-sky-500" />
+                <Card key={rIdx} className="p-5 rounded-2xl bg-white border-slate-100 shadow-sm">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Layout className="w-5 h-5 text-sky-500 shrink-0" />
                     <span className="font-bold text-slate-900">{room.room_name}</span>
                     {(priceModel === 'price_column' ? room.door_style : (room.collection && room.door_style)) && (
                       <span className="text-[9px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full tracking-wider">✓ Set</span>
@@ -961,7 +961,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                               <SelectTrigger className="w-40 h-11 text-sm bg-indigo-50 border-none rounded-xl">
                                 <SelectValue placeholder="Series" />
                               </SelectTrigger>
-                              <SelectContent className="bg-white border-slate-100">
+                              <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
                                 {integritySeriesFromDB.map(s => (
                                   <SelectItem key={s} value={s}>{s}</SelectItem>
                                 ))}
@@ -985,7 +985,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                             <SelectTrigger className="w-44 h-11 text-sm bg-slate-50 border-none rounded-xl">
                               <SelectValue placeholder={isIntegrity && !roomSeriesMap[rIdx] ? 'Pick series' : 'Select'} />
                             </SelectTrigger>
-                            <SelectContent className="bg-white border-slate-100 max-h-80">
+                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl max-h-80">
                               {getFilteredCollections(roomSeriesMap[rIdx] || '').map(c => (
                                 <SelectItem key={c} value={c}>
                                   {getCollectionLabel(c, roomSeriesMap[rIdx] || '')}
@@ -1002,7 +1002,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                             setRooms(nr);
                           }} disabled={!room.collection}>
                             <SelectTrigger className="w-44 h-11 text-sm bg-slate-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                            <SelectContent className="bg-white border-slate-100">
+                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
                               {room.collection && manMapping[room.collection]?.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                             </SelectContent>
                           </Select>
@@ -1019,7 +1019,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                             const nr = [...rooms]; nr[rIdx].door_style = v; setRooms(nr);
                           }}>
                             <SelectTrigger className="w-52 h-11 text-sm bg-slate-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                            <SelectContent className="bg-white border-slate-100 max-h-80">
+                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl max-h-80">
                               {catalogDoorStyles.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                             </SelectContent>
                           </Select>
@@ -1031,7 +1031,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                               const nr = [...rooms]; nr[rIdx].wood_species = v; setRooms(nr);
                             }}>
                               <SelectTrigger className="w-40 h-11 text-sm bg-amber-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                              <SelectContent className="bg-white border-slate-100">
+                              <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
                                 {catalogSpecies.map(sp => <SelectItem key={sp.name} value={sp.name}>{sp.name}</SelectItem>)}
                               </SelectContent>
                             </Select>
@@ -1044,7 +1044,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                               const nr = [...rooms]; nr[rIdx].finish = v; setRooms(nr);
                             }}>
                               <SelectTrigger className="w-44 h-11 text-sm bg-violet-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                              <SelectContent className="bg-white border-slate-100">
+                              <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
                                 {catalogFinishes.map(f => <SelectItem key={f.name} value={f.name}>{f.name}</SelectItem>)}
                               </SelectContent>
                             </Select>
