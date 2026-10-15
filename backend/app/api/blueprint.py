@@ -55,6 +55,8 @@ class ApplyToProjectRequest(BaseModel):
     room_name: str = "KITCHEN"
     spec: dict
     replace_existing: bool = False
+    manufacturer_id: Optional[str] = None
+    sku_overrides: Optional[dict] = None   # generic_code → manual_sku
 
 
 @router.post("/blueprint/apply-to-project")
@@ -69,13 +71,15 @@ def apply_to_project(req: ApplyToProjectRequest, user: CurrentUser = Depends(get
 
     layout = generate_kitchen_layout(req.spec)
     items = layout["items"]
+    overrides = req.sku_overrides or {}
 
     # Group items by category so they slot into the room shape the pricing engine expects
     cat_map: dict[str, list[dict]] = {}
     for it in items:
         cat = it["category"]
+        code = it["code"]
         cat_map.setdefault(cat, []).append({
-            "code": it["code"],
+            "code": overrides.get(code, code),   # apply manual SKU override if set
             "qty": it["qty"],
             "notes": it.get("notes", ""),
             "wall": it.get("wall"),
@@ -97,7 +101,10 @@ def apply_to_project(req: ApplyToProjectRequest, user: CurrentUser = Depends(get
             target[cat] = existing + cat_items
 
     data["rooms"] = rooms
-    supabase.table("quotation_projects").update({"extracted_data": data}).eq("id", req.project_id).execute()
+    update_payload: dict = {"extracted_data": data}
+    if req.manufacturer_id:
+        update_payload["manufacturer_id"] = req.manufacturer_id
+    supabase.table("quotation_projects").update(update_payload).eq("id", req.project_id).execute()
 
     return {"success": True, "room": req.room_name, "added": len(items), "summary": layout["summary"], "warnings": layout["warnings"]}
 

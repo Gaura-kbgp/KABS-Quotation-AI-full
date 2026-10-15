@@ -72,7 +72,7 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
   // ── Manufacturer / SKU matching ──────────────────────────────────────────
   type Manufacturer = { id: string; name: string };
   type MfgConfig = { collections: string[]; door_styles: string[] };
-  type SkuRow = { code: string; qty: number; sku: string | null; price: number; line_total: number; collection_name: string; match_type: string; wall?: string };
+  type SkuRow = { code: string; qty: number; sku: string | null; price: number; line_total: number; collection_name: string; match_type: string; wall?: string; _overrideSku?: string };
   type SkuSchedule = { matched: SkuRow[]; substituted: SkuRow[]; unresolved: SkuRow[]; summary: any } | null;
 
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
@@ -82,6 +82,9 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
   const [doorStyle, setDoorStyle] = useState<string>('');
   const [skuSchedule, setSkuSchedule] = useState<SkuSchedule>(null);
   const [matchingSkus, setMatchingSkus] = useState(false);
+  const [skuOverrides, setSkuOverrides] = useState<Record<string, string>>({});   // code → manual SKU
+  const [editingCode, setEditingCode] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState<string>('');
 
   useEffect(() => {
     fetch('/api/manufacturers').then(r => r.json()).then(d => setManufacturers(d.manufacturers || []));
@@ -116,6 +119,12 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
       setMatchingSkus(false);
     }
   }, [manufacturerId, collection, doorStyle, toast]);
+
+  // Auto-rematch whenever manufacturer/collection/style changes and layout already exists
+  useEffect(() => {
+    if (generated && manufacturerId) matchSkus(generated.items);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manufacturerId, collection, doorStyle]);
 
   const currentSpec = () => ({
     walls,
@@ -222,6 +231,8 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
             options: { wall_cabinet_height_in: wallCabHeight, has_crown: hasCrown, has_light_rail: hasLightRail },
           },
           replace_existing: replaceExisting,
+          manufacturer_id: manufacturerId || undefined,
+          sku_overrides: Object.keys(skuOverrides).length > 0 ? skuOverrides : undefined,
         }),
       });
       const data = await res.json();
@@ -662,22 +673,54 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
                               ...skuSchedule.matched.map(r => ({ ...r, _bucket: 'matched' as const })),
                               ...skuSchedule.substituted.map(r => ({ ...r, _bucket: 'substituted' as const })),
                               ...skuSchedule.unresolved.map(r => ({ ...r, _bucket: 'unresolved' as const })),
-                            ].map((row, i) => (
-                              <div key={i} className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-slate-50">
-                                <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0',
-                                  row._bucket === 'matched' ? 'bg-emerald-500' :
-                                  row._bucket === 'substituted' ? 'bg-amber-500' : 'bg-red-500'
-                                )} />
-                                <span className="font-mono font-black text-slate-700 w-16 truncate">{row.code}</span>
-                                <span className="text-slate-400 flex-1 truncate">{row.sku || <span className="italic text-red-400">No match</span>}</span>
-                                <span className="text-slate-400 w-6 text-right">×{row.qty}</span>
-                                <span className={cn('text-right w-16 font-bold',
-                                  row._bucket === 'unresolved' ? 'text-red-400' : 'text-slate-600'
-                                )}>
-                                  {row.line_total > 0 ? `$${row.line_total.toFixed(0)}` : '—'}
-                                </span>
-                              </div>
-                            ))}
+                            ].map((row, i) => {
+                              const override = skuOverrides[row.code];
+                              const displaySku = override || row.sku;
+                              const isEditing = editingCode === `${row.code}-${i}`;
+                              const canOverride = row._bucket !== 'matched';
+                              return (
+                                <div key={i} className={cn('flex items-center gap-2 px-3 py-1.5 text-xs group',
+                                  canOverride && 'hover:bg-slate-50 cursor-pointer'
+                                )} onClick={() => {
+                                  if (!canOverride || isEditing) return;
+                                  setEditingCode(`${row.code}-${i}`);
+                                  setEditingValue(override || row.sku || '');
+                                }}>
+                                  <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0',
+                                    override ? 'bg-violet-500' :
+                                    row._bucket === 'matched' ? 'bg-emerald-500' :
+                                    row._bucket === 'substituted' ? 'bg-amber-500' : 'bg-red-500'
+                                  )} />
+                                  <span className="font-mono font-black text-slate-700 w-16 truncate">{row.code}</span>
+                                  {isEditing ? (
+                                    <input
+                                      autoFocus
+                                      className="flex-1 border border-violet-300 rounded px-1.5 py-0.5 text-xs font-mono font-bold outline-none focus:border-violet-500"
+                                      value={editingValue}
+                                      onChange={e => setEditingValue(e.target.value.toUpperCase())}
+                                      onBlur={() => {
+                                        if (editingValue.trim()) setSkuOverrides(o => ({ ...o, [row.code]: editingValue.trim() }));
+                                        else { const o = { ...skuOverrides }; delete o[row.code]; setSkuOverrides(o); }
+                                        setEditingCode(null);
+                                      }}
+                                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setEditingCode(null); } }}
+                                      onClick={e => e.stopPropagation()}
+                                    />
+                                  ) : (
+                                    <span className={cn('flex-1 truncate', override ? 'text-violet-700 font-bold' : 'text-slate-400')}>
+                                      {displaySku || <span className="italic text-red-400">No match — click to set</span>}
+                                      {override && <span className="ml-1 text-[9px] text-violet-400 uppercase">override</span>}
+                                    </span>
+                                  )}
+                                  <span className="text-slate-400 w-6 text-right">×{row.qty}</span>
+                                  <span className={cn('text-right w-16 font-bold',
+                                    row._bucket === 'unresolved' && !override ? 'text-red-400' : 'text-slate-600'
+                                  )}>
+                                    {row.line_total > 0 ? `$${row.line_total.toFixed(0)}` : '—'}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
 
                           {skuSchedule.summary.unresolved_count > 0 && (
