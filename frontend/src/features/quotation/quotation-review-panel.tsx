@@ -335,8 +335,8 @@ export function QuotationReviewPanel({
           <ShieldCheck className="w-4 h-4 text-white" />
         </div>
         <div>
-          <h3 className="text-base font-bold text-slate-900">Step 7 — Staff Review & Approval</h3>
-          <p className="text-xs text-slate-400">Verify pricing, fill customer details, approve, and deliver the quote.</p>
+          <h3 className="text-base font-bold text-slate-900">Step 6 — Staff Review</h3>
+          <p className="text-xs text-slate-400">Verify pricing, approve the quote, then proceed to Send to Client (Step 7).</p>
         </div>
       </div>
 
