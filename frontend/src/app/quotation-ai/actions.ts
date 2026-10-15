@@ -154,7 +154,7 @@ export async function deleteInstallOverrideAction(id: string) {
   }
 }
 
-export type ReviewStatus = 'draft' | 'in_review' | 'approved' | 'sent';
+export type ReviewStatus = 'draft' | 'in_review' | 'changes_requested' | 'approved' | 'sent' | 'accepted' | 'rejected';
 
 export interface QuotationReviewEntry {
   status: ReviewStatus;
@@ -177,7 +177,7 @@ export async function setReviewStatusAction(
     // prices (nearest-size substitution, category average, manual-required, estimated
     // door/drawer) on a billable line. Staff must either confirm the price as-is or
     // correct it (both set price_confirmed=true) in the BOM manager first.
-    if (status === 'approved' || status === 'sent') {
+    if (status === 'approved' || status === 'sent' || status === 'accepted') {
       const { data: items } = await supabase
         .from('quotation_boms')
         .select('sku, precision_level, price_confirmed, is_billable')

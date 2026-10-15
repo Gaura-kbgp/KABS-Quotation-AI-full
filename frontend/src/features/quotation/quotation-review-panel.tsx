@@ -5,7 +5,7 @@ import {
   CheckCircle2, Clock, Send, AlertTriangle, ChevronRight, RotateCcw,
   Loader2, MessageSquare, History, ExternalLink, Download,
   FileSpreadsheet, Printer, User, Mail, Phone, MapPin, CalendarDays,
-  ShieldCheck, Hash, ClipboardList, XCircle, Info,
+  ShieldCheck, Hash, ClipboardList, XCircle, Info, RefreshCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,21 +54,26 @@ const FLOW: ReviewStatus[] = ['draft', 'in_review', 'approved', 'sent'];
 const STATUS_CONFIG: Record<ReviewStatus, {
   label: string; color: string; bg: string; border: string; dot: string; icon: typeof Clock; step: number;
 }> = {
-  draft:     { label: 'Draft',          color: 'text-slate-600',   bg: 'bg-white',      border: 'border-slate-200',   dot: 'bg-slate-300',    icon: Clock,         step: 0 },
-  in_review: { label: 'In Review',      color: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-200',   dot: 'bg-amber-400',    icon: AlertTriangle, step: 1 },
-  approved:  { label: 'Approved',       color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-500',  icon: CheckCircle2,  step: 2 },
-  sent:      { label: 'Sent to Client', color: 'text-sky-700',     bg: 'bg-sky-50',     border: 'border-sky-200',     dot: 'bg-sky-500',      icon: Send,          step: 3 },
+  draft:             { label: 'Draft',             color: 'text-slate-600',   bg: 'bg-white',       border: 'border-slate-200',  dot: 'bg-slate-300',    icon: Clock,         step: 0 },
+  in_review:         { label: 'In Review',         color: 'text-amber-700',   bg: 'bg-amber-50',    border: 'border-amber-200',  dot: 'bg-amber-400',    icon: AlertTriangle, step: 1 },
+  changes_requested: { label: 'Changes Requested', color: 'text-orange-700',  bg: 'bg-orange-50',   border: 'border-orange-200', dot: 'bg-orange-500',   icon: AlertTriangle, step: 1 },
+  approved:          { label: 'Approved',          color: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200',dot: 'bg-emerald-500',  icon: CheckCircle2,  step: 2 },
+  sent:              { label: 'Sent to Client',    color: 'text-sky-700',     bg: 'bg-sky-50',      border: 'border-sky-200',    dot: 'bg-sky-500',      icon: Send,          step: 3 },
+  accepted:          { label: 'Accepted',          color: 'text-violet-700',  bg: 'bg-violet-50',   border: 'border-violet-200', dot: 'bg-violet-500',   icon: CheckCircle2,  step: 3 },
+  rejected:          { label: 'Rejected',          color: 'text-red-700',     bg: 'bg-red-50',      border: 'border-red-200',    dot: 'bg-red-500',      icon: XCircle,       step: 3 },
 };
 
 const NEXT_LABEL: Partial<Record<ReviewStatus, string>> = {
-  draft:     'Submit for Staff Review',
-  in_review: 'Approve Quote',
-  approved:  'Mark as Sent to Client',
+  draft:             'Submit for Staff Review',
+  in_review:         'Approve Quote',
+  changes_requested: 'Resubmit for Review',
+  approved:          'Mark as Sent to Client',
 };
 const REVERT_LABEL: Partial<Record<ReviewStatus, string>> = {
-  in_review: 'Back to Draft',
-  approved:  'Back to Review',
-  sent:      'Back to Approved',
+  in_review:         'Back to Draft',
+  changes_requested: 'Back to Draft',
+  approved:          'Back to Review',
+  sent:              'Back to Approved',
 };
 
 function timeAgo(iso: string) {
@@ -268,7 +273,7 @@ export function QuotationReviewPanel({
   unconfirmedCount = 0,
 }: QuotationReviewPanelProps) {
   const rawStatus = (project.review_status ?? 'draft') as ReviewStatus;
-  const validStatus = FLOW.includes(rawStatus) ? rawStatus : 'draft';
+  const validStatus = (rawStatus in STATUS_CONFIG) ? rawStatus : 'draft';
 
   const [status, setStatus]           = useState<ReviewStatus>(validStatus);
   const [history, setHistory]         = useState<QuotationReviewEntry[]>(project.review_history ?? []);
@@ -285,13 +290,15 @@ export function QuotationReviewPanel({
   const [customerAddr, setCustomerAddr]   = useState('');
   const [validUntil, setValidUntil]       = useState(defaultValidUntil);
 
-  const cfg         = STATUS_CONFIG[status];
+  const cfg         = STATUS_CONFIG[status] ?? STATUS_CONFIG.draft;
   const Icon        = cfg.icon;
-  const currentStep = FLOW.indexOf(status);
+  // For non-main-flow statuses (changes_requested / accepted / rejected), map to nearest FLOW position
+  const flowStatus  = FLOW.includes(status) ? status : (status === 'changes_requested' ? 'in_review' : 'sent');
+  const currentStep = FLOW.indexOf(flowStatus);
   const nextStatus  = FLOW[currentStep + 1] as ReviewStatus | undefined;
   const prevStatus  = FLOW[currentStep - 1] as ReviewStatus | undefined;
-  const isApproved  = status === 'approved' || status === 'sent';
-  const isSent      = status === 'sent';
+  const isApproved  = status === 'approved' || status === 'sent' || status === 'accepted';
+  const isSent      = status === 'sent' || status === 'accepted';
   const hasBom      = bom.length > 0;
   const grandTotal  = bom.reduce((s, i) => s + (i.line_total ?? 0), 0);
   const ref         = quoteRef(project.id);
@@ -343,6 +350,10 @@ export function QuotationReviewPanel({
             <span className="text-[10px] text-slate-400 font-mono bg-white/70 px-2 py-0.5 rounded-full border border-slate-200">{ref}</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <a href={`/quotation-ai/staff-review/${project.id}`}
+              className="flex items-center gap-1 text-xs font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2.5 py-1 rounded-lg hover:bg-sky-100 transition-colors">
+              <ExternalLink className="w-3 h-3" /> Full Review Workspace
+            </a>
             {project.has_blueprint && (
               <a href={`/quotation-ai/blueprint/${project.id}`} target="_blank" rel="noreferrer"
                 className="flex items-center gap-1 text-xs font-medium text-indigo-600 bg-white border border-indigo-200 px-2.5 py-1 rounded-lg hover:bg-indigo-50 transition-colors">
