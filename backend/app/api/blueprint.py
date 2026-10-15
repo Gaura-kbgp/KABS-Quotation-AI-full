@@ -57,6 +57,8 @@ class ApplyToProjectRequest(BaseModel):
     replace_existing: bool = False
     manufacturer_id: Optional[str] = None
     sku_overrides: Optional[dict] = None   # generic_code → manual_sku
+    collection: Optional[str] = None
+    door_style: Optional[str] = None
 
 
 @router.post("/blueprint/apply-to-project")
@@ -90,8 +92,13 @@ def apply_to_project(req: ApplyToProjectRequest, user: CurrentUser = Depends(get
     rooms = data.get("rooms") or []
     target = next((r for r in rooms if (r.get("room_name") or "").upper() == req.room_name.upper()), None)
     if target is None:
-        target = {"room_name": req.room_name, "cabinets": [], "collection": "", "door_style": ""}
+        target = {"room_name": req.room_name, "cabinets": [], "collection": req.collection or "", "door_style": req.door_style or ""}
         rooms.append(target)
+    else:
+        if req.collection:
+            target["collection"] = req.collection
+        if req.door_style:
+            target["door_style"] = req.door_style
 
     for cat, cat_items in cat_map.items():
         existing = target.get(cat) or []

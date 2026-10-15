@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useTransition, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,6 +49,7 @@ function newWall(idx: number, kind: 'wall' | 'island' | 'peninsula' = 'wall'): W
 
 export function BlueprintWizardClient({ id, project }: { id: string; project: any }) {
   const { toast } = useToast();
+  const router = useRouter();
   const pdfFileRef = useRef<HTMLInputElement | null>(null);
   const [isSaving, startSave] = useTransition();
   const [lastSaved, setLastSaved] = useState<Date | null>(
@@ -226,11 +228,12 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
     }
   };
 
-  const apply = async () => {
+  const applyAndOpenBom = async () => {
     if (!generated) return;
     setApplying(true);
     try {
-      const res = await fetch('/api/backend/api/blueprint/apply-to-project', {
+      // 1. Apply layout items to the project room
+      const applyRes = await fetch('/api/backend/api/blueprint/apply-to-project', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -244,17 +247,30 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
           replace_existing: replaceExisting,
           manufacturer_id: manufacturerId || undefined,
           sku_overrides: Object.keys(skuOverrides).length > 0 ? skuOverrides : undefined,
+          collection: collection || undefined,
+          door_style: doorStyle || undefined,
         }),
       });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.detail || 'Apply failed');
-      // Auto-save spec to DB when applying so it's preserved
+      const applyData = await applyRes.json();
+      if (!applyData.success) throw new Error(applyData.detail || 'Apply failed');
+
+      // 2. Save blueprint spec to DB
       await saveBlueprintAction(id, currentSpec());
       setLastSaved(new Date());
-      toast({ title: 'Applied to project', description: `${data.added} items added to ${data.room}. Now generate the BOM to see pricing.` });
+
+      // 3. Run pricing engine to populate quotation_boms
+      if (manufacturerId) {
+        await fetch('/api/generate-bom', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId: id, manufacturerId }),
+        });
+      }
+
+      // 4. Navigate to BOM page
+      router.push(`/quotation-ai/bom/${id}`);
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Apply failed', description: err.message });
-    } finally {
       setApplying(false);
     }
   };
@@ -975,12 +991,8 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
                       <Checkbox checked={replaceExisting} onCheckedChange={v => setReplaceExisting(!!v)} />
                       <span className="text-xs font-bold">Replace existing items in that room</span>
                     </label>
-                    <Button onClick={apply} disabled={applying} className="w-full gradient-button rounded-xl">
-                      <Save className="w-4 h-4 mr-2" />
-                      {applying ? 'Applying…' : 'Apply to Project'}
-                    </Button>
-                    <Button asChild variant="outline" className="w-full rounded-xl">
-                      <Link href={`/quotation-ai/bom/${id}`}>Go to BOM / Pricing →</Link>
+                    <Button onClick={applyAndOpenBom} disabled={applying} className="w-full gradient-button rounded-xl">
+                      {applying ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving & pricing…</> : <><Save className="w-4 h-4 mr-2" />Save & Open BOM</>}
                     </Button>
                   </div>
                 </>
