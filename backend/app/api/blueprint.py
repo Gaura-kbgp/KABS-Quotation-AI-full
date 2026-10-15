@@ -28,6 +28,13 @@ class LayoutRequest(BaseModel):
     options: Optional[dict] = None
 
 
+class SkuMatchRequest(BaseModel):
+    items: list[dict]
+    manufacturer_id: str
+    collection: str = ""
+    door_style: str = ""
+
+
 @router.post("/blueprint/generate-layout")
 def generate_layout(req: LayoutRequest, user: CurrentUser = Depends(get_current_user)):
     """Pure layout generation — no persistence. Returns proposed cabinet list."""
@@ -93,6 +100,75 @@ def apply_to_project(req: ApplyToProjectRequest, user: CurrentUser = Depends(get
     supabase.table("quotation_projects").update({"extracted_data": data}).eq("id", req.project_id).execute()
 
     return {"success": True, "room": req.room_name, "added": len(items), "summary": layout["summary"], "warnings": layout["warnings"]}
+
+
+# ─── SKU Matching ─────────────────────────────────────────────────────────────
+
+@router.post("/blueprint/match-skus")
+def match_skus(req: SkuMatchRequest, user: CurrentUser = Depends(get_current_user)):
+    """Match blueprint layout codes to a manufacturer catalog and return a SKU schedule.
+
+    Returns three buckets:
+      matched    — EXACT or ORIENTATION hit (high confidence)
+      substituted — NEAREST_DIM / CLOSE / ESTIMATED hit (review recommended)
+      unresolved  — no catalog match; manual pricing required
+    """
+    try:
+        from app.api.pricing import get_manufacturer_pricing_maps, find_best_match
+        supabase = get_supabase()
+        lookup_maps = get_manufacturer_pricing_maps(supabase, req.manufacturer_id)
+
+        matched: list[dict] = []
+        substituted: list[dict] = []
+        unresolved: list[dict] = []
+
+        for item in req.items:
+            code = str(item.get("code") or "").strip()
+            qty = int(item.get("qty") or 1)
+            if not code:
+                continue
+
+            match, match_type = find_best_match(code, req.collection, req.door_style, lookup_maps)
+            mt = match_type or "MANUAL_PRICING_REQUIRED"
+
+            row = {
+                "code": code,
+                "qty": qty,
+                "sku": match.get("sku") if match else None,
+                "price": round(float(match.get("price") or 0), 2) if match else 0.0,
+                "line_total": round(float(match.get("price") or 0) * qty, 2) if match else 0.0,
+                "collection_name": match.get("collection_name", "") if match else "",
+                "match_type": mt,
+                "wall": item.get("wall"),
+                "category": item.get("category"),
+            }
+
+            if "EXACT" in mt or "ORIENT" in mt:
+                matched.append(row)
+            elif mt == "MANUAL_PRICING_REQUIRED":
+                unresolved.append(row)
+            else:
+                substituted.append(row)
+
+        estimated_list = round(
+            sum(r["line_total"] for r in matched + substituted), 2
+        )
+
+        return {
+            "success": True,
+            "matched": matched,
+            "substituted": substituted,
+            "unresolved": unresolved,
+            "summary": {
+                "total_items": len(matched) + len(substituted) + len(unresolved),
+                "matched_count": len(matched),
+                "substituted_count": len(substituted),
+                "unresolved_count": len(unresolved),
+                "estimated_list_price": estimated_list,
+            },
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"SKU matching failed: {e}")
 
 
 # ─── PDF Parser ───────────────────────────────────────────────────────────────

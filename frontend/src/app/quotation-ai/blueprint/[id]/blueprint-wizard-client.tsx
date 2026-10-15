@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useTransition } from 'react';
+import { useState, useMemo, useTransition, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,13 +10,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import {
   ArrowLeft, Plus, Trash2, Ruler, Blocks, Wand2, Save, Download, DoorOpen,
-  Refrigerator, ChefHat, Droplet, WashingMachine, LayoutGrid, FileText, Sparkles, Circle,
-  Loader2, CheckCircle2,
+  Refrigerator, ChefHat, Droplet, WashingMachine, LayoutGrid, FileText, Sparkles,
+  Loader2, CheckCircle2, Package, AlertTriangle, XCircle, DollarSign, RefreshCw,
 } from 'lucide-react';
 import { useRef } from 'react';
 import Link from 'next/link';
 import { LayoutCanvas } from './layout-canvas';
 import { saveBlueprintAction } from '@/app/quotation-ai/actions';
+import { cn } from '@/lib/utils';
 
 type Opening = { type: 'window' | 'door'; start_in: number; width_in: number; sill_height_in?: number };
 type Appliance = { type: 'sink' | 'dishwasher' | 'range' | 'cooktop' | 'oven' | 'fridge' | 'microwave' | 'hood'; center_in: number; width_in: number };
@@ -67,6 +68,54 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
   const [aiReview, setAiReview] = useState<any>(null);
   const [roomName, setRoomName] = useState<string>('KITCHEN');
   const [replaceExisting, setReplaceExisting] = useState(false);
+
+  // ── Manufacturer / SKU matching ──────────────────────────────────────────
+  type Manufacturer = { id: string; name: string };
+  type MfgConfig = { collections: string[]; door_styles: string[] };
+  type SkuRow = { code: string; qty: number; sku: string | null; price: number; line_total: number; collection_name: string; match_type: string; wall?: string };
+  type SkuSchedule = { matched: SkuRow[]; substituted: SkuRow[]; unresolved: SkuRow[]; summary: any } | null;
+
+  const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
+  const [manufacturerId, setManufacturerId] = useState<string>(project.manufacturer_id || '');
+  const [mfgConfig, setMfgConfig] = useState<MfgConfig>({ collections: [], door_styles: [] });
+  const [collection, setCollection] = useState<string>('');
+  const [doorStyle, setDoorStyle] = useState<string>('');
+  const [skuSchedule, setSkuSchedule] = useState<SkuSchedule>(null);
+  const [matchingSkus, setMatchingSkus] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/manufacturers').then(r => r.json()).then(d => setManufacturers(d.manufacturers || []));
+  }, []);
+
+  useEffect(() => {
+    if (!manufacturerId) { setMfgConfig({ collections: [], door_styles: [] }); return; }
+    fetch(`/api/manufacturer-config?id=${manufacturerId}`)
+      .then(r => r.json())
+      .then(d => {
+        setMfgConfig({ collections: d.collections || [], door_styles: d.door_styles || [] });
+        setCollection(''); setDoorStyle('');
+      });
+  }, [manufacturerId]);
+
+  const matchSkus = useCallback(async (items: any[]) => {
+    if (!manufacturerId || !items.length) return;
+    setMatchingSkus(true);
+    setSkuSchedule(null);
+    try {
+      const res = await fetch('/api/backend/api/blueprint/match-skus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, manufacturer_id: manufacturerId, collection, door_style: doorStyle }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.detail || 'SKU match failed');
+      setSkuSchedule(data);
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'SKU matching failed', description: err.message });
+    } finally {
+      setMatchingSkus(false);
+    }
+  }, [manufacturerId, collection, doorStyle, toast]);
 
   const currentSpec = () => ({
     walls,
@@ -149,6 +198,7 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
       if (!data.success) throw new Error(data.detail || 'Layout failed');
       setGenerated({ items: data.items, summary: data.summary, warnings: data.warnings });
       toast({ title: 'Layout generated', description: `${data.summary.total_items} items across ${data.summary.walls_processed} walls.` });
+      if (manufacturerId) matchSkus(data.items);
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Generation failed', description: err.message });
     } finally {
@@ -339,6 +389,51 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
                 Total wall run: <span className="font-black text-slate-700">{totalLinearFeet.toFixed(1)} ft</span>
                 {' '}· {walls.length} wall{walls.length !== 1 ? 's' : ''}
               </p>
+            </Card>
+
+            {/* Manufacturer & Style */}
+            <Card className="p-5 rounded-2xl">
+              <div className="flex items-center gap-2 mb-4">
+                <Package className="w-5 h-5 text-violet-600" />
+                <h2 className="font-black text-slate-700">Manufacturer & Style</h2>
+                <span className="ml-auto text-[10px] font-black uppercase text-violet-500 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-full">SKU Matching</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Manufacturer</Label>
+                  <Select value={manufacturerId} onValueChange={v => { setManufacturerId(v); setSkuSchedule(null); }}>
+                    <SelectTrigger className="rounded-xl font-bold"><SelectValue placeholder="Choose manufacturer" /></SelectTrigger>
+                    <SelectContent>
+                      {manufacturers.map(m => <SelectItem key={m.id} value={m.id} className="font-bold">{m.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Collection</Label>
+                  <Select value={collection} onValueChange={v => { setCollection(v); setSkuSchedule(null); }} disabled={!mfgConfig.collections.length}>
+                    <SelectTrigger className="rounded-xl font-bold"><SelectValue placeholder="Choose collection" /></SelectTrigger>
+                    <SelectContent>
+                      {mfgConfig.collections.map(c => <SelectItem key={c} value={c} className="font-bold">{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Door Style</Label>
+                  <Select value={doorStyle} onValueChange={v => { setDoorStyle(v); setSkuSchedule(null); }} disabled={!mfgConfig.door_styles.length}>
+                    <SelectTrigger className="rounded-xl font-bold"><SelectValue placeholder="Choose style" /></SelectTrigger>
+                    <SelectContent>
+                      {mfgConfig.door_styles.map(s => <SelectItem key={s} value={s} className="font-bold">{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {generated && manufacturerId && (
+                <Button size="sm" variant="outline" onClick={() => matchSkus(generated.items)} disabled={matchingSkus}
+                  className="mt-3 rounded-xl border-violet-200 text-violet-700 hover:bg-violet-50">
+                  <RefreshCw className={cn('w-3.5 h-3.5 mr-1.5', matchingSkus && 'animate-spin')} />
+                  {matchingSkus ? 'Matching…' : 'Re-match SKUs'}
+                </Button>
+              )}
             </Card>
 
             {walls.map((wall, wIdx) => (
@@ -533,6 +628,67 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
                       </div>
                     ))}
                   </div>
+
+                  {/* SKU Schedule */}
+                  {(matchingSkus || skuSchedule) && (
+                    <div className="border rounded-2xl overflow-hidden mb-4">
+                      <div className="flex items-center gap-2 px-4 py-2.5 bg-violet-50 border-b border-violet-100">
+                        <Package className="w-4 h-4 text-violet-600" />
+                        <span className="text-xs font-black text-violet-700 uppercase tracking-wider">SKU Schedule</span>
+                        {matchingSkus && <Loader2 className="w-3.5 h-3.5 animate-spin text-violet-500 ml-auto" />}
+                      </div>
+
+                      {skuSchedule && (
+                        <>
+                          {/* Summary chips */}
+                          <div className="flex gap-2 p-3 flex-wrap border-b bg-white">
+                            <span className="flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3" />{skuSchedule.summary.matched_count} Exact
+                            </span>
+                            <span className="flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                              <AlertTriangle className="w-3 h-3" />{skuSchedule.summary.substituted_count} Sub
+                            </span>
+                            <span className="flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-full bg-red-50 text-red-700 border border-red-200">
+                              <XCircle className="w-3 h-3" />{skuSchedule.summary.unresolved_count} Unresolved
+                            </span>
+                            <span className="flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-full bg-slate-50 text-slate-700 border border-slate-200 ml-auto">
+                              <DollarSign className="w-3 h-3" />${skuSchedule.summary.estimated_list_price.toLocaleString()} est.
+                            </span>
+                          </div>
+
+                          {/* Item rows */}
+                          <div className="max-h-64 overflow-y-auto divide-y bg-white">
+                            {[
+                              ...skuSchedule.matched.map(r => ({ ...r, _bucket: 'matched' as const })),
+                              ...skuSchedule.substituted.map(r => ({ ...r, _bucket: 'substituted' as const })),
+                              ...skuSchedule.unresolved.map(r => ({ ...r, _bucket: 'unresolved' as const })),
+                            ].map((row, i) => (
+                              <div key={i} className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-slate-50">
+                                <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0',
+                                  row._bucket === 'matched' ? 'bg-emerald-500' :
+                                  row._bucket === 'substituted' ? 'bg-amber-500' : 'bg-red-500'
+                                )} />
+                                <span className="font-mono font-black text-slate-700 w-16 truncate">{row.code}</span>
+                                <span className="text-slate-400 flex-1 truncate">{row.sku || <span className="italic text-red-400">No match</span>}</span>
+                                <span className="text-slate-400 w-6 text-right">×{row.qty}</span>
+                                <span className={cn('text-right w-16 font-bold',
+                                  row._bucket === 'unresolved' ? 'text-red-400' : 'text-slate-600'
+                                )}>
+                                  {row.line_total > 0 ? `$${row.line_total.toFixed(0)}` : '—'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {skuSchedule.summary.unresolved_count > 0 && (
+                            <div className="px-3 py-2 bg-red-50 border-t border-red-100 text-[10px] text-red-700 font-bold">
+                              {skuSchedule.summary.unresolved_count} item(s) need manual pricing — confirm in BOM after applying.
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
 
                   <div className="space-y-3 pt-3 border-t">
                     <Button onClick={aiRefine} disabled={refining} variant="outline" className="w-full rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50">
