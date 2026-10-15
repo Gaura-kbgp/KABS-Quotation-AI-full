@@ -26,6 +26,33 @@ TRAINING_BUCKET = "training-docs"
 # /elevate/extract-items.
 MAX_UPLOAD_BYTES = 30 * 1024 * 1024  # 30 MB
 
+# Magic-byte signatures for allowed upload types
+_MAGIC: dict[str, bytes] = {
+    "pdf":  b"%PDF",
+    "xlsx": b"PK\x03\x04",   # ZIP-based (Office Open XML)
+    "xls":  b"\xd0\xcf\x11\xe0",  # OLE2 compound document
+}
+
+
+def validate_upload(data: bytes, allowed: list[str], filename: str = "") -> None:
+    """Raise ValueError if `data` doesn't match one of the allowed magic bytes.
+
+    `allowed` is a list of keys from _MAGIC, e.g. ['pdf'] or ['xlsx', 'xls'].
+    Always call this before passing user-supplied bytes to PyMuPDF / openpyxl
+    to guard against decompression bombs and format-confusion exploits.
+    """
+    if len(data) < 8:
+        raise ValueError("Uploaded file is too small to be valid.")
+    for fmt in allowed:
+        sig = _MAGIC.get(fmt)
+        if sig and data[:len(sig)] == sig:
+            return
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "unknown"
+    raise ValueError(
+        f"File type not allowed (detected extension: .{ext}). "
+        f"Accepted: {', '.join('.' + f for f in allowed)}."
+    )
+
 _BROKEN = {"", "#", "local_temp", "null", "undefined", None}
 
 

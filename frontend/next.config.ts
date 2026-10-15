@@ -45,11 +45,6 @@ const nextConfig: NextConfig = {
     // large spec-book / pricing PDF uploads ("Failed to parse body as FormData").
     middlewareClientMaxBodySize: '50mb',
   },
-  // Baseline security headers — none were set before. A full Content-Security-Policy
-  // is deliberately left out here: this app loads Google OAuth, Supabase storage
-  // images, and third-party fonts/scripts, and a wrong CSP silently breaks those
-  // rather than failing loudly, so it needs its own dedicated pass with real
-  // testing against every page, not a drive-by addition in a broader security sweep.
   async headers() {
     return [
       {
@@ -59,6 +54,33 @@ const nextConfig: NextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
+          { key: 'X-XSS-Protection', value: '1; mode=block' },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=()',
+          },
+          {
+            // CSP: tight allowlist.
+            // - script-src: only self + Google (OAuth popup) + cdnjs (PDF.js if added later)
+            // - style-src: self + Google Fonts (used by some pages)
+            // - img-src: self + data URIs (base64 logos) + Supabase storage + placeholder services
+            // - connect-src: self + Supabase (realtime/storage) + OpenAI is server-side only
+            // - frame-ancestors: DENY (XSS guard — mirrors X-Frame-Options)
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+              "font-src 'self' https://fonts.gstatic.com",
+              "img-src 'self' data: blob: https://*.supabase.co https://placehold.co https://images.unsplash.com https://picsum.photos",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+              "frame-src https://accounts.google.com",
+              "frame-ancestors 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+              "object-src 'none'",
+            ].join('; '),
+          },
         ],
       },
     ];

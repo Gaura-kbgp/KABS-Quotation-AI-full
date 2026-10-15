@@ -25,6 +25,7 @@ from app.api.elevate import router as elevate_router
 from app.api.blueprint import router as blueprint_router
 from app.core.auth import get_current_user
 from app.core.rate_limit import ai_rate_limit
+from app.core.ip_rate_limit import IPRateLimitMiddleware
 
 IS_PRODUCTION = os.getenv("ENV", "development").lower() == "production"
 
@@ -38,6 +39,9 @@ app = FastAPI(
     redoc_url=None if IS_PRODUCTION else "/redoc",
     openapi_url=None if IS_PRODUCTION else "/openapi.json",
 )
+
+# IP-based rate limiting — runs before auth and CORS so floods are dropped early
+app.add_middleware(IPRateLimitMiddleware)
 
 # Setup CORS
 app.add_middleware(

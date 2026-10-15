@@ -12,7 +12,7 @@ Endpoints:
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
 from app.core.auth import CurrentUser, get_current_user
 from app.core.supabase_client import get_supabase
-from app.core.storage import download_bytes, DOCS_BUCKET, MAX_UPLOAD_BYTES
+from app.core.storage import download_bytes, DOCS_BUCKET, MAX_UPLOAD_BYTES, validate_upload
 # Shared with app/api/pricing.py's own cache-bust calls — this router never
 # invalidated the /manufacturer-config cache (in-memory dict + on-disk JSON
 # file) it also keys off, so correcting a manufacturer's data via Re-train
@@ -130,6 +130,10 @@ async def extract_config(
         pdf_bytes = await file.read()
         if len(pdf_bytes) > MAX_UPLOAD_BYTES:
             raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
+        try:
+            validate_upload(pdf_bytes, ["pdf"], file.filename or "")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
     elif file_url:
         try:
             pdf_bytes = download_bytes(file_url, DOCS_BUCKET)
@@ -228,6 +232,10 @@ async def ingest_pricing(
         if len(file_bytes) > MAX_UPLOAD_BYTES:
             raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
         file_name = file.filename or "upload"
+        try:
+            validate_upload(file_bytes, ["pdf", "xlsx", "xls"], file_name)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
     elif file_url:
         try:
             file_bytes = download_bytes(file_url, DOCS_BUCKET)
