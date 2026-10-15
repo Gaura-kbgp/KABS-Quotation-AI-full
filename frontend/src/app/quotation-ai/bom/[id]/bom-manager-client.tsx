@@ -2811,7 +2811,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
                   </div>
 
                 </div>
-              </div>{/* end Step 7 wrapper */}
+              </div>
            )}
         </div>
 
