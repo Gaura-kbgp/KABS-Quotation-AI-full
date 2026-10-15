@@ -789,76 +789,43 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                   <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Select once, apply everywhere</p>
                 </div>
               </div>
-              <div>
-                <div className="flex gap-3 flex-wrap">
+              <div className="grid grid-cols-2 gap-4">
                   {/* ── collection model (Wellborn / 1951 / Integrity) ── */}
                   {priceModel === 'collection' && (
                     <>
                       {isIntegrity && (
-                        <div className="space-y-1">
-                          <p className="text-[9px] font-black uppercase text-indigo-600 tracking-widest pl-1">Series</p>
-                          <Select
-                            value={globalSeries}
-                            onValueChange={(v) => {
-                              setGlobalSeries(v);
-                              setGlobalCollection('');
-                              setGlobalDoorStyle('');
-                              setRoomSeriesMap(() => {
-                                const next: Record<number, string> = {};
-                                rooms.forEach((_, i) => { next[i] = v; });
-                                return next;
-                              });
-                              setRooms(prev => prev.map(r => ({ ...r, collection: '', door_style: '' })));
-                            }}
-                          >
-                            <SelectTrigger className="w-44 h-11 text-sm bg-white border-indigo-200 rounded-xl">
-                              <SelectValue placeholder="Select Series" />
-                            </SelectTrigger>
-                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
-                              {integritySeriesFromDB.map(s => (
-                                <SelectItem key={s} value={s}>{s}</SelectItem>
-                              ))}
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest">Series</p>
+                          <Select value={globalSeries} onValueChange={(v) => {
+                            setGlobalSeries(v); setGlobalCollection(''); setGlobalDoorStyle('');
+                            setRoomSeriesMap(() => { const next: Record<number, string> = {}; rooms.forEach((_, i) => { next[i] = v; }); return next; });
+                            setRooms(prev => prev.map(r => ({ ...r, collection: '', door_style: '' })));
+                          }}>
+                            <SelectTrigger className="w-full h-12 text-sm bg-white border-indigo-200 rounded-xl"><SelectValue placeholder="Select Series" /></SelectTrigger>
+                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-200 z-[200] shadow-2xl rounded-xl max-h-72">
+                              {integritySeriesFromDB.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
                       )}
-                      <div className="space-y-1">
-                        <p className="text-[9px] font-black uppercase text-sky-600 tracking-widest pl-1">Collection</p>
-                        <Select
-                          key={globalSeries}
-                          value={globalCollection}
-                          disabled={isIntegrity && !globalSeries}
-                          onValueChange={(v) => {
-                            setGlobalCollection(v);
-                            setGlobalDoorStyle('');
-                            setRooms(prev => prev.map(r => ({ ...r, collection: v, door_style: '' })));
-                          }}
-                        >
-                          <SelectTrigger className="w-44 h-11 text-sm bg-white border-sky-200 rounded-xl">
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-black uppercase text-sky-600 tracking-widest">Collection</p>
+                        <Select key={globalSeries} value={globalCollection} disabled={isIntegrity && !globalSeries}
+                          onValueChange={(v) => { setGlobalCollection(v); setGlobalDoorStyle(''); setRooms(prev => prev.map(r => ({ ...r, collection: v, door_style: '' }))); }}>
+                          <SelectTrigger className="w-full h-12 text-sm bg-white border-sky-200 rounded-xl">
                             <SelectValue placeholder={isIntegrity && !globalSeries ? 'Pick series first' : 'Select'} />
                           </SelectTrigger>
-                          <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl max-h-80">
-                            {collections.map(c => (
-                              <SelectItem key={c} value={c}>
-                                {getCollectionLabel(c, globalSeries)}
-                              </SelectItem>
-                            ))}
+                          <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-200 z-[200] shadow-2xl rounded-xl max-h-72">
+                            {collections.map(c => <SelectItem key={c} value={c}>{getCollectionLabel(c, globalSeries)}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-1">
-                        <p className="text-[9px] font-black uppercase text-sky-600 tracking-widest pl-1">Door Style</p>
-                        <Select
-                          key={globalCollection}
-                          value={globalDoorStyle}
-                          disabled={!globalCollection}
-                          onValueChange={(v) => {
-                            setGlobalDoorStyle(v);
-                            setRooms(prev => prev.map(r => ({ ...r, door_style: v })));
-                          }}
-                        >
-                          <SelectTrigger className="w-44 h-11 text-sm bg-white border-sky-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-black uppercase text-sky-600 tracking-widest">Door Style</p>
+                        <Select key={globalCollection} value={globalDoorStyle} disabled={!globalCollection}
+                          onValueChange={(v) => { setGlobalDoorStyle(v); setRooms(prev => prev.map(r => ({ ...r, door_style: v }))); }}>
+                          <SelectTrigger className="w-full h-12 text-sm bg-white border-sky-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-200 z-[200] shadow-2xl rounded-xl max-h-72">
                             {globalCollection && manMapping[globalCollection]?.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                           </SelectContent>
                         </Select>
@@ -869,50 +836,32 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                   {/* ── price_column model (Marsh) ── */}
                   {priceModel === 'price_column' && (
                     <>
-                      <div className="space-y-1">
-                        <p className="text-[9px] font-black uppercase text-sky-600 tracking-widest pl-1">Door Style</p>
-                        <Select
-                          value={globalDoorStyle}
-                          onValueChange={(v) => {
-                            setGlobalDoorStyle(v);
-                            setRooms(prev => prev.map(r => ({ ...r, door_style: v })));
-                          }}
-                        >
-                          <SelectTrigger className="w-52 h-11 text-sm bg-white border-sky-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl max-h-80">
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-black uppercase text-sky-600 tracking-widest">Door Style</p>
+                        <Select value={globalDoorStyle} onValueChange={(v) => { setGlobalDoorStyle(v); setRooms(prev => prev.map(r => ({ ...r, door_style: v }))); }}>
+                          <SelectTrigger className="w-full h-12 text-sm bg-white border-sky-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-200 z-[200] shadow-2xl rounded-xl max-h-72">
                             {catalogDoorStyles.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
                       {catalogSpecies.length > 0 && (
-                        <div className="space-y-1">
-                          <p className="text-[9px] font-black uppercase text-amber-600 tracking-widest pl-1">Species</p>
-                          <Select
-                            value={globalSpecies}
-                            onValueChange={(v) => {
-                              setGlobalSpecies(v);
-                              setRooms(prev => prev.map(r => ({ ...r, wood_species: v })));
-                            }}
-                          >
-                            <SelectTrigger className="w-40 h-11 text-sm bg-white border-amber-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-black uppercase text-amber-600 tracking-widest">Species</p>
+                          <Select value={globalSpecies} onValueChange={(v) => { setGlobalSpecies(v); setRooms(prev => prev.map(r => ({ ...r, wood_species: v }))); }}>
+                            <SelectTrigger className="w-full h-12 text-sm bg-white border-amber-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-200 z-[200] shadow-2xl rounded-xl max-h-72">
                               {catalogSpecies.map(sp => <SelectItem key={sp.name} value={sp.name}>{sp.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
                       )}
                       {catalogFinishes.length > 0 && (
-                        <div className="space-y-1">
-                          <p className="text-[9px] font-black uppercase text-violet-600 tracking-widest pl-1">Finish</p>
-                          <Select
-                            value={globalFinish}
-                            onValueChange={(v) => {
-                              setGlobalFinish(v);
-                              setRooms(prev => prev.map(r => ({ ...r, finish: v })));
-                            }}
-                          >
-                            <SelectTrigger className="w-44 h-11 text-sm bg-white border-violet-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-black uppercase text-violet-600 tracking-widest">Finish</p>
+                          <Select value={globalFinish} onValueChange={(v) => { setGlobalFinish(v); setRooms(prev => prev.map(r => ({ ...r, finish: v }))); }}>
+                            <SelectTrigger className="w-full h-12 text-sm bg-white border-violet-200 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-200 z-[200] shadow-2xl rounded-xl max-h-72">
                               {catalogFinishes.map(f => <SelectItem key={f.name} value={f.name}>{f.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
@@ -920,7 +869,6 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                       )}
                     </>
                   )}
-                </div>
               </div>
             </Card>
 
@@ -941,68 +889,45 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                       <span className="text-[9px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full tracking-wider">✓ Set</span>
                     )}
                   </div>
-                  <div className="flex gap-3 flex-wrap">
+                  <div className="grid grid-cols-2 gap-3">
                     {/* ── collection model per room ── */}
                     {priceModel === 'collection' && (
                       <>
                         {isIntegrity && (
-                          <div className="space-y-1">
-                            <p className="text-[9px] font-black uppercase text-indigo-500 tracking-widest pl-1">Series</p>
-                            <Select
-                              value={roomSeriesMap[rIdx] || ''}
-                              onValueChange={(v) => {
-                                setRoomSeriesMap(prev => ({ ...prev, [rIdx]: v }));
-                                const nr = [...rooms];
-                                nr[rIdx].collection = '';
-                                nr[rIdx].door_style = '';
-                                setRooms(nr);
-                              }}
-                            >
-                              <SelectTrigger className="w-40 h-11 text-sm bg-indigo-50 border-none rounded-xl">
-                                <SelectValue placeholder="Series" />
-                              </SelectTrigger>
-                              <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
-                                {integritySeriesFromDB.map(s => (
-                                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                                ))}
+                          <div className="space-y-2">
+                            <p className="text-[10px] font-black uppercase text-indigo-500 tracking-widest">Series</p>
+                            <Select value={roomSeriesMap[rIdx] || ''} onValueChange={(v) => {
+                              setRoomSeriesMap(prev => ({ ...prev, [rIdx]: v }));
+                              const nr = [...rooms]; nr[rIdx].collection = ''; nr[rIdx].door_style = ''; setRooms(nr);
+                            }}>
+                              <SelectTrigger className="w-full h-11 text-sm bg-indigo-50 border-none rounded-xl"><SelectValue placeholder="Series" /></SelectTrigger>
+                              <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-200 z-[200] shadow-2xl rounded-xl max-h-72">
+                                {integritySeriesFromDB.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           </div>
                         )}
-                        <div className="space-y-1">
-                          <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest pl-1">Collection</p>
-                          <Select
-                            key={roomSeriesMap[rIdx] ?? 'no-series'}
-                            value={room.collection}
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Collection</p>
+                          <Select key={roomSeriesMap[rIdx] ?? 'no-series'} value={room.collection}
                             disabled={isIntegrity && !roomSeriesMap[rIdx]}
-                            onValueChange={(v) => {
-                              const nr = [...rooms];
-                              nr[rIdx].collection = v;
-                              nr[rIdx].door_style = '';
-                              setRooms(nr);
-                            }}
-                          >
-                            <SelectTrigger className="w-44 h-11 text-sm bg-slate-50 border-none rounded-xl">
+                            onValueChange={(v) => { const nr = [...rooms]; nr[rIdx].collection = v; nr[rIdx].door_style = ''; setRooms(nr); }}>
+                            <SelectTrigger className="w-full h-11 text-sm bg-slate-50 border-none rounded-xl">
                               <SelectValue placeholder={isIntegrity && !roomSeriesMap[rIdx] ? 'Pick series' : 'Select'} />
                             </SelectTrigger>
-                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl max-h-80">
+                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-200 z-[200] shadow-2xl rounded-xl max-h-72">
                               {getFilteredCollections(roomSeriesMap[rIdx] || '').map(c => (
-                                <SelectItem key={c} value={c}>
-                                  {getCollectionLabel(c, roomSeriesMap[rIdx] || '')}
-                                </SelectItem>
+                                <SelectItem key={c} value={c}>{getCollectionLabel(c, roomSeriesMap[rIdx] || '')}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="space-y-1">
-                          <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest pl-1">Door Style</p>
-                          <Select value={room.door_style} onValueChange={(v) => {
-                            const nr = [...rooms];
-                            nr[rIdx].door_style = v;
-                            setRooms(nr);
-                          }} disabled={!room.collection}>
-                            <SelectTrigger className="w-44 h-11 text-sm bg-slate-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Door Style</p>
+                          <Select value={room.door_style} disabled={!room.collection}
+                            onValueChange={(v) => { const nr = [...rooms]; nr[rIdx].door_style = v; setRooms(nr); }}>
+                            <SelectTrigger className="w-full h-11 text-sm bg-slate-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-200 z-[200] shadow-2xl rounded-xl max-h-72">
                               {room.collection && manMapping[room.collection]?.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                             </SelectContent>
                           </Select>
@@ -1013,38 +938,32 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
                     {/* ── price_column model per room (Marsh) ── */}
                     {priceModel === 'price_column' && (
                       <>
-                        <div className="space-y-1">
-                          <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest pl-1">Door Style</p>
-                          <Select value={room.door_style} onValueChange={(v) => {
-                            const nr = [...rooms]; nr[rIdx].door_style = v; setRooms(nr);
-                          }}>
-                            <SelectTrigger className="w-52 h-11 text-sm bg-slate-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl max-h-80">
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Door Style</p>
+                          <Select value={room.door_style} onValueChange={(v) => { const nr = [...rooms]; nr[rIdx].door_style = v; setRooms(nr); }}>
+                            <SelectTrigger className="w-full h-11 text-sm bg-slate-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-200 z-[200] shadow-2xl rounded-xl max-h-72">
                               {catalogDoorStyles.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
                         {catalogSpecies.length > 0 && (
-                          <div className="space-y-1">
-                            <p className="text-[9px] font-black uppercase text-amber-500 tracking-widest pl-1">Species</p>
-                            <Select value={room.wood_species || ''} onValueChange={(v) => {
-                              const nr = [...rooms]; nr[rIdx].wood_species = v; setRooms(nr);
-                            }}>
-                              <SelectTrigger className="w-40 h-11 text-sm bg-amber-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                              <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
+                          <div className="space-y-2">
+                            <p className="text-[10px] font-black uppercase text-amber-500 tracking-widest">Species</p>
+                            <Select value={room.wood_species || ''} onValueChange={(v) => { const nr = [...rooms]; nr[rIdx].wood_species = v; setRooms(nr); }}>
+                              <SelectTrigger className="w-full h-11 text-sm bg-amber-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                              <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-200 z-[200] shadow-2xl rounded-xl max-h-72">
                                 {catalogSpecies.map(sp => <SelectItem key={sp.name} value={sp.name}>{sp.name}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           </div>
                         )}
                         {catalogFinishes.length > 0 && (
-                          <div className="space-y-1">
-                            <p className="text-[9px] font-black uppercase text-violet-500 tracking-widest pl-1">Finish</p>
-                            <Select value={room.finish || ''} onValueChange={(v) => {
-                              const nr = [...rooms]; nr[rIdx].finish = v; setRooms(nr);
-                            }}>
-                              <SelectTrigger className="w-44 h-11 text-sm bg-violet-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                              <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-100 z-50 shadow-xl">
+                          <div className="space-y-2">
+                            <p className="text-[10px] font-black uppercase text-violet-500 tracking-widest">Finish</p>
+                            <Select value={room.finish || ''} onValueChange={(v) => { const nr = [...rooms]; nr[rIdx].finish = v; setRooms(nr); }}>
+                              <SelectTrigger className="w-full h-11 text-sm bg-violet-50 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                              <SelectContent position="popper" sideOffset={4} className="bg-white border-slate-200 z-[200] shadow-2xl rounded-xl max-h-72">
                                 {catalogFinishes.map(f => <SelectItem key={f.name} value={f.name}>{f.name}</SelectItem>)}
                               </SelectContent>
                             </Select>
