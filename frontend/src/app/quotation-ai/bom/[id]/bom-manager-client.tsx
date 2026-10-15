@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef, useTransition } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -250,8 +250,6 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
   const [step, setStep] = useState<WorkflowStep>('pricing');
   const [viewMode, setViewMode] = useState<ViewMode>('client');
   const [reviewStatus, setReviewStatus] = useState<string>(project.review_status ?? 'draft');
-  const [isSubmittingReview, startReviewTransition] = useTransition();
-
   const [pricingFactor, setPricingFactor] = useState(project.bom_data?.pricingFactor ?? 1);
   const [targetMargin, setTargetMargin] = useState(project.bom_data?.targetMargin ?? 35);
   const [globalDiscount, setGlobalDiscount] = useState(project.bom_data?.discount ?? 0);
@@ -406,8 +404,6 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
       return { label: 'Smart Estimate', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
     if (p === 'MANUAL_PRICING_REQUIRED')
       return { label: 'Review Needed', cls: 'bg-red-50 text-red-700 border-red-200' };
-    if (p === 'ELEVATE_WORKSHEET')
-      return { label: 'Elevate Priced', cls: 'bg-violet-50 text-violet-700 border-violet-200' };
     return { label: precision, cls: 'bg-slate-100 text-slate-500 border-slate-200' };
   };
 
@@ -1128,39 +1124,6 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {step === 'preview' && reviewStatus === 'draft' && (
-            <Button
-              className="rounded-xl h-11 px-5 bg-sky-600 hover:bg-sky-700 text-white gap-2 font-semibold shadow-md shadow-sky-200"
-              disabled={isSubmittingReview}
-              onClick={() => startReviewTransition(async () => {
-                const res = await setReviewStatusAction(project.id, 'in_review', 'Proposal ready — sent to Elevate staff for pricing review');
-                if (res.success) {
-                  setReviewStatus('in_review');
-                  toast({ title: 'Sent to Elevate Staff & Pricing', description: 'Staff can now review, edit and approve this proposal.' });
-                  setTimeout(() => reviewPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
-                }
-              })}
-            >
-              {isSubmittingReview ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-              Send to Elevate Staff &amp; Pricing
-            </Button>
-          )}
-          {step === 'preview' && reviewStatus === 'in_review' && (
-            <button
-              onClick={() => reviewPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-              className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full hover:bg-amber-100 transition-colors"
-            >
-              In Review — View Panel ↓
-            </button>
-          )}
-          {step === 'preview' && reviewStatus === 'approved' && (
-            <button
-              onClick={() => reviewPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-              className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full hover:bg-emerald-100 transition-colors"
-            >
-              ✓ Approved — View Panel ↓
-            </button>
-          )}
           {step === 'pricing' && (
             <>
               <Button variant="outline" className="rounded-xl h-11 px-4 border-slate-200" onClick={handleReprice} disabled={isPricing}>
@@ -1179,12 +1142,6 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
                 <a href={`/quotation-ai/blueprint/${id}`}>
                   <Blocks className="w-4 h-4 mr-2" />
                   Blueprint Mode
-                </a>
-              </Button>
-              <Button asChild variant="outline" className="rounded-xl h-11 px-4 border-sky-200 text-sky-700 hover:bg-sky-50">
-                <a href={`/quotation-ai/elevate/${id}`}>
-                  <Calculator className="w-4 h-4 mr-2" />
-                  Elevate Pricing
                 </a>
               </Button>
             </>

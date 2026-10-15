@@ -65,11 +65,6 @@ export default async function Home() {
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
             </Button>
           </Link>
-          <Link href="/elevate">
-            <Button variant="outline" className="h-16 px-12 text-lg rounded-2xl border-slate-200 text-slate-600 hover:bg-slate-50">
-              Elevate Design &amp; Pricing
-            </Button>
-          </Link>
         </div>
       </div>
 

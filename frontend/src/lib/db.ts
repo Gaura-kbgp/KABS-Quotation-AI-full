@@ -26,7 +26,6 @@ const TENANT_TABLES = new Set([
   'nkba_files',
   'quotation_projects',
   'quotation_boms',
-  'elevate_pricing_profiles',
   'manufacturer_detections',
   'usage_events',
 ]);
