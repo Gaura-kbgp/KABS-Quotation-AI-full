@@ -801,6 +801,7 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
               walls={walls}
               items={generated.items}
               warnings={generated.warnings}
+              onItemsChange={(newItems) => setGenerated(g => g ? { ...g, items: newItems } : g)}
             />
           </div>
         )}
