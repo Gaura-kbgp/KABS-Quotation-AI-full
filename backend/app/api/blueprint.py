@@ -109,7 +109,7 @@ async def parse_pdf(file: UploadFile = File(...), user: CurrentUser = Depends(ge
             raise HTTPException(status_code=400, detail="PDF too small / empty")
         if len(pdf_bytes) > MAX_UPLOAD_BYTES:
             raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
-        result = parse_blueprint_pdf(pdf_bytes)
+        result = parse_blueprint_pdf(pdf_bytes, max_pages=999)
         return {"success": True, **result}
     except HTTPException:
         raise

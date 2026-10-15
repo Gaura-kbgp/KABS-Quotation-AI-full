@@ -107,7 +107,7 @@ class ParsedWall:
 
 # ─── Low-level PDF text extraction ──────────────────────────────────────────
 
-def _extract_spans(pdf_bytes: bytes, max_pages: int = 10) -> tuple[list[tuple[int, list[TextSpan]]], int]:
+def _extract_spans(pdf_bytes: bytes, max_pages: int = 999) -> tuple[list[tuple[int, list[TextSpan]]], int]:
     """Return (list of (page_index, [TextSpan]) up to max_pages, total page count in the PDF)."""
     try:
         import pymupdf as fitz  # modern name
@@ -350,7 +350,7 @@ def _ai_parse_spans(spans_by_page: list[tuple[int, list[TextSpan]]]) -> dict | N
 
 # ─── Public entry point ──────────────────────────────────────────────────────
 
-def parse_blueprint_pdf(pdf_bytes: bytes, max_pages: int = 10) -> dict:
+def parse_blueprint_pdf(pdf_bytes: bytes, max_pages: int = 999) -> dict:
     """
     Parse a dimensioned plan PDF and return a draft spec:
       {
