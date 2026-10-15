@@ -636,6 +636,43 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
     };
   }, [bom, selectedRooms, activePrintRoom, pricingFactor, targetMargin, globalDiscount, taxRate, freight, fuelSurcharge, miscCharges, roomDiscounts, installRate, installCostRate, includeInstall, includeDelivery, deliverySellRate, deliveryCostRate, installRules, installOverrides, isInstallManufacturer]);
 
+  // ── Autosave — invoice fields (customer / dealer) ────────────────────────
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (step !== 'invoice') return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      setAutoSaveStatus('saving');
+      try {
+        await updateProjectAction(id, {
+          bom_data: {
+            pricingFactor, targetMargin, discount: globalDiscount, taxRate, freight,
+            fuelSurcharge, miscCharges, installRate, installCostRate,
+            includeInstall, includeDelivery, deliverySellRate, deliveryCostRate,
+            roomDiscounts,
+            customerName: customer.name, customerAddress: customer.address,
+            customerPhone: customer.phone, customerDelivery: customer.delivery,
+            dealerName: dealer.name, dealerAddress: dealer.address,
+            dealerPhone: dealer.phone, dealerEmail: dealer.email,
+            quoteDate, expirationDate,
+            listSubtotal: financials.listSubtotal, grandTotal: financials.grandTotal,
+            selectedRooms,
+          }
+        });
+        setAutoSaveStatus('saved');
+        setTimeout(() => setAutoSaveStatus('idle'), 2500);
+      } catch {
+        setAutoSaveStatus('idle');
+      }
+    }, 1200);
+    return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer.name, customer.address, customer.phone, customer.delivery,
+      dealer.name, dealer.address, dealer.phone, dealer.email,
+      quoteDate, expirationDate, step]);
+
   // ── Install / 3PL Calculations ─────────────────────────────────────────────
   // Lookup priority: client overrides → manufacturer defaults → missing
   const installCalculations = useMemo(() => {
@@ -1140,6 +1177,11 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest truncate hidden sm:block">
               Project: {project.project_name} • {manufacturerName}
             </p>
+            {step === 'invoice' && autoSaveStatus !== 'idle' && (
+              <span className={`text-[9px] font-bold uppercase tracking-widest hidden sm:block ${autoSaveStatus === 'saving' ? 'text-sky-400' : 'text-emerald-500'}`}>
+                {autoSaveStatus === 'saving' ? '• Saving…' : '✓ Saved'}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
@@ -2835,6 +2877,25 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
                     <Button size="lg" className="gradient-button h-16 px-12 text-lg rounded-2xl shadow-xl shadow-sky-500/30" onClick={() => triggerPrint()}>
                       <Printer className="w-5 h-5 mr-3" /> Print / Save PDF
                     </Button>
+                  </div>
+
+                  {/* ── Quote Complete ── */}
+                  <div className="mt-10 rounded-3xl bg-gradient-to-br from-emerald-50 to-sky-50 border border-emerald-100 p-8 text-center space-y-4 print:hidden">
+                    <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
+                      <CheckCircle2 className="w-7 h-7 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-slate-900">Quote Complete</h3>
+                      <p className="text-sm text-slate-500 mt-1">Print or save the PDF above, then return to your projects.</p>
+                    </div>
+                    <div className="flex items-center justify-center gap-3 pt-2">
+                      <Button variant="outline" className="rounded-xl h-11 px-6 border-slate-200" onClick={() => router.push('/quotation-ai')}>
+                        <ArrowLeft className="w-4 h-4 mr-2" /> Back to Projects
+                      </Button>
+                      <Button className="gradient-button rounded-xl h-11 px-6" onClick={() => router.push('/quotation-ai')}>
+                        <Plus className="w-4 h-4 mr-2" /> Start New Quote
+                      </Button>
+                    </div>
                   </div>
 
                 </div>
