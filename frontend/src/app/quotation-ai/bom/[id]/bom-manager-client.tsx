@@ -247,7 +247,11 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
     });
   }, [bom, project.extracted_data]);
   const [selectedRooms, setSelectedRooms] = useState<string[]>(project.bom_data?.selectedRooms || roomsList);
-  const [step, setStep] = useState<WorkflowStep>('pricing');
+  const [step, setStep] = useState<WorkflowStep>(() => {
+    const saved = project.bom_data?.lastStep as WorkflowStep | undefined;
+    const valid: WorkflowStep[] = ['pricing', 'breakdown', 'preview', 'invoice', 'config', 'compare'];
+    return (saved && valid.includes(saved)) ? saved : 'pricing';
+  });
   const [viewMode, setViewMode] = useState<ViewMode>('client');
   const [reviewStatus, setReviewStatus] = useState<string>(project.review_status ?? 'draft');
   const unconfirmedCount = useMemo(() =>
@@ -635,6 +639,28 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
       totalRoomDiscount
     };
   }, [bom, selectedRooms, activePrintRoom, pricingFactor, targetMargin, globalDiscount, taxRate, freight, fuelSurcharge, miscCharges, roomDiscounts, installRate, installCostRate, includeInstall, includeDelivery, deliverySellRate, deliveryCostRate, installRules, installOverrides, isInstallManufacturer]);
+
+  // ── Draft checkpoint — save bom_data + lastStep whenever step changes ────
+  // Lets users close the browser and resume from where they left off.
+  useEffect(() => {
+    updateProjectAction(id, {
+      bom_data: {
+        pricingFactor, targetMargin, discount: globalDiscount, taxRate, freight,
+        fuelSurcharge, miscCharges, installRate, installCostRate,
+        includeInstall, includeDelivery, deliverySellRate, deliveryCostRate,
+        roomDiscounts,
+        customerName: customer.name, customerAddress: customer.address,
+        customerPhone: customer.phone, customerDelivery: customer.delivery,
+        dealerName: dealer.name, dealerAddress: dealer.address,
+        dealerPhone: dealer.phone, dealerEmail: dealer.email,
+        quoteDate, expirationDate,
+        listSubtotal: financials.listSubtotal, grandTotal: financials.grandTotal,
+        selectedRooms,
+        lastStep: step,
+      }
+    }).catch(() => {/* silent — not critical */});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   // ── Autosave — invoice fields (customer / dealer) ────────────────────────
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
