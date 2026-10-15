@@ -2273,11 +2273,59 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
 
           {step === 'preview' && (
             <div className="animate-in fade-in duration-500 space-y-12">
+
+              {/* ── Step 6: Staff Review Panel — always first ── */}
+              <div ref={reviewPanelRef} className="print:hidden">
+                <QuotationReviewPanel
+                  project={{
+                    id: project.id,
+                    project_name: project.project_name,
+                    review_status: reviewStatus,
+                    review_history: project.review_history as QuotationReviewEntry[] | null,
+                    review_notes: project.review_notes,
+                    has_blueprint: !!(project.extracted_data?.blueprint),
+                  }}
+                  bom={bom.filter(i => i.is_billable && selectedRooms.includes(i.room)).map(i => ({
+                    id: i.id,
+                    room: i.room,
+                    sku: i.sku,
+                    description: i.description,
+                    quantity: Number(i.qty),
+                    list_price: Number(i.unit_price),
+                    unit_cost: undefined,
+                    line_total: Number(i.line_total),
+                    sell_price: Number(i.unit_price),
+                  }))}
+                  companyName={company.name}
+                  manufacturerName={manufacturerName}
+                  sourceFileName={
+                    project.raw_pdf_url
+                      ? decodeURIComponent(project.raw_pdf_url.split('/').pop() ?? project.project_name)
+                      : project.project_name
+                  }
+                  pricing={{
+                    pricingFactor,
+                    targetMargin,
+                    discount: globalDiscount,
+                    taxRate,
+                    freight,
+                  }}
+                  unconfirmedCount={unconfirmedCount}
+                />
+              </div>
+
+              {/* ── Step 7: Send to Client — Invoice & Proposal ── */}
+              <div className={`space-y-12 transition-opacity duration-300 ${reviewStatus === 'draft' || reviewStatus === 'in_review' || reviewStatus === 'changes_requested' ? 'opacity-50 pointer-events-none' : ''}`}>
+                {(reviewStatus === 'draft' || reviewStatus === 'in_review' || reviewStatus === 'changes_requested') && (
+                  <div className="print:hidden flex items-center gap-3 px-5 py-3 bg-amber-50 border border-amber-200 rounded-2xl">
+                    <span className="text-amber-600 text-sm font-bold">⏳ Step 7 — Send to Client unlocks after Staff Review approval</span>
+                  </div>
+                )}
                <Card className="rounded-3xl border-slate-200 shadow-sm bg-white overflow-hidden print:hidden">
                   <CardHeader className="bg-slate-50 border-b border-slate-100">
                     <CardTitle className="text-lg flex items-center gap-2">
                        <FileText className="w-5 h-5 text-sky-600" />
-                       Invoice & Proposal Configuration
+                       Step 7 — Invoice & Proposal Configuration
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-8 space-y-10">
@@ -2762,46 +2810,8 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
                     </Button>
                   </div>
 
-                  {/* Staff Review & Approval Panel */}
-                  <div ref={reviewPanelRef} className="print:hidden mt-8">
-                    <QuotationReviewPanel
-                      project={{
-                        id: project.id,
-                        project_name: project.project_name,
-                        review_status: reviewStatus,
-                        review_history: project.review_history as QuotationReviewEntry[] | null,
-                        review_notes: project.review_notes,
-                        has_blueprint: !!(project.extracted_data?.blueprint),
-                      }}
-                      bom={bom.filter(i => i.is_billable && selectedRooms.includes(i.room)).map(i => ({
-                        id: i.id,
-                        room: i.room,
-                        sku: i.sku,
-                        description: i.description,
-                        quantity: Number(i.qty),
-                        list_price: Number(i.unit_price),
-                        unit_cost: undefined,
-                        line_total: Number(i.line_total),
-                        sell_price: Number(i.unit_price),
-                      }))}
-                      companyName={company.name}
-                      manufacturerName={manufacturerName}
-                      sourceFileName={
-                        project.raw_pdf_url
-                          ? decodeURIComponent(project.raw_pdf_url.split('/').pop() ?? project.project_name)
-                          : project.project_name
-                      }
-                      pricing={{
-                        pricingFactor,
-                        targetMargin,
-                        discount: globalDiscount,
-                        taxRate,
-                        freight,
-                      }}
-                      unconfirmedCount={unconfirmedCount}
-                    />
-                  </div>
                 </div>
+              </div>{/* end Step 7 wrapper */}
            )}
         </div>
 
