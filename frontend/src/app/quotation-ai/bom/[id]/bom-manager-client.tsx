@@ -785,6 +785,22 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
     }
     newBom[idx] = item;
     setBom(newBom);
+    // Auto-save when confirming a price — so the confirmed state persists without
+    // requiring the user to also hit "Save All".
+    if ('price_confirmed' in updates && updates.price_confirmed === true) {
+      updateBomItemAction(item.id, {
+        sku: item.sku,
+        matched_sku: item.matched_sku || null,
+        qty: item.qty,
+        unit_price: item.unit_price,
+        line_total: item.unit_price * item.qty,
+        is_billable: item.is_billable,
+        description: item.description || null,
+        cabinet_type: item.cabinet_type || null,
+        match_explanation: item.match_explanation || null,
+        price_confirmed: true,
+      }).catch(() => {/* silent – full save on Next step will retry */});
+    }
   };
 
   const handleReprice = async () => {
