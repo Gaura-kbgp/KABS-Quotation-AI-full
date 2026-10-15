@@ -367,7 +367,7 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-wrap items-center gap-3 mb-4 sm:mb-6">
           <Button asChild variant="ghost" size="icon" className="rounded-xl shrink-0">
-            <Link href={`/quotation-ai/bom/${id}`}><ArrowLeft className="w-5 h-5" /></Link>
+            <Link href="/quotation-ai"><ArrowLeft className="w-5 h-5" /></Link>
           </Button>
           <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-3xl font-black text-slate-800">Blueprint Mode</h1>

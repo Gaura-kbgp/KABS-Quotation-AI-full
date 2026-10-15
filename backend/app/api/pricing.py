@@ -1428,10 +1428,10 @@ def _price_rooms(rooms: list, lookup_maps: dict, manufacturer_id: str, mfg_hint:
                     item['code'], effective_col, room.get('door_style', ''),
                     lookup_maps, manufacturer_hint=mfg_hint
                 )
+                raw_code = item['code']
+                qty = int(float(item.get('quantity', item.get('qty', 1))))
                 if match:
-                    qty   = int(float(item.get('quantity', item.get('qty', 1))))
                     price = round(float(match['price']), 2)
-                    raw_code = item['code']
                     # Attach labor points if available
                     l_points = lookup_maps.get('labor', {}).get(match['sku'], 0)
                     if not l_points and match.get('csku'):
@@ -1455,6 +1455,29 @@ def _price_rooms(rooms: list, lookup_maps: dict, manufacturer_id: str, mfg_hint:
                         "match_explanation": _quick_match_explanation(raw_code, match.get('price_ref') or match['sku'], match_type),
                         "match_confidence": _match_type_confidence(match_type),
                         "price_confirmed": _is_confirmed_by_default(match_type),
+                        "created_at":      datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+                    })
+                else:
+                    # No catalog match — still write the item so it appears in the BOM.
+                    # Staff can assign a price manually or reprice after selecting a manufacturer.
+                    bom_items.append({
+                        "project_id":      project_id,
+                        "sku":             raw_code,
+                        "matched_sku":     None,
+                        "qty":             qty,
+                        "unit_price":      0.0,
+                        "line_total":      0.0,
+                        "install_points":  0,
+                        "room":            room['room_name'],
+                        "collection":      room.get('collection') or '',
+                        "door_style":      room.get('door_style') or '',
+                        "price_source":    "Unmatched — manual pricing required",
+                        "precision_level": "MANUAL_PRICING_REQUIRED",
+                        "description":     _quick_description(raw_code, room['room_name'], "MANUAL_PRICING_REQUIRED"),
+                        "cabinet_type":    cat,
+                        "match_explanation": "No catalog match found",
+                        "match_confidence": 0,
+                        "price_confirmed": False,
                         "created_at":      datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
                     })
     return bom_items

@@ -1381,12 +1381,22 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
 
           {step === 'pricing' && (
             <div className="space-y-12 animate-in fade-in duration-500">
+              {roomsList.length === 0 && project.extracted_data?._origin === 'blueprint' && (
+                <Card className="rounded-2xl border-violet-200 bg-violet-50 p-6 text-center">
+                  <p className="text-sm font-bold text-violet-800 mb-1">No items in this BOM yet</p>
+                  <p className="text-xs text-violet-600 mb-4">Go to Blueprint Mode, generate your layout, select a manufacturer, then click <strong>Save &amp; Open BOM</strong>.</p>
+                  <a href={`/quotation-ai/blueprint/${id}`} className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-700">
+                    ← Back to Blueprint Mode
+                  </a>
+                </Card>
+              )}
+
               <Card className="rounded-2xl border-slate-200 shadow-sm bg-white overflow-hidden">
                 <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                   <div className="flex items-center gap-3">
-                    <Checkbox 
-                      id="select-all" 
-                      checked={selectedRooms.length === roomsList.length} 
+                    <Checkbox
+                      id="select-all"
+                      checked={selectedRooms.length === roomsList.length}
                       onCheckedChange={v => toggleAllRooms(!!v)}
                     />
                     <Label htmlFor="select-all" className="text-xs font-bold uppercase tracking-widest text-slate-500">Select ALL Rooms for Billing</Label>
