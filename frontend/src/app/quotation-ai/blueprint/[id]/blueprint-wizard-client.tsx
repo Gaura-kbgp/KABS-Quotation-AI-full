@@ -79,13 +79,13 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
 
   // ── Manufacturer / SKU matching ──────────────────────────────────────────
   type Manufacturer = { id: string; name: string };
-  type MfgConfig = { collections: string[]; door_styles: string[] };
+  type MfgConfig = { collections: string[]; door_styles: string[]; mapping: Record<string, string[]> };
   type SkuRow = { code: string; qty: number; sku: string | null; price: number; line_total: number; collection_name: string; match_type: string; wall?: string; _overrideSku?: string };
   type SkuSchedule = { matched: SkuRow[]; substituted: SkuRow[]; unresolved: SkuRow[]; summary: any } | null;
 
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
   const [manufacturerId, setManufacturerId] = useState<string>(project.manufacturer_id || '');
-  const [mfgConfig, setMfgConfig] = useState<MfgConfig>({ collections: [], door_styles: [] });
+  const [mfgConfig, setMfgConfig] = useState<MfgConfig>({ collections: [], door_styles: [], mapping: {} });
   const [collection, setCollection] = useState<string>('');
   const [doorStyle, setDoorStyle] = useState<string>('');
   const [skuSchedule, setSkuSchedule] = useState<SkuSchedule>(null);
@@ -99,11 +99,14 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
   }, []);
 
   useEffect(() => {
-    if (!manufacturerId) { setMfgConfig({ collections: [], door_styles: [] }); return; }
+    if (!manufacturerId) { setMfgConfig({ collections: [], door_styles: [], mapping: {} }); return; }
     fetch(`/api/manufacturer-config?id=${manufacturerId}`)
       .then(r => r.json())
       .then(d => {
-        setMfgConfig({ collections: d.collections || [], door_styles: d.door_styles || [] });
+        const mapping: Record<string, string[]> = (d.success && d.mapping) ? d.mapping : {};
+        const collections = Object.keys(mapping);
+        const allDoorStyles = [...new Set(Object.values(mapping).flat())] as string[];
+        setMfgConfig({ collections, door_styles: allDoorStyles, mapping });
         setCollection(''); setDoorStyle('');
       });
   }, [manufacturerId]);
