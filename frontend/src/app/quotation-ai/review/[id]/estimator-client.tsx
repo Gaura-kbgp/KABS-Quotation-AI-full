@@ -484,49 +484,51 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
 
   return (
     <div className="flex flex-col min-h-screen">
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-slate-100 px-6 h-16 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" className="rounded-full h-8 w-8" onClick={handleBack}>
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-slate-100 px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 shrink-0" onClick={handleBack}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <div>
-            <h1 className="text-base font-bold tracking-tight text-slate-900">{project.project_name}</h1>
-            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+          <div className="min-w-0">
+            <h1 className="text-sm sm:text-base font-bold tracking-tight text-slate-900 truncate">{project.project_name}</h1>
+            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest hidden sm:block">
               Review Workstation
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 shrink-0">
           {step === 'review' && (
-            <Button onClick={handleAddRoom} variant="outline" size="sm" className="rounded-xl border-sky-100 text-sky-600 font-bold">
-              <PlusCircle className="w-4 h-4 mr-2" />
-              Add Room
+            <Button onClick={handleAddRoom} variant="outline" size="sm" className="rounded-xl border-sky-100 text-sky-600 font-bold h-8 px-2 sm:px-3">
+              <PlusCircle className="w-4 h-4" />
+              <span className="hidden sm:inline ml-1">Add Room</span>
             </Button>
           )}
         </div>
       </header>
 
-      <div className="p-6 flex-1">
+      <div className="p-3 sm:p-6 flex-1">
         {step === 'review' && (
-          <div className="max-w-5xl mx-auto space-y-8 pb-32 animate-in fade-in duration-500">
-            <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100 sticky top-20 z-40">
+          <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8 pb-32 animate-in fade-in duration-500">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 sticky top-14 sm:top-16 z-40">
                <div className="flex items-center gap-3">
-                  <Sparkles className="w-5 h-5 text-sky-500" />
-                  <p className="text-sm font-bold text-slate-600">Review all extracted items and apply manufacturer specifications below.</p>
+                  <Sparkles className="w-5 h-5 text-sky-500 shrink-0" />
+                  <p className="text-xs sm:text-sm font-bold text-slate-600">Review extracted items and apply manufacturer specs.</p>
                </div>
-               <div className="flex items-center gap-3">
-                 <Button onClick={handleRescan} variant="outline" disabled={isRescanning} title="Re-extract all rooms from original PDF" className="h-12 px-4 border-slate-200 text-slate-600 hover:bg-slate-50 shadow-sm font-bold">
-                    {isRescanning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                    Re-scan PDF
+               <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                 <Button onClick={handleRescan} variant="outline" disabled={isRescanning} title="Re-extract all rooms from original PDF" className="h-10 sm:h-12 px-3 sm:px-4 border-slate-200 text-slate-600 hover:bg-slate-50 shadow-sm font-bold text-xs sm:text-sm">
+                    {isRescanning ? <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1 sm:mr-2" />}
+                    Re-scan
                  </Button>
-                 <Button onClick={handleRunSmartAgent} variant="outline" disabled={isRunningAgent} className="h-12 px-6 border-purple-200 text-purple-700 hover:bg-purple-50 hover:text-purple-800 bg-purple-50/50 shadow-sm font-bold">
-                    {isRunningAgent ? <Loader2 className="w-5 h-5 mr-2 animate-spin text-purple-600" /> : <Sparkles className="w-5 h-5 mr-2 text-purple-600" />}
-                    Quotation Smart Agent
+                 <Button onClick={handleRunSmartAgent} variant="outline" disabled={isRunningAgent} className="h-10 sm:h-12 px-3 sm:px-6 border-purple-200 text-purple-700 hover:bg-purple-50 hover:text-purple-800 bg-purple-50/50 shadow-sm font-bold text-xs sm:text-sm">
+                    {isRunningAgent ? <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin text-purple-600" /> : <Sparkles className="w-4 h-4 mr-1 sm:mr-2 text-purple-600" />}
+                    <span className="hidden sm:inline">Quotation Smart Agent</span>
+                    <span className="sm:hidden">Smart Agent</span>
                  </Button>
-                 <Button onClick={() => setStep('manufacturer')} className="h-12 px-10 gradient-button text-base">
-                    Select Manufacturer
-                    <ChevronRight className="ml-2 w-5 h-5" />
+                 <Button onClick={() => setStep('manufacturer')} className="h-10 sm:h-12 px-4 sm:px-10 gradient-button text-sm sm:text-base">
+                    <span className="hidden sm:inline">Select Manufacturer</span>
+                    <span className="sm:hidden">Manufacturer</span>
+                    <ChevronRight className="ml-1 sm:ml-2 w-4 h-4 sm:w-5 sm:h-5" />
                  </Button>
                </div>
             </div>
@@ -707,7 +709,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
 
                        {/* ROOM TOTALS SUMMARY */}
                        <div className="flex justify-end pt-2">
-                          <div className="bg-white px-8 py-5 rounded-3xl border border-slate-100 shadow-sm flex gap-12 items-center">
+                          <div className="bg-white px-4 sm:px-8 py-4 sm:py-5 rounded-3xl border border-slate-100 shadow-sm flex gap-6 sm:gap-12 items-center flex-wrap">
                              <div className="flex flex-col">
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Cabinets</span>
                                 <div className="flex items-center gap-3">
@@ -739,7 +741,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
         )}
 
         {step === 'manufacturer' && (
-          <div className="max-w-xl mx-auto py-8 space-y-6 animate-in fade-in duration-500">
+          <div className="max-w-xl mx-auto py-4 sm:py-8 space-y-6 animate-in fade-in duration-500">
             <h2 className="text-xl font-black text-center text-slate-900">Select Manufacturer</h2>
             <div className="grid grid-cols-1 gap-3">
               {manufacturers.map(m => (
@@ -757,7 +759,7 @@ export function EstimatorClient({ project, manufacturers }: EstimatorClientProps
         )}
 
         {step === 'specifications' && (
-          <div className="max-w-4xl mx-auto py-8 space-y-6 animate-in fade-in duration-500">
+          <div className="max-w-4xl mx-auto py-4 sm:py-8 space-y-6 animate-in fade-in duration-500">
             <h2 className="text-xl font-black text-center text-slate-900">Configure Brands</h2>
 
             {/* LOADING STATE */}

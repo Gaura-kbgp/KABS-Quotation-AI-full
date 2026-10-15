@@ -1106,9 +1106,9 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
            </div>
         </div>
       )}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between print:hidden">
-        <div className="flex items-center gap-6">
-          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => {
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between print:hidden">
+        <div className="flex items-center gap-3 sm:gap-6 min-w-0">
+          <Button variant="ghost" size="icon" className="rounded-full shrink-0" onClick={() => {
             if (step === 'preview') setStep('breakdown');
             else if (step === 'breakdown') setStep('pricing');
             else if (step === 'pricing' && manufacturerName === "Integrity Cabinets") setStep('config');
@@ -1116,54 +1116,55 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
           }}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-xl font-bold tracking-tight truncate">
               {step === 'pricing' ? 'Bill of Materials' : step === 'config' ? 'Manufacturer Configuration' : step === 'compare' ? 'Compare Cabinet Lines' : step === 'breakdown' ? 'Calculation Breakdown' : 'Proposal Preview'}
             </h1>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-              Project: {project.project_name} • {manufacturerName} {step === 'config' && '— Integrity Cabinets Multi-Select'}{step === 'compare' && '— Side-by-Side Pricing'}
+            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest truncate hidden sm:block">
+              Project: {project.project_name} • {manufacturerName}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {step === 'pricing' && (
             <>
-              <Button variant="outline" className="rounded-xl h-11 px-4 border-slate-200" onClick={handleReprice} disabled={isPricing}>
-                {isPricing ? <Loader2 className="animate-spin w-4 h-4" /> : <RefreshCcw className="w-4 h-4 mr-2" />}
-                Match Catalog Prices
+              <Button variant="outline" className="rounded-xl h-9 sm:h-11 px-2 sm:px-4 border-slate-200" onClick={handleReprice} disabled={isPricing} title="Match Catalog Prices">
+                {isPricing ? <Loader2 className="animate-spin w-4 h-4" /> : <RefreshCcw className="w-4 h-4" />}
+                <span className="hidden lg:inline ml-2">Match Catalog Prices</span>
               </Button>
-              <Button variant="outline" className="rounded-xl h-11 px-4 border-amber-200 text-amber-700 hover:bg-amber-50" onClick={handleCatalogDiagnose} title="Check if pricing catalog is loaded for this manufacturer">
-                <FlaskConical className="w-4 h-4 mr-2" />
-                Diagnose Catalog
+              <Button variant="outline" className="rounded-xl h-9 sm:h-11 px-2 sm:px-4 border-amber-200 text-amber-700 hover:bg-amber-50" onClick={handleCatalogDiagnose} title="Diagnose Catalog">
+                <FlaskConical className="w-4 h-4" />
+                <span className="hidden xl:inline ml-2">Diagnose Catalog</span>
               </Button>
-              <Button variant="outline" className="rounded-xl h-11 px-4 border-violet-200 text-violet-700 hover:bg-violet-50" onClick={() => setStep('compare')}>
-                <Columns2 className="w-4 h-4 mr-2" />
-                Compare Lines
+              <Button variant="outline" className="rounded-xl h-9 sm:h-11 px-2 sm:px-4 border-violet-200 text-violet-700 hover:bg-violet-50" onClick={() => setStep('compare')} title="Compare Lines">
+                <Columns2 className="w-4 h-4" />
+                <span className="hidden xl:inline ml-2">Compare Lines</span>
               </Button>
-              <Button asChild variant="outline" className="rounded-xl h-11 px-4 border-indigo-200 text-indigo-700 hover:bg-indigo-50">
-                <a href={`/quotation-ai/blueprint/${id}`}>
-                  <Blocks className="w-4 h-4 mr-2" />
-                  Blueprint Mode
+              <Button asChild variant="outline" className="rounded-xl h-9 sm:h-11 px-2 sm:px-4 border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+                <a href={`/quotation-ai/blueprint/${id}`} title="Blueprint Mode">
+                  <Blocks className="w-4 h-4" />
+                  <span className="hidden xl:inline ml-2">Blueprint Mode</span>
                 </a>
               </Button>
             </>
           )}
-          <Button className="rounded-xl h-11 px-6 gradient-button" onClick={() => {
+          <Button className="rounded-xl h-9 sm:h-11 px-3 sm:px-6 gradient-button" onClick={() => {
               if (step === 'config') setStep('pricing');
               else if (step === 'compare') setStep('pricing');
               else if (step === 'pricing') setStep('breakdown');
               else if (step === 'breakdown') setStep('preview');
               else setStep('pricing');
           }}>
-             {step === 'config' ? 'Proceed to BOM' : step === 'compare' ? 'Back to BOM' : step === 'pricing' ? 'Next: Review Calculations' : step === 'breakdown' ? 'Next: Preview Proposal' : 'Back to BOM List'}
-             <ArrowRight className="w-4 h-4 ml-2" />
+             <span className="hidden sm:inline">{step === 'config' ? 'Proceed to BOM' : step === 'compare' ? 'Back to BOM' : step === 'pricing' ? 'Next: Review Calculations' : step === 'breakdown' ? 'Next: Preview Proposal' : 'Back to BOM List'}</span>
+             <span className="sm:hidden">{step === 'pricing' ? 'Next' : step === 'breakdown' ? 'Preview' : step === 'config' ? 'BOM' : 'Back'}</span>
+             <ArrowRight className="w-4 h-4 ml-1 sm:ml-2" />
           </Button>
         </div>
       </header>
 
       {/* ── 7-Step Quotation Workflow Bar ── */}
-      <div className="sticky top-20 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 print:hidden">
-        <div className="max-w-[1400px] mx-auto px-8 py-2.5 overflow-x-auto">
+      <div className="sticky top-16 sm:top-20 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 print:hidden">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5 overflow-x-auto">
           <div className="flex items-center gap-0 min-w-max">
             {[
               { n: 1, label: 'Upload',         done: true },
@@ -1196,7 +1197,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
         </div>
       </div>
 
-      <div className="max-w-[1400px] mx-auto px-8 mt-8 grid grid-cols-1 lg:grid-cols-4 gap-8 print:block print:px-0">
+      <div className="max-w-[1400px] mx-auto px-3 sm:px-6 lg:px-8 mt-4 sm:mt-8 grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-8 print:block print:px-0">
         <div className="lg:col-span-3 space-y-8 print:col-span-1">
           {step === 'config' && (
             <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -1481,7 +1482,8 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
                            <div className="px-4 py-2 bg-slate-100/50 rounded-lg flex items-center gap-2">
                               <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</span>
                            </div>
-                           <Table>
+                           <div className="overflow-x-auto -mx-6 px-6">
+                           <Table className="min-w-[600px]">
                              <TableHeader>
                                <TableRow className="border-b border-slate-100 bg-transparent hover:bg-transparent">
                                  <TableHead className="w-10"></TableHead>
@@ -1646,6 +1648,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
                                 })}
                              </TableBody>
                            </Table>
+                           </div>
                         </div>
                       )]);
                     })}

@@ -257,20 +257,20 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
+    <main className="min-h-screen bg-slate-50 p-3 sm:p-6">
       {/* Header */}
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-center gap-4 mb-6">
-          <Button asChild variant="ghost" size="icon" className="rounded-xl">
+        <div className="flex flex-wrap items-center gap-3 mb-4 sm:mb-6">
+          <Button asChild variant="ghost" size="icon" className="rounded-xl shrink-0">
             <Link href={`/quotation-ai/bom/${id}`}><ArrowLeft className="w-5 h-5" /></Link>
           </Button>
-          <div className="flex-1">
-            <h1 className="text-3xl font-black text-slate-800">Blueprint Mode</h1>
-            <p className="text-sm text-slate-500 font-bold uppercase tracking-wider">
-              Project: {project.project_name} • Phase C — Layout Generator
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-3xl font-black text-slate-800">Blueprint Mode</h1>
+            <p className="text-xs sm:text-sm text-slate-500 font-bold uppercase tracking-wider truncate">
+              {project.project_name} • Layout Generator
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <input
               ref={pdfFileRef}
               type="file"
@@ -285,24 +285,25 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
             {lastSaved && (
               <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                Saved {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                <span className="hidden sm:inline">Saved </span>{lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
-            <Button variant="outline" onClick={saveSpec} disabled={isSaving} className="rounded-xl border-emerald-200 text-emerald-700 hover:bg-emerald-50">
-              {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-              Save Spec
+            <Button variant="outline" onClick={saveSpec} disabled={isSaving} className="rounded-xl border-emerald-200 text-emerald-700 hover:bg-emerald-50 h-9 px-3">
+              {isSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+              Save
             </Button>
             <Button variant="outline" onClick={() => pdfFileRef.current?.click()}
-                    disabled={parsingPdf} className="rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50">
-              <FileText className="w-4 h-4 mr-2" />
-              {parsingPdf ? 'Reading…' : 'Import 2020 PDF'}
+                    disabled={parsingPdf} className="rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50 h-9 px-3">
+              <FileText className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">{parsingPdf ? 'Reading…' : 'Import 2020 PDF'}</span>
+              <span className="sm:hidden">Import</span>
             </Button>
-            <Button variant="outline" onClick={downloadSpec} className="rounded-xl">
-              <Download className="w-4 h-4 mr-2" />Export JSON
+            <Button variant="outline" onClick={downloadSpec} className="rounded-xl h-9 px-3">
+              <Download className="w-4 h-4 mr-1" /><span className="hidden sm:inline">Export JSON</span>
             </Button>
-            <Button onClick={generate} disabled={loading} className="gradient-button rounded-xl">
-              <Wand2 className="w-4 h-4 mr-2" />
-              {loading ? 'Generating…' : 'Generate Layout'}
+            <Button onClick={generate} disabled={loading} className="gradient-button rounded-xl h-9 px-3">
+              <Wand2 className="w-4 h-4 mr-1" />
+              {loading ? 'Generating…' : 'Generate'}
             </Button>
           </div>
         </div>
