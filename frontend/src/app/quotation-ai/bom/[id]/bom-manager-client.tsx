@@ -250,6 +250,14 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
   const [step, setStep] = useState<WorkflowStep>('pricing');
   const [viewMode, setViewMode] = useState<ViewMode>('client');
   const [reviewStatus, setReviewStatus] = useState<string>(project.review_status ?? 'draft');
+  const unconfirmedCount = useMemo(() =>
+    bom.filter(i => {
+      if (i.is_billable === false) return false;
+      if (i.price_confirmed) return false;
+      const p = (i.precision_level || '').toUpperCase();
+      return p.startsWith('NEAREST_DIM') || p === 'CATEGORY_AVERAGE' || p === 'MANUAL_PRICING_REQUIRED' || p === 'ESTIMATED_DOOR_DRAWER';
+    }).length,
+  [bom]);
   const [pricingFactor, setPricingFactor] = useState(project.bom_data?.pricingFactor ?? 1);
   const [targetMargin, setTargetMargin] = useState(project.bom_data?.targetMargin ?? 35);
   const [globalDiscount, setGlobalDiscount] = useState(project.bom_data?.discount ?? 0);
@@ -1158,6 +1166,41 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
           </Button>
         </div>
       </header>
+
+      {/* ── 7-Step Quotation Workflow Bar ── */}
+      <div className="sticky top-20 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 print:hidden">
+        <div className="max-w-[1400px] mx-auto px-8 py-2.5 overflow-x-auto">
+          <div className="flex items-center gap-0 min-w-max">
+            {[
+              { n: 1, label: 'Upload',         done: true },
+              { n: 2, label: 'AI Extraction',  done: true },
+              { n: 3, label: 'Manufacturer',   done: !!manufacturerName, active: step === 'config' },
+              { n: 4, label: 'BOM & Catalog',  done: step === 'breakdown' || step === 'preview', active: step === 'pricing' },
+              { n: 5, label: 'Calculations',   done: step === 'preview', active: step === 'breakdown' },
+              { n: 6, label: 'Proposal',       done: reviewStatus !== 'draft' && step === 'preview', active: step === 'preview' && reviewStatus === 'draft' },
+              { n: 7, label: 'Staff Review',   done: reviewStatus === 'approved' || reviewStatus === 'sent', active: step === 'preview' && reviewStatus !== 'draft' },
+            ].map((s, i, arr) => (
+              <div key={s.n} className="flex items-center shrink-0">
+                <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+                  s.done   ? 'text-emerald-700' :
+                  s.active ? 'text-sky-700 bg-sky-50' :
+                             'text-slate-300'
+                }`}>
+                  <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black ${
+                    s.done   ? 'bg-emerald-500 text-white' :
+                    s.active ? 'bg-sky-500 text-white' :
+                               'bg-slate-200 text-slate-400'
+                  }`}>{s.done ? '✓' : s.n}</span>
+                  {s.label}
+                </div>
+                {i < arr.length - 1 && (
+                  <div className={`w-5 h-px mx-1 ${s.done ? 'bg-emerald-200' : 'bg-slate-200'}`} />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
       <div className="max-w-[1400px] mx-auto px-8 mt-8 grid grid-cols-1 lg:grid-cols-4 gap-8 print:block print:px-0">
         <div className="lg:col-span-3 space-y-8 print:col-span-1">
@@ -2762,6 +2805,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
                         freight,
                         installationCharges,
                       }}
+                      unconfirmedCount={unconfirmedCount}
                     />
                   </div>
                 </div>
