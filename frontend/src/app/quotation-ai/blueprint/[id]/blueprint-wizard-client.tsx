@@ -12,6 +12,7 @@ import {
   ArrowLeft, Plus, Trash2, Ruler, Blocks, Wand2, Save, Download, DoorOpen,
   Refrigerator, ChefHat, Droplet, WashingMachine, LayoutGrid, FileText, Sparkles,
   Loader2, CheckCircle2, Package, AlertTriangle, XCircle, DollarSign, RefreshCw,
+  UploadCloud, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { useRef } from 'react';
 import Link from 'next/link';
@@ -64,6 +65,8 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
   const [parsingPdf, setParsingPdf] = useState(false);
+  const [showImportPanel, setShowImportPanel] = useState(false);
+  const [importDragging, setImportDragging] = useState(false);
   const [refining, setRefining] = useState(false);
   const [aiReview, setAiReview] = useState<any>(null);
   const [roomName, setRoomName] = useState<string>('KITCHEN');
@@ -271,6 +274,7 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
           kind: 'wall',
           attached_end: 'left',
         })));
+        setShowImportPanel(false);
         const src = data.source === 'ai' ? 'AI' : 'heuristic';
         toast({ title: 'PDF imported',
           description: `${data.walls.length} walls found (${src} parser), ${data.dimensions_found} dimensions parsed. Review and tweak before generating.` });
@@ -332,6 +336,7 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {/* hidden input kept for programmatic fallback */}
             <input
               ref={pdfFileRef}
               type="file"
@@ -353,11 +358,24 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
               {isSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
               Save
             </Button>
-            <Button variant="outline" onClick={() => pdfFileRef.current?.click()}
-                    disabled={parsingPdf} className="rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50 h-9 px-3">
-              <FileText className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">{parsingPdf ? 'Reading…' : 'Import 2020 PDF'}</span>
-              <span className="sm:hidden">Import</span>
+            {/* Import — now a prominent toggle that shows the drop zone below */}
+            <Button
+              onClick={() => setShowImportPanel(v => !v)}
+              disabled={parsingPdf}
+              className={cn(
+                'rounded-xl h-9 px-4 font-bold transition-all',
+                showImportPanel
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700 border-0'
+                  : 'border-2 border-indigo-400 text-indigo-700 bg-indigo-50 hover:bg-indigo-100',
+              )}
+            >
+              {parsingPdf
+                ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                : <UploadCloud className="w-4 h-4 mr-1.5" />}
+              <span>{parsingPdf ? 'Reading PDF…' : 'Import 2020 PDF'}</span>
+              {!parsingPdf && (showImportPanel
+                ? <ChevronUp className="w-3.5 h-3.5 ml-1" />
+                : <ChevronDown className="w-3.5 h-3.5 ml-1" />)}
             </Button>
             <Button variant="outline" onClick={downloadSpec} className="rounded-xl h-9 px-3">
               <Download className="w-4 h-4 mr-1" /><span className="hidden sm:inline">Export JSON</span>
@@ -372,6 +390,61 @@ export function BlueprintWizardClient({ id, project }: { id: string; project: an
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: wall inputs */}
           <div className="lg:col-span-2 space-y-4">
+
+            {/* ── Inline PDF import drop zone ──────────────────────────── */}
+            {showImportPanel && (
+              <Card className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/40 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <UploadCloud className="w-5 h-5 text-indigo-600" />
+                    <h2 className="font-black text-slate-700">Import 2020 Design PDF</h2>
+                    <Button variant="ghost" size="icon" onClick={() => setShowImportPanel(false)}
+                      className="ml-auto w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600">
+                      <XCircle className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <div
+                    onDragOver={e => { e.preventDefault(); setImportDragging(true); }}
+                    onDragLeave={() => setImportDragging(false)}
+                    onDrop={e => {
+                      e.preventDefault();
+                      setImportDragging(false);
+                      const f = e.dataTransfer.files[0];
+                      if (f?.name.toLowerCase().endsWith('.pdf')) importPdf(f);
+                      else toast({ variant: 'destructive', title: 'PDF only', description: 'Please drop a .pdf file.' });
+                    }}
+                    className={cn(
+                      'border-2 border-dashed rounded-2xl transition-all flex flex-col items-center justify-center text-center cursor-pointer',
+                      'min-h-[160px] p-8',
+                      importDragging ? 'border-indigo-500 bg-indigo-100' : 'border-indigo-300 hover:border-indigo-500 hover:bg-indigo-50',
+                      parsingPdf && 'opacity-60 pointer-events-none',
+                    )}
+                    onClick={() => !parsingPdf && pdfFileRef.current?.click()}
+                  >
+                    {parsingPdf ? (
+                      <>
+                        <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-3" />
+                        <p className="text-sm font-bold text-indigo-700">Reading PDF — extracting walls & appliances…</p>
+                        <p className="text-xs text-indigo-500 mt-1">This takes a few seconds for large files</p>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="w-10 h-10 text-indigo-400 mb-3" />
+                        <p className="text-sm font-black text-slate-700">Drop your 2020 Design PDF here</p>
+                        <p className="text-xs text-slate-500 mt-1">or click to browse</p>
+                        <p className="text-[10px] text-indigo-500 mt-3 uppercase tracking-wider font-bold">
+                          Extracts wall dimensions · openings · appliances automatically
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-3 text-center">
+                    After import, review the detected walls and adjust any measurements before generating the layout.
+                  </p>
+                </div>
+              </Card>
+            )}
+
             {/* Global options */}
             <Card className="p-5 rounded-2xl">
               <div className="flex items-center gap-2 mb-4">
