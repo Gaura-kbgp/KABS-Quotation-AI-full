@@ -36,6 +36,7 @@ Pipeline:
 
 import re
 import json
+import concurrent.futures
 import fitz  # PyMuPDF
 
 from app.utils.rule_based_extractor import (
@@ -171,12 +172,16 @@ If you see no cabinet codes at all on this page, return {"items": []}.
 """
 
 
-def _vision_extract_page(page) -> list[dict]:
-    """Render a sparse-text page to PNG (PyMuPDF — no external OCR binary) and
-    ask GPT-4o Vision to read cabinet codes directly off the drawing."""
+def _render_page_png(page) -> bytes:
+    """Render a PDF page to PNG bytes at 2× scale using PyMuPDF (no external binary)."""
+    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+    return pix.tobytes("png")
+
+
+def _vision_call(png_bytes: bytes) -> list[dict]:
+    """Call GPT-4o Vision on pre-rendered PNG bytes. Thread-safe: creates its
+    own OpenAI client per call."""
     try:
-        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-        png_bytes = pix.tobytes("png")
         raw = llm_generate(
             _VISION_PROMPT, tier="balanced", max_tokens=2000,
             image_data=png_bytes, image_mime="image/png",
@@ -207,8 +212,13 @@ def _vision_extract_page(page) -> list[dict]:
                 out.append({"code": code, "quantity": qty})
         return out
     except Exception as e:
-        print(f"[display-catalog] Vision page extraction failed: {e}")
+        print(f"[display-catalog] Vision call failed: {e}")
         return []
+
+
+def _vision_extract_page(page) -> list[dict]:
+    """Render page and call Vision (single-page convenience wrapper)."""
+    return _vision_call(_render_page_png(page))
 
 
 # ─── Main entry point ──────────────────────────────────────────────────────────
@@ -243,31 +253,77 @@ def extract_display_catalog(pdf_bytes: bytes, use_vision: bool = True) -> dict:
         rooms = []
         vision_pages_used = 0
 
-        for seg in segments:
-            room_name = seg["display_name"] or f"DISPLAY {seg['display_num']}"
-            room = EMPTY_ROOM(room_name)
-            room["door_style"] = seg["door_style"]
-            room["finish"] = seg["finish"]
-            room["collection"] = ""  # price_column manufacturers resolve this from door_style
+        if use_vision:
+            # ── Phase 1: Pre-render all content pages to PNG bytes (main thread,
+            # fast — PyMuPDF pixel ops have no GIL issues here). We do this
+            # before the thread pool so the fitz.Document is only accessed from
+            # one thread.
+            renders: list[tuple[int, int, bytes]] = []  # (seg_idx, page_idx, png)
+            for seg_idx, seg in enumerate(segments):
+                content_start = seg["page_start"] + 1 if seg["page_end"] > seg["page_start"] else seg["page_start"]
+                for page_idx in range(content_start, seg["page_end"] + 1):
+                    png = _render_page_png(doc[page_idx])
+                    renders.append((seg_idx, page_idx, png))
 
-            code_qty: dict[str, dict[str, int]] = {cat: {} for cat in _ALL_CATS}
+            # ── Phase 2: Fire Vision API calls in parallel. Each _vision_call
+            # creates its own OpenAI client so this is fully thread-safe.
+            # Cap at 6 workers to stay within typical API rate limits.
+            max_workers = min(6, len(renders)) if renders else 1
+            page_items: dict[tuple[int, int], list[dict]] = {}
+            if renders:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    fut_map = {
+                        executor.submit(_vision_call, png): (si, pi)
+                        for si, pi, png in renders
+                    }
+                    for fut in concurrent.futures.as_completed(fut_map):
+                        key = fut_map[fut]
+                        try:
+                            page_items[key] = fut.result()
+                        except Exception as e:
+                            print(f"[display-catalog] parallel vision failed for page {key[1]}: {e}")
+                            page_items[key] = []
 
-            # Skip the header page (page_start) — pure metadata, no cabinet codes.
-            content_start = seg["page_start"] + 1 if seg["page_end"] > seg["page_start"] else seg["page_start"]
-            for page_idx in range(content_start, seg["page_end"] + 1):
-                page = doc[page_idx]
-                if use_vision:
-                    for item in _vision_extract_page(page):
+            vision_pages_used = len(renders)
+
+            # ── Phase 3: Aggregate per-segment results in original order.
+            for seg_idx, seg in enumerate(segments):
+                room_name = seg["display_name"] or f"DISPLAY {seg['display_num']}"
+                room = EMPTY_ROOM(room_name)
+                room["door_style"] = seg["door_style"]
+                room["finish"] = seg["finish"]
+                room["collection"] = ""
+                code_qty: dict[str, dict[str, int]] = {cat: {} for cat in _ALL_CATS}
+
+                content_start = seg["page_start"] + 1 if seg["page_end"] > seg["page_start"] else seg["page_start"]
+                for page_idx in range(content_start, seg["page_end"] + 1):
+                    for item in page_items.get((seg_idx, page_idx), []):
                         cat = categorize_code(item["code"]) or "cabinets"
                         code_qty[cat][item["code"]] = max(
                             code_qty[cat].get(item["code"], 0), item["quantity"]
                         )
-                    vision_pages_used += 1
-                else:
-                    # Dry-run / no-API-key path: fall back to the legacy text
-                    # regex so the module still returns *something* offline,
-                    # even though it is known to be less reliable here.
-                    text = page.get_text()
+
+                for cat, cq in code_qty.items():
+                    room[cat] = [
+                        {"code": c, "raw_code": c, "match_key": build_match_key(c), "quantity": q}
+                        for c, q in cq.items() if q > 0
+                    ]
+                if any(len(room[cat]) > 0 for cat in _ALL_CATS):
+                    rooms.append(room)
+
+        else:
+            # Dry-run / no-API-key path: sequential text regex (fast, no API cost).
+            for seg in segments:
+                room_name = seg["display_name"] or f"DISPLAY {seg['display_num']}"
+                room = EMPTY_ROOM(room_name)
+                room["door_style"] = seg["door_style"]
+                room["finish"] = seg["finish"]
+                room["collection"] = ""
+                code_qty = {cat: {} for cat in _ALL_CATS}
+
+                content_start = seg["page_start"] + 1 if seg["page_end"] > seg["page_start"] else seg["page_start"]
+                for page_idx in range(content_start, seg["page_end"] + 1):
+                    text = doc[page_idx].get_text()
                     if len(text.strip()) >= _SPARSE_TEXT_CHARS:
                         items = extract_page_items(text, pdf_type=PDF_TYPE_CUSTOM)
                         for item in items:
@@ -277,14 +333,13 @@ def extract_display_catalog(pdf_bytes: bytes, use_vision: bool = True) -> dict:
                                     code_qty[cat].get(item["code"], 0), item["quantity"]
                                 )
 
-            for cat, cq in code_qty.items():
-                room[cat] = [
-                    {"code": c, "raw_code": c, "match_key": build_match_key(c), "quantity": q}
-                    for c, q in cq.items() if q > 0
-                ]
-
-            if any(len(room[cat]) > 0 for cat in _ALL_CATS):
-                rooms.append(room)
+                for cat, cq in code_qty.items():
+                    room[cat] = [
+                        {"code": c, "raw_code": c, "match_key": build_match_key(c), "quantity": q}
+                        for c, q in cq.items() if q > 0
+                    ]
+                if any(len(room[cat]) > 0 for cat in _ALL_CATS):
+                    rooms.append(room)
 
         print(f"[display-catalog] {len(segments)} displays found, {len(rooms)} rooms with items, "
               f"{vision_pages_used} pages via vision")
