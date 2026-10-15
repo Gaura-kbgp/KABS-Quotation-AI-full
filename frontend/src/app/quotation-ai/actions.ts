@@ -245,6 +245,30 @@ export async function saveBlueprintAction(
   }
 }
 
+/** Fetch all quotation projects for the current user, newest first. */
+export async function getProjectsAction() {
+  await requireUser();
+  try {
+    const supabase = await scopedDb();
+    const { data, error } = await supabase
+      .from('quotation_projects')
+      .select('id, project_name, review_status, bom_data, created_at, manufacturer_id')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return { success: true, projects: (data || []) as Array<{
+      id: string;
+      project_name: string | null;
+      review_status: string | null;
+      bom_data: any;
+      created_at: string;
+      manufacturer_id: string | null;
+    }> };
+  } catch (err: any) {
+    console.error('[getProjects]', err);
+    return { success: false, projects: [] as any[], error: err.message as string };
+  }
+}
+
 /**
  * Generic project update for extracted_data and metadata.
  */
