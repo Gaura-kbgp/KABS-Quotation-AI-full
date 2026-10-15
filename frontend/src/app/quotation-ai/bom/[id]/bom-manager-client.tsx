@@ -1155,7 +1155,7 @@ export function BomManagerClient({ id, project, initialBom, manufacturerName, co
               else if (step === 'breakdown') setStep('preview');
               else setStep('pricing');
           }}>
-             {step === 'config' ? 'Proceed to BOM' : step === 'compare' ? 'Back to BOM' : step === 'pricing' ? 'Next: Review Calculations →' : step === 'breakdown' ? 'Next: Preview Proposal →' : 'Back to BOM List'}
+             {step === 'config' ? 'Proceed to BOM' : step === 'compare' ? 'Back to BOM' : step === 'pricing' ? 'Next: Review Calculations' : step === 'breakdown' ? 'Next: Preview Proposal' : 'Back to BOM List'}
              <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
